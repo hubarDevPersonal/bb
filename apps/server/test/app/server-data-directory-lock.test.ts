@@ -3,11 +3,15 @@ import os from "node:os";
 import path from "node:path";
 import { loadServerConfig } from "@bb/config/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { acquireServerLock } from "../../src/server-lock.js";
+import {
+  acquireServerLock,
+  SERVER_LOCK_FILE_NAME,
+} from "../../src/server-lock.js";
 
+const STARTUP_FAILURE = "test startup failure after initDb";
 const initDb = vi.hoisted(() =>
   vi.fn(() => {
-    throw new Error("initDb must not run while the server lock is held");
+    throw new Error(STARTUP_FAILURE);
   }),
 );
 
@@ -54,16 +58,23 @@ describe("server data-directory ownership", () => {
     } finally {
       await releaseLock();
     }
-  });
+  }, 20_000);
 
-  it("releases ownership when startup fails", async () => {
+  it("reclaims a fresh orphaned lock before starting and releases it after startup fails", async () => {
     const serverConfig = await createServerConfig();
+    const lockPath = path.join(serverConfig.BB_DATA_DIR, SERVER_LOCK_FILE_NAME);
+    const lockDirPath = `${lockPath}.lock`;
+    await fs.writeFile(lockPath, "");
+    await fs.mkdir(lockDirPath);
+    // Keep the lock inside the 10-second stale window. A crashed server cannot
+    // refresh it, so startup should wait briefly and then reclaim it.
+    const nearlyStale = new Date(Date.now() - 8_000);
+    await fs.utimes(lockDirPath, nearlyStale, nearlyStale);
 
-    await expect(runServer(serverConfig)).rejects.toThrow(
-      "initDb must not run while the server lock is held",
-    );
+    await expect(runServer(serverConfig)).rejects.toThrow(STARTUP_FAILURE);
+    expect(initDb).toHaveBeenCalledOnce();
 
     const releaseLock = await acquireServerLock(serverConfig.BB_DATA_DIR);
     await releaseLock();
-  });
+  }, 20_000);
 });

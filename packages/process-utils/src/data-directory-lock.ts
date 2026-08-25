@@ -26,9 +26,17 @@ export interface AcquireDataDirectoryLockOptions {
   ownerName: string;
   /** Lock is treated as stale once its mtime is older than this many ms. */
   staleMs?: number;
-  /** Number of retries when the lock is first acquired. */
+  /**
+   * Number of retries when the lock is first acquired. Together with
+   * retryIntervalMs this should span staleMs so a recently exited owner's lock
+   * can age out and be reclaimed during startup.
+   */
   initialRetries?: number;
-  /** Number of retries when a compromised lock is re-acquired. */
+  /**
+   * Number of retries when a compromised lock is re-acquired. Together with
+   * retryIntervalMs this must span staleMs: compromise recovery relies on a
+   * still-ours lock directory aging past the stale window within this budget.
+   */
   reacquireRetries?: number;
   /** Fixed delay between acquisition retries. */
   retryIntervalMs?: number;
@@ -103,8 +111,10 @@ export async function acquireDataDirectoryLock(
       try {
         for (let cycle = 1; !released; cycle += 1) {
           try {
-            const reacquiredRelease =
-              await lockDataDirectoryFile(reacquireRetries);
+            const reacquiredRelease = await lockDataDirectoryFile(
+              reacquireRetries,
+              true,
+            );
             if (released) {
               await reacquiredRelease().catch(() => undefined);
               return;
@@ -153,6 +163,7 @@ export async function acquireDataDirectoryLock(
 
   function lockDataDirectoryFile(
     retries: number,
+    unrefRetries = false,
   ): Promise<ReleaseDataDirectoryLock> {
     return lockfile.lock(lockPath, {
       realpath: false,
@@ -162,6 +173,7 @@ export async function acquireDataDirectoryLock(
         factor: 1,
         minTimeout: retryIntervalMs,
         maxTimeout: retryIntervalMs,
+        unref: unrefRetries,
       },
       lockfilePath: lockDirPath,
       onCompromised: handleCompromised,
@@ -201,7 +213,6 @@ export async function acquireDataDirectoryLock(
       return;
     }
     released = true;
-    process.removeListener("exit", onExit);
     try {
       await release?.();
     } catch (error) {
@@ -211,5 +222,6 @@ export async function acquireDataDirectoryLock(
       }
     }
     holdsLock = false;
+    process.removeListener("exit", onExit);
   };
 }

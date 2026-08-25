@@ -17,16 +17,17 @@ export async function acquireDaemonLock(
   dataDir: string,
   options: AcquireDaemonLockOptions = {},
 ): Promise<() => Promise<void>> {
+  const { retries, ...lockOptions } = options;
   return acquireDataDirectoryLock({
     dataDir,
     lockFileName: DAEMON_LOCK_FILE_NAME,
     ownerName: "Daemon",
-    ...options,
-    ...(options.retries === undefined
+    ...lockOptions,
+    ...(retries === undefined
       ? {}
       : {
-          initialRetries: options.retries,
-          reacquireRetries: options.retries,
+          initialRetries: retries,
+          reacquireRetries: retries,
         }),
   });
 }

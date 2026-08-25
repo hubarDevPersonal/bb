@@ -19,9 +19,6 @@ export function acquireServerLock(
     dataDir,
     lockFileName: SERVER_LOCK_FILE_NAME,
     ownerName: "Server",
-    // A duplicate server must lose before it opens SQLite or runs recovery.
-    // Compromise recovery retains the shared module's retry budget.
-    initialRetries: 0,
     ...options,
   });
 }
