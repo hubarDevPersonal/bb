@@ -3,7 +3,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { acquireDaemonLock, DAEMON_LOCK_FILE_NAME } from "./lock.js";
+import { acquireDataDirectoryLock } from "../src/data-directory-lock.js";
+
+const LOCK_FILE_NAME = "test-process.lock";
 
 async function waitFor(
   predicate: () => boolean,
@@ -35,39 +37,43 @@ function createRecordingLogger() {
   };
 }
 
-describe("acquireDaemonLock compromise handling", () => {
+describe("acquireDataDirectoryLock compromise handling", () => {
   let dataDir: string;
 
   beforeEach(async () => {
-    dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "bb-daemon-lock-"));
+    dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "bb-process-lock-"));
   });
 
   afterEach(async () => {
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
-  it("re-acquires a compromised lock instead of crashing the daemon", async () => {
+  it("re-acquires a compromised lock instead of crashing the process", async () => {
     const { logger, warnings } = createRecordingLogger();
     const onLockLost = vi.fn();
-    const release = await acquireDaemonLock(dataDir, {
+    const release = await acquireDataDirectoryLock({
+      dataDir,
+      lockFileName: LOCK_FILE_NAME,
+      ownerName: "Test process",
       staleMs: 2_000,
+      initialRetries: 0,
+      reacquireRetries: 25,
       retryIntervalMs: 100,
-      retries: 25,
       logger,
       onLockLost,
     });
-    const lockDirPath = path.join(dataDir, `${DAEMON_LOCK_FILE_NAME}.lock`);
+    const lockDirPath = path.join(dataDir, `${LOCK_FILE_NAME}.lock`);
 
-    // Simulate the refresh failing (the incident: EPERM on the periodic mtime
-    // touch): removing the lock dir makes the next refresh tick compromise.
+    // Simulate the refresh failing: removing the lock dir makes the next
+    // refresh tick compromise the held lock.
     await fs.rm(lockDirPath, { recursive: true, force: true });
 
     await waitFor(
-      () => warnings.includes("Daemon lock re-acquired after compromise"),
+      () => warnings.includes("Test process lock re-acquired after compromise"),
       10_000,
     );
     expect(warnings).toContain(
-      "Daemon lock compromised; re-acquiring without restarting the daemon",
+      "Test process lock compromised; re-acquiring without restarting the process",
     );
     expect(onLockLost).not.toHaveBeenCalled();
     await expect(fs.stat(lockDirPath)).resolves.toBeDefined();
@@ -78,27 +84,29 @@ describe("acquireDaemonLock compromise handling", () => {
     });
   }, 20_000);
 
-  it("re-acquires when the lock dir survives the compromise and must age past stale", async () => {
+  it("re-acquires when the lock dir survives until it becomes stale", async () => {
     const { logger, warnings } = createRecordingLogger();
     const onLockLost = vi.fn();
-    const release = await acquireDaemonLock(dataDir, {
+    const release = await acquireDataDirectoryLock({
+      dataDir,
+      lockFileName: LOCK_FILE_NAME,
+      ownerName: "Test process",
       staleMs: 2_000,
+      initialRetries: 0,
+      reacquireRetries: 25,
       retryIntervalMs: 100,
-      retries: 25,
       logger,
       onLockLost,
     });
-    const lockDirPath = path.join(dataDir, `${DAEMON_LOCK_FILE_NAME}.lock`);
+    const lockDirPath = path.join(dataDir, `${LOCK_FILE_NAME}.lock`);
 
-    // The incident's shape: the refresh fails but the lock dir stays on
-    // disk. A foreign fresh mtime makes the next refresh tick compromise,
-    // and re-acquisition must retry until the dir ages past the stale
-    // window before reclaiming it.
+    // A foreign fresh mtime makes the next refresh tick compromise. Recovery
+    // must retry until the directory ages past the stale window.
     const foreignMtime = new Date(Date.now() + 500);
     fsSync.utimesSync(lockDirPath, foreignMtime, foreignMtime);
 
     await waitFor(
-      () => warnings.includes("Daemon lock re-acquired after compromise"),
+      () => warnings.includes("Test process lock re-acquired after compromise"),
       15_000,
     );
     expect(onLockLost).not.toHaveBeenCalled();
@@ -109,25 +117,26 @@ describe("acquireDaemonLock compromise handling", () => {
     });
   }, 30_000);
 
-  it("yields the data dir when another live process holds the lock", async () => {
+  it("yields the data directory when another live process holds the lock", async () => {
     const { logger } = createRecordingLogger();
     const lockLostErrors: unknown[] = [];
-    const release = await acquireDaemonLock(dataDir, {
+    const release = await acquireDataDirectoryLock({
+      dataDir,
+      lockFileName: LOCK_FILE_NAME,
+      ownerName: "Test process",
       staleMs: 2_000,
+      initialRetries: 0,
+      reacquireRetries: 3,
       retryIntervalMs: 100,
-      retries: 3,
       logger,
       onLockLost: (error) => {
         lockLostErrors.push(error);
       },
     });
-    const lockPath = path.join(dataDir, DAEMON_LOCK_FILE_NAME);
-    const lockDirPath = `${lockPath}.lock`;
+    const lockDirPath = path.join(dataDir, `${LOCK_FILE_NAME}.lock`);
 
-    // A contender takes over the lock: replace the lock dir and keep its
-    // mtime fresh. Our next refresh tick sees a foreign mtime and
-    // compromises, and every re-acquire attempt stays ELOCKED because the
-    // contender's lock never goes stale.
+    // A contender takes over and keeps its lock fresh, so compromise recovery
+    // remains ELOCKED through its retry budget.
     await fs.rm(lockDirPath, { recursive: true, force: true });
     await fs.mkdir(lockDirPath);
     const keepContenderFresh = setInterval(() => {
@@ -135,7 +144,7 @@ describe("acquireDaemonLock compromise handling", () => {
       try {
         fsSync.utimesSync(lockDirPath, now, now);
       } catch {
-        // The dir only disappears once the test is over.
+        // The directory only disappears once the test is over.
       }
     }, 200);
 

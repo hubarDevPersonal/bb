@@ -733,9 +733,6 @@ importers:
       pino-roll:
         specifier: ^4.0.0
         version: 4.0.0
-      proper-lockfile:
-        specifier: ^4.1.2
-        version: 4.1.2
       semver:
         specifier: ^7.7.4
         version: 7.7.4
@@ -2196,6 +2193,9 @@ importers:
       cross-spawn:
         specifier: ^7.0.6
         version: 7.0.6
+      proper-lockfile:
+        specifier: ^4.1.2
+        version: 4.1.2
     devDependencies:
       '@bb/tsconfig':
         specifier: workspace:*
@@ -2206,6 +2206,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.10
+      '@types/proper-lockfile':
+        specifier: ^4.1.4
+        version: 4.1.4
       typescript:
         specifier: npm:@typescript/typescript6@^6.0.2
         version: '@typescript/typescript6@6.0.2'
@@ -8788,6 +8791,9 @@ packages:
 
   '@types/prismjs@1.26.6':
     resolution: {integrity: sha512-vqlvI7qlMvcCBbVe0AKAb4f97//Hy0EBTaiW8AalRnG/xAN5zOiWWyrNqNXeq8+KAuvRewjCVY1+IPxk4RdNYw==}
+
+  '@types/proper-lockfile@4.1.4':
+    resolution: {integrity: sha512-uo2ABllncSqg9F1D4nugVl9v93RmjxF6LJzQLMLDdPaXCUIDPeOJ21Gbqi43xNKzBi/WQ0Q0dICqufzQbMjipQ==}
 
   '@types/qrcode@1.5.6':
     resolution: {integrity: sha512-te7NQcV2BOvdj2b1hCAHzAoMNuj65kNBMz0KBaxM6c3VGBOhU0dURQKOtH8CFNI/dsKkwlv32p26qYQTWoB5bw==}
@@ -20971,6 +20977,10 @@ snapshots:
     optional: true
 
   '@types/prismjs@1.26.6': {}
+
+  '@types/proper-lockfile@4.1.4':
+    dependencies:
+      '@types/retry': 0.12.2
 
   '@types/qrcode@1.5.6':
     dependencies:

@@ -5,9 +5,10 @@ import { fileURLToPath } from "node:url";
 import type { ServerConfig } from "@bb/config/server";
 import { isLoopbackHostname } from "@bb/config/loopback";
 import { toOptionalString } from "@bb/config/strings";
-import { createLogger } from "@bb/logger";
+import { createLogger, type Logger } from "@bb/logger";
 import { getAppSettings } from "@bb/db";
 import { initDb } from "./db.js";
+import { acquireServerLock } from "./server-lock.js";
 import { createApp } from "./server.js";
 import { PendingInteractionLifecycle } from "./services/interactions/pending-interactions.js";
 import { createMachineAuthService } from "./services/machine-auth.js";
@@ -47,7 +48,15 @@ export function startHttpListener(args: StartHttpListenerArgs) {
   });
 }
 
-export async function runServer(serverConfig: ServerConfig): Promise<void> {
+interface RunningServer {
+  logger: Logger;
+  shutdown(): Promise<void>;
+}
+
+async function startOwnedServer(
+  serverConfig: ServerConfig,
+  releaseLock: () => Promise<void>,
+): Promise<RunningServer> {
   const logger = createLogger({
     component: "server",
     dataDir: serverConfig.BB_DATA_DIR,
@@ -273,24 +282,28 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
       return shutdownPromise;
     }
     shutdownPromise = (async () => {
-      eventLoopStallMonitor.stop();
-      clearInterval(sweepInterval);
-      pluginCatalogService.stopPeriodicRefresh();
-      await pluginService.stopPeriodicUpdateChecks();
-      await pluginService.stop().catch((error: unknown) => {
-        logger.warn({ err: error }, "Plugin shutdown failed");
-      });
-      const closeServer = new Promise<void>((resolve, reject) => {
-        server.close((error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-          resolve();
+      try {
+        eventLoopStallMonitor.stop();
+        clearInterval(sweepInterval);
+        pluginCatalogService.stopPeriodicRefresh();
+        await pluginService.stopPeriodicUpdateChecks();
+        await pluginService.stop().catch((error: unknown) => {
+          logger.warn({ err: error }, "Plugin shutdown failed");
         });
-      });
-      await closeWebSockets();
-      await closeServer;
+        const closeServer = new Promise<void>((resolve, reject) => {
+          server.close((error) => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            resolve();
+          });
+        });
+        await closeWebSockets();
+        await closeServer;
+      } finally {
+        await releaseLock();
+      }
     })();
     return shutdownPromise;
   };
@@ -316,4 +329,51 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
   process.once("SIGTERM", () => {
     void runShutdown().finally(() => process.exit(0));
   });
+
+  return { logger, shutdown: runShutdown };
+}
+
+export async function runServer(serverConfig: ServerConfig): Promise<void> {
+  // The logger and database both write into BB_DATA_DIR, so neither may be
+  // created until this process exclusively owns that directory.
+  let runningServer: RunningServer | null = null;
+  const releaseLock = await acquireServerLock(serverConfig.BB_DATA_DIR, {
+    logger: {
+      warn: (fields, message) => {
+        if (runningServer) {
+          runningServer.logger.warn(fields, message);
+        } else {
+          console.warn(message, fields);
+        }
+      },
+      error: (fields, message) => {
+        if (runningServer) {
+          runningServer.logger.error(fields, message);
+        } else {
+          console.error(message, fields);
+        }
+      },
+    },
+    onLockLost: () => {
+      if (!runningServer) {
+        process.exit(1);
+      }
+      void runningServer
+        .shutdown()
+        .catch((error: unknown) => {
+          runningServer?.logger.error(
+            { err: error },
+            "Server lock-loss shutdown failed",
+          );
+        })
+        .finally(() => process.exit(1));
+    },
+  });
+
+  try {
+    runningServer = await startOwnedServer(serverConfig, releaseLock);
+  } catch (error) {
+    await releaseLock().catch(() => undefined);
+    throw error;
+  }
 }
