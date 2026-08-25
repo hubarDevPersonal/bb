@@ -1,4 +1,3 @@
-export * from "./data-directory-lock.js";
 export * from "./plugin-process-paths.js";
 import type { ChildProcess, StdioOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";

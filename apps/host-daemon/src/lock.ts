@@ -1,7 +1,7 @@
 import {
   acquireDataDirectoryLock,
   type AcquireDataDirectoryLockOptions,
-} from "@bb/process-utils";
+} from "@bb/process-utils/data-directory-lock";
 
 export const DAEMON_LOCK_FILE_NAME = "daemon.lock";
 

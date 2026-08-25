@@ -7,6 +7,11 @@
       "source": "./src/index.ts",
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./data-directory-lock": {
+      "source": "./src/data-directory-lock.ts",
+      "types": "./src/data-directory-lock.ts",
+      "default": "./src/data-directory-lock.ts"
     }
   },
   "types": "./src/index.ts",

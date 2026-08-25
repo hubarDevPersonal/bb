@@ -2,7 +2,7 @@ import {
   acquireDataDirectoryLock,
   type DataDirectoryLockLogger,
   type ReleaseDataDirectoryLock,
-} from "@bb/process-utils";
+} from "@bb/process-utils/data-directory-lock";
 
 export const SERVER_LOCK_FILE_NAME = "server.lock";
 
