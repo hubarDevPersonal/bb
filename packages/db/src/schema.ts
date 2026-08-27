@@ -654,6 +654,25 @@ export const threads = sqliteTable(
   ],
 );
 
+// Server-owned conversation-retention intent captured when a thread is
+// archived. Deliberately has no foreign key to threads so the sweep can settle
+// its schedule after hard-deleting the archived conversation.
+export const threadRetentionSchedules = sqliteTable(
+  "thread_retention_schedules",
+  {
+    threadId: text("thread_id").primaryKey(),
+    archivedAt: integer("archived_at").notNull(),
+    conversationDeleteDueAt: integer("conversation_delete_due_at").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => [
+    index("thread_retention_conversation_due_idx").on(
+      table.conversationDeleteDueAt,
+    ),
+  ],
+);
+
 // Server-owned tab descriptors for a thread's shared secondary-panel workspace.
 // Presentation state such as active tab, panel visibility, and width remains
 // client-local; this row stores only the ordered durable tab list.

@@ -86,13 +86,16 @@ message agents, or inspect projects, providers, and environments.
   exposes raw provider events that bb does not yet understand in packaged
   builds. Development builds always show those diagnostic rows. Update it with
   `bb settings general showUnhandledProviderEvents <true|false>`.
-- The `steerActiveThreadOnEnter` General preference defaults to false. Outside
-  an open composer typeahead menu, enable it to make Enter steer a running
-  thread and Command+Enter queue a follow-up; when disabled, those actions are
-  reversed. Shift+Enter inserts a newline. On coarse-pointer touch devices,
+- The `steerActiveThreadOnEnter` preference under Settings → Threads defaults
+  to false. Outside an open composer typeahead menu, enable it to make Enter
+  steer a running thread and Command+Enter queue a follow-up; when disabled,
+  those actions are reversed. Shift+Enter inserts a newline. On coarse-pointer touch devices,
   the software keyboard keeps Return as a newline; iPadOS WebKit preserves the
   Enter shortcuts for a connected Magic Keyboard. Update the preference with
   `bb settings general steerActiveThreadOnEnter <true|false>`.
+- The `archivedConversationRetention` Threads preference defaults to `forever`.
+  Set it to `forever` or `30-days` with
+  `bb settings threads archivedConversationRetention <value>`.
 - The `streamerMode` General preference defaults to false. Enable it to hide
   every `customModels` entry from `~/.bb/config.json` in all model lists
   (pickers, `bb provider models`, and the SDK) during a screen share. Update it
@@ -105,8 +108,9 @@ message agents, or inspect projects, providers, and environments.
   actions apply in browser and desktop clients, and desktop menu accelerators
   use the same resolved bindings. For details, read
   `references/app-settings.md`.
-- Use `bb settings show`, `bb settings ai-services`, `bb settings general`, `bb settings experiment`,
-  `bb settings keyboard`, `bb settings usage`, and `bb settings version` to
+- Use `bb settings show`, `bb settings ai-services`, `bb settings general`,
+  `bb settings threads`, `bb settings experiment`, `bb settings keyboard`,
+  `bb settings usage`, and `bb settings version` to
   inspect or change these server-backed values from agents. Pass
   `bb settings usage --machine <id-or-name>` to read provider limits from a
   specific connected machine instead of the primary machine.

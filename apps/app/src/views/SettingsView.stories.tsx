@@ -8,20 +8,13 @@ import {
   type Host,
   defaultAppSettings,
   type AppSettings,
+  type ArchivedConversationRetention,
 } from "@bb/domain";
 import type {
   ProviderUsage,
   WorkspaceOpenTarget,
   WorkspaceOpenTargetId,
 } from "@bb/host-daemon-contract";
-import { Button } from "@bb/shared-ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { Icon } from "@bb/shared-ui/icon";
 import { Switch } from "@bb/shared-ui/switch";
 import { UsageLimitsSettingsSectionContent } from "@/components/settings/UsageLimitsSettingsSection";
 import { VoiceInputSettingsSectionContent } from "@/components/settings/VoiceInputSettingsSection";
@@ -53,6 +46,7 @@ import {
   DebugSettingsSection,
   ExperimentsSettingsSection,
   LocalOpenTargetSettingsSection,
+  ThreadsSettingsSection,
   type LocalOpenTargetSettingsSectionProps,
 } from "./SettingsView";
 import { MachineSettingsView } from "./MachineSettingsView";
@@ -337,98 +331,23 @@ function DebugSettingsStory() {
   );
 }
 
-const ARCHIVED_CONVERSATION_RETENTION_OPTIONS = [
-  { label: "Keep forever", value: "forever" },
-  { label: "Delete after 30 days", value: "30-days" },
-] as const;
-
-type ArchivedConversationRetention =
-  (typeof ARCHIVED_CONVERSATION_RETENTION_OPTIONS)[number]["value"];
-
 function ThreadsSettingsStory() {
   const state = useSettingsStoryState();
   const [archivedConversationRetention, setArchivedConversationRetention] =
     useState<ArchivedConversationRetention>("forever");
-  const selectedRetentionLabel =
-    ARCHIVED_CONVERSATION_RETENTION_OPTIONS.find(
-      (option) => option.value === archivedConversationRetention,
-    )?.label ?? "Keep forever";
-
   return (
-    <SettingsSection title="Threads">
-      <div className="space-y-5">
-        <SettingsWithControl label="Navigate to threads on creation">
-          <Switch
-            checked={state.navigateToThreadAfterCreate}
-            onCheckedChange={state.setNavigateToThreadAfterCreate}
-            aria-label="Navigate to threads on creation"
-          />
-        </SettingsWithControl>
-
-        <SettingsWithControl label="Markdown formatting in prompt box">
-          <Switch
-            checked={state.richTextEditing}
-            onCheckedChange={state.setRichTextEditing}
-            aria-label="Markdown formatting in prompt box"
-          />
-        </SettingsWithControl>
-
-        <SettingsWithControl
-          label="Steer running threads on Enter"
-          description="Use Enter to steer the current run and Command+Enter to queue a follow-up."
-        >
-          <Switch
-            checked={state.steerActiveThreadOnEnter}
-            onCheckedChange={state.setSteerActiveThreadOnEnter}
-            aria-label="Steer running threads on Enter"
-          />
-        </SettingsWithControl>
-
-        <SettingsWithControl label="Archived conversations">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 w-full justify-between border-border/60 bg-card px-2 text-xs sm:w-36"
-                aria-label="Archived conversations"
-              >
-                <span className="min-w-0 truncate">
-                  {selectedRetentionLabel}
-                </span>
-                <Icon
-                  name="ChevronDown"
-                  className="size-3.5 text-muted-foreground"
-                />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="min-w-[var(--radix-dropdown-menu-trigger-width)]"
-            >
-              {ARCHIVED_CONVERSATION_RETENTION_OPTIONS.map((option) => (
-                <DropdownMenuItem
-                  key={option.value}
-                  onSelect={() =>
-                    setArchivedConversationRetention(option.value)
-                  }
-                >
-                  {option.label}
-                  <Icon
-                    name="Check"
-                    className={
-                      archivedConversationRetention === option.value
-                        ? "ml-auto size-3.5"
-                        : "ml-auto size-3.5 opacity-0"
-                    }
-                  />
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </SettingsWithControl>
-      </div>
-    </SettingsSection>
+    <ThreadsSettingsSection
+      archivedConversationRetention={archivedConversationRetention}
+      archivedConversationRetentionDisabled={false}
+      navigateToThreadAfterCreate={state.navigateToThreadAfterCreate}
+      onArchivedConversationRetentionChange={setArchivedConversationRetention}
+      onNavigateToThreadAfterCreateChange={state.setNavigateToThreadAfterCreate}
+      onRichTextEditingChange={state.setRichTextEditing}
+      onSteerActiveThreadOnEnterChange={state.setSteerActiveThreadOnEnter}
+      richTextEditing={state.richTextEditing}
+      steerActiveThreadOnEnter={state.steerActiveThreadOnEnter}
+      steerActiveThreadOnEnterDisabled={false}
+    />
   );
 }
 

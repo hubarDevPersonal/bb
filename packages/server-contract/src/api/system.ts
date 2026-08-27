@@ -11,6 +11,7 @@ import {
   permissionModeSchema,
   pluginThemeMetaSchema,
   providerInfoSchema,
+  threadSettingsSchema,
 } from "@bb/domain";
 import { providerHealthSchema as providerHealthSchema } from "@bb/provider-bridge-protocol/provider-maintenance";
 import { hostPlatformSchema } from "@bb/host-daemon-contract/local";
@@ -171,6 +172,8 @@ export type SystemAiServices = z.infer<typeof systemAiServicesSchema>;
 export const systemConfigResponseSchema = z.object({
   /** App-wide Settings → General preferences, persisted server-side. */
   generalSettings: appSettingsSchema,
+  /** App-wide Settings → Threads preferences, persisted server-side. */
+  threadSettings: threadSettingsSchema,
   /** Server-resolved keyboard bindings shared by every connected app window. */
   keybindings: appKeybindingsSchema,
   /** Server defaults, before the user's per-command overrides are applied. */

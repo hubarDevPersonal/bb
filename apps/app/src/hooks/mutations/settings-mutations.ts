@@ -4,6 +4,7 @@ import {
   type AppSettings,
   type AppThemeSelection,
   type Experiments,
+  type ThreadSettings,
 } from "@bb/domain";
 import type { SystemInstallCliSkillsRequest } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
@@ -74,6 +75,22 @@ export function useUpdateGeneralSettings() {
         // replaces the optimistic row order.
         return invalidateSystemProviders({ queryClient });
       }
+    },
+  });
+}
+
+/** Replace the user's server-backed Settings → Threads preferences. */
+export function useUpdateThreadSettings() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: {
+      errorMessage: "Failed to update thread settings.",
+    },
+    mutationFn: (settings: ThreadSettings) =>
+      sdk.system.updateThreadSettings(settings),
+    onSuccess: () => {
+      invalidateSystemConfig({ queryClient });
     },
   });
 }
