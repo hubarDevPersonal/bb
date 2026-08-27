@@ -18,7 +18,8 @@ import {
 } from "@bb/domain";
 import { z } from "zod";
 import { toThreadQueuedMessage } from "./threads/thread-queued-messages.js";
-import type { AppDeps } from "../types.js";
+import type { AppDeps, ServerLogger } from "../types.js";
+import { productionErrorLogFields } from "./lib/error-log-fields.js";
 
 const storedPromptHistoryInputSchema = z.array(promptInputSchema).min(1);
 
@@ -34,7 +35,7 @@ interface ThreadPromptHistoryArgs extends PromptHistoryArgs {
   threadId: string;
 }
 
-type PromptHistoryServiceDeps = Pick<AppDeps, "db">;
+type PromptHistoryServiceDeps = Pick<AppDeps, "db" | "logger">;
 type PromptHistoryEntryInput = PromptHistoryEntry["input"];
 type PromptHistoryScopeThread = Pick<Thread, "parentThreadId">;
 type PromptHistoryRecordThread = Pick<
@@ -52,6 +53,8 @@ interface InternalPromptHistoryEntry extends PromptHistoryEntry {
   state: InternalPromptHistoryEntryState;
 }
 
+type PromptHistoryRowLogContext = Record<string, number | string>;
+
 interface ResolveAcceptedPromptHistoryScopeArgs {
   initiator: ThreadTurnInitiator;
   target: TurnRequestTarget;
@@ -67,24 +70,34 @@ interface RecordAcceptedPromptHistoryEntryArgs {
 }
 
 interface BuildPromptHistoryEntriesArgs<TRow> {
-  buildEntry: (row: TRow) => InternalPromptHistoryEntry;
+  buildEntry: (row: TRow) => InternalPromptHistoryEntry | null;
+  describeRow: (row: TRow) => PromptHistoryRowLogContext;
+  logger: ServerLogger;
   rows: readonly TRow[];
 }
 
 function parseStoredPromptHistoryInput(
   row: StoredPromptHistoryEntryRow,
-): PromptHistoryEntryInput {
-  const input = JSON.parse(row.input);
+): PromptHistoryEntryInput | null {
+  const input: unknown = JSON.parse(row.input);
+  // The writer now prevents this retained legacy class from recurring.
+  if (Array.isArray(input) && input.length === 0) {
+    return null;
+  }
   return storedPromptHistoryInputSchema.parse(input);
 }
 
 function buildAcceptedPromptHistoryEntry(
   row: StoredPromptHistoryEntryRow,
-): InternalPromptHistoryEntry {
+): InternalPromptHistoryEntry | null {
+  const input = parseStoredPromptHistoryInput(row);
+  if (input === null) {
+    return null;
+  }
   return {
     id: row.id,
     createdAt: row.createdAt,
-    input: parseStoredPromptHistoryInput(row),
+    input,
     state: "accepted",
   };
 }
@@ -128,17 +141,26 @@ function toPromptHistoryEntry(
 
 function buildPromptHistoryEntries<TRow>({
   buildEntry,
+  describeRow,
+  logger,
   rows,
 }: BuildPromptHistoryEntriesArgs<TRow>): InternalPromptHistoryEntry[] {
   const entries: InternalPromptHistoryEntry[] = [];
 
   for (const row of rows) {
     try {
-      entries.push(buildEntry(row));
-    } catch {
-      // Legacy malformed rows cannot be recalled, so omit them from the
-      // visible history. The write path prevents new empty-input rows.
-      continue;
+      const entry = buildEntry(row);
+      if (entry !== null) {
+        entries.push(entry);
+      }
+    } catch (error) {
+      logger.warn(
+        {
+          ...describeRow(row),
+          ...productionErrorLogFields(error),
+        },
+        "Skipping malformed prompt history row",
+      );
     }
   }
 
@@ -186,7 +208,13 @@ export function listProjectPromptHistory(
       projectId: args.projectId,
       limit: args.limit,
     }),
+    logger: deps.logger,
     buildEntry: buildAcceptedPromptHistoryEntry,
+    describeRow: (row) => ({
+      entryId: row.id,
+      requestSequence: row.requestSequence,
+      threadId: row.threadId,
+    }),
   });
 
   return takeVisiblePromptHistoryEntries({
@@ -201,14 +229,25 @@ export function listThreadPromptHistory(
 ): PromptHistoryEntry[] {
   const queuedEntries = buildPromptHistoryEntries({
     rows: listQueuedThreadMessages(deps.db, args.threadId),
+    logger: deps.logger,
     buildEntry: buildQueuedPromptHistoryEntry,
+    describeRow: (row) => ({
+      queuedMessageId: row.id,
+      threadId: row.threadId,
+    }),
   });
   const acceptedEntries = buildPromptHistoryEntries({
     rows: listStoredThreadPromptHistoryRows(deps.db, {
       threadId: args.threadId,
       limit: args.limit,
     }),
+    logger: deps.logger,
     buildEntry: buildAcceptedPromptHistoryEntry,
+    describeRow: (row) => ({
+      entryId: row.id,
+      requestSequence: row.requestSequence,
+      threadId: row.threadId,
+    }),
   });
 
   return buildVisibleThreadPromptHistory(
