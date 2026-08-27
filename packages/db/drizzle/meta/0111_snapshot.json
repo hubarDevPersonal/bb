@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "83944276-7bf5-4cba-b2b7-e93e120d6679",
-  "prevId": "e66624da-3e23-42f0-9760-275442c0d59b",
+  "id": "bb6bda16-b790-4ec4-a216-73c715f31347",
+  "prevId": "83944276-7bf5-4cba-b2b7-e93e120d6679",
   "tables": {
     "app_settings": {
       "name": "app_settings",
@@ -3264,18 +3264,32 @@
           "notNull": true,
           "autoincrement": false
         },
+        "host_id": {
+          "name": "host_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "archived_at": {
           "name": "archived_at",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "resource_cleanup_due_at": {
+          "name": "resource_cleanup_due_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "conversation_delete_due_at": {
           "name": "conversation_delete_due_at",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "created_at": {
@@ -3294,6 +3308,13 @@
         }
       },
       "indexes": {
+        "thread_retention_resource_due_idx": {
+          "name": "thread_retention_resource_due_idx",
+          "columns": [
+            "resource_cleanup_due_at"
+          ],
+          "isUnique": false
+        },
         "thread_retention_conversation_due_idx": {
           "name": "thread_retention_conversation_due_idx",
           "columns": [
@@ -3305,7 +3326,16 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "thread_retention_resource_host_check": {
+          "name": "thread_retention_resource_host_check",
+          "value": "\"thread_retention_schedules\".\"resource_cleanup_due_at\" IS NULL OR \"thread_retention_schedules\".\"host_id\" IS NOT NULL"
+        },
+        "thread_retention_deadline_check": {
+          "name": "thread_retention_deadline_check",
+          "value": "\"thread_retention_schedules\".\"resource_cleanup_due_at\" IS NOT NULL OR \"thread_retention_schedules\".\"conversation_delete_due_at\" IS NOT NULL"
+        }
+      }
     },
     "thread_search_segments": {
       "name": "thread_search_segments",
