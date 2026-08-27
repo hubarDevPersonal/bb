@@ -52,7 +52,7 @@ interface OptionPickerProps<T extends string> {
   onChange: (value: T) => void;
   className?: string;
   contentClassName?: string;
-  /** Render with the dim, hover-to-foreground treatment used inside the prompt box. */
+  /** Render with the stable muted treatment used inside the prompt box. */
   muted?: boolean;
   /** Render with the menu open on mount. Story-only escape hatch. */
   defaultOpen?: boolean;
