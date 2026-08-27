@@ -5,6 +5,7 @@ import {
   automationResponseSchema,
   automationRunResponseSchema,
   automationTriggerSchema,
+  legacyEmptyPromptAutomationResponseSchema,
   repairableAutomationExecutionSchema,
   type AutomationExecution,
   type AutomationOrigin,
@@ -252,6 +253,29 @@ function serializeExecution(execution: AutomationExecution): string {
   return JSON.stringify(automationExecutionSchema.parse(execution));
 }
 
+function resolveAutomationUpdate(
+  existing: AutomationRow,
+  patch: UpdateAutomationInput,
+) {
+  const trigger =
+    patch.trigger ?? parseAutomationTrigger(existing.triggerConfig);
+  const execution =
+    patch.execution ?? parseAutomationExecution(existing.execution);
+  return {
+    name: patch.name ?? existing.name,
+    trigger,
+    execution,
+    targetThreadId:
+      patch.targetThreadId !== undefined
+        ? patch.targetThreadId
+        : execution.mode === "agent"
+          ? (execution.targetThreadId ?? null)
+          : null,
+    nextRunAt:
+      patch.nextRunAt !== undefined ? patch.nextRunAt : existing.nextRunAt,
+  };
+}
+
 export function parseAutomationTrigger(
   triggerConfig: string,
 ): AutomationTrigger {
@@ -270,10 +294,12 @@ export function parseRepairableAutomationExecution(
   return repairableAutomationExecutionSchema.parse(JSON.parse(execution));
 }
 
-export function toAutomationResponse(row: AutomationRow): AutomationResponse {
-  const trigger = parseAutomationTrigger(row.triggerConfig);
-  const execution = parseAutomationExecution(row.execution);
-  return automationResponseSchema.parse({
+function automationResponseValue(
+  row: AutomationRow,
+  trigger: AutomationTrigger,
+  execution: AutomationExecution,
+) {
+  return {
     id: row.id,
     projectId: row.projectId,
     name: row.name,
@@ -290,7 +316,31 @@ export function toAutomationResponse(row: AutomationRow): AutomationResponse {
     lastError: row.lastError,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-  });
+  };
+}
+
+export function toAutomationResponse(row: AutomationRow): AutomationResponse {
+  return automationResponseSchema.parse(
+    automationResponseValue(
+      row,
+      parseAutomationTrigger(row.triggerConfig),
+      parseAutomationExecution(row.execution),
+    ),
+  );
+}
+
+export function assertLegacyEmptyPromptAutomationRow(row: AutomationRow): void {
+  const execution = parseRepairableAutomationExecution(row.execution);
+  if (execution.mode !== "agent" || execution.prompt !== "") {
+    throw new Error("Not a legacy empty-prompt agent automation");
+  }
+  legacyEmptyPromptAutomationResponseSchema.parse(
+    automationResponseValue(
+      row,
+      parseAutomationTrigger(row.triggerConfig),
+      execution,
+    ),
+  );
 }
 
 export function toAutomationRunResponse(
@@ -411,10 +461,7 @@ export function updateAutomation(
 ): AutomationRow | null {
   const existing = getAutomationForProject(db, args);
   if (!existing) return null;
-  const nextTrigger =
-    args.patch.trigger ?? parseAutomationTrigger(existing.triggerConfig);
-  const nextExecution =
-    args.patch.execution ?? parseAutomationExecution(existing.execution);
+  const next = resolveAutomationUpdate(existing, args.patch);
   const now = Date.now();
   db.prepare(
     `UPDATE automations SET
@@ -430,24 +477,33 @@ export function updateAutomation(
   ).run({
     automationId: args.automationId,
     projectId: args.projectId,
-    name: args.patch.name ?? existing.name,
-    triggerType: nextTrigger.triggerType,
-    triggerConfig: serializeTrigger(nextTrigger),
-    runMode: nextExecution.mode,
-    execution: serializeExecution(nextExecution),
-    targetThreadId:
-      args.patch.targetThreadId !== undefined
-        ? args.patch.targetThreadId
-        : nextExecution.mode === "agent"
-          ? (nextExecution.targetThreadId ?? null)
-          : null,
-    nextRunAt:
-      args.patch.nextRunAt !== undefined
-        ? args.patch.nextRunAt
-        : existing.nextRunAt,
+    name: next.name,
+    triggerType: next.trigger.triggerType,
+    triggerConfig: serializeTrigger(next.trigger),
+    runMode: next.execution.mode,
+    execution: serializeExecution(next.execution),
+    targetThreadId: next.targetThreadId,
+    nextRunAt: next.nextRunAt,
     now,
   });
   return getAutomationForProject(db, args);
+}
+
+export function assertCanonicalAutomationUpdate(
+  existing: AutomationRow,
+  patch: UpdateAutomationInput,
+): void {
+  const next = resolveAutomationUpdate(existing, patch);
+  toAutomationResponse({
+    ...existing,
+    name: next.name,
+    triggerType: next.trigger.triggerType,
+    triggerConfig: serializeTrigger(next.trigger),
+    runMode: next.execution.mode,
+    execution: serializeExecution(next.execution),
+    targetThreadId: next.targetThreadId,
+    nextRunAt: next.nextRunAt,
+  });
 }
 
 export function setAutomationEnabled(

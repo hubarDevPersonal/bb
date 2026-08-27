@@ -121,6 +121,12 @@ bb plugin run automations runs <automationId> --project <id> [--limit <count>] [
 bb plugin run automations delete <automationId> --project <id> --yes
 ```
 
+`list` and `show` are diagnostic reads: a damaged record remains visible as
+`Needs prompt` or `Invalid stored data` instead of failing the whole read. A
+`Needs prompt` record can be repaired from the Automations panel by supplying
+its prompt. Run, update, pause, and resume validate the complete record before
+acting, and every successful create/update persists the canonical format.
+
 Choose one of two execution update forms:
 
 - A complete replacement uses `--prompt`, `--provider`, and `--model` together

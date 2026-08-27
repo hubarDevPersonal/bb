@@ -633,6 +633,10 @@ add <key-or-comment-id> --file <path>` (task key = task-level; comment ID
 - Use `bb automation list`, `bb automation show <id>`, and
   `bb automation runs <id>` to inspect; `--output <run-id>` prints a script
   run's captured stdout.
+- `list` and `show` keep damaged records visible as `Needs prompt` or `Invalid
+stored data`. A `Needs prompt` record is repairable in the Automations panel;
+  run, update, pause, and resume still validate the complete record before
+  acting.
 - Partially update an existing agent automation in place with any of
   `--prompt`, `--provider`, `--model`, `--reasoning`,
   `--service-tier default|fast|none`, `--permission-mode accept-edits|auto|full`,

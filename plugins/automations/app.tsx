@@ -20,6 +20,8 @@ import type { automationRpcContract } from "./src/rpc.js";
 import { toast } from "sonner";
 import type {
   AutomationResponse,
+  AutomationReadProblem,
+  AutomationReadResult,
   AgentExecutionUpdate,
   AutomationRunListResponse,
   AutomationRunResponse,
@@ -43,11 +45,19 @@ import {
   DialogTitle,
 } from "@bb/shared-ui/dialog";
 import { ResourceListState } from "@bb/shared-ui/resource-list";
+import { ResourceListPanel } from "@bb/shared-ui/resource-list";
+import { Icon } from "@bb/shared-ui/icon";
+import { COARSE_POINTER_ICON_SIZE_SHRINK_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
+import { Textarea } from "@bb/shared-ui/textarea";
 
 const PANEL_PATH = "automations";
 const PERSONAL_PROJECT_ID = "proj_personal";
 type OverviewEntry = AutomationsOverviewResponse["automations"][number];
+type AutomationRepairTarget = Extract<
+  AutomationReadProblem,
+  { problem: "missing-agent-prompt" }
+>;
 
 // ---------------------------------------------------------------------------
 // rpc boundary — the backend validates every response with zod, so the wire
@@ -189,7 +199,7 @@ function useOverview(): {
 }
 
 function useAutomation(route: DetailRoute): {
-  automation: AutomationResponse | null;
+  automation: AutomationReadResult | null;
   error: string | null;
   missing: boolean;
   refetch: () => void;
@@ -197,7 +207,7 @@ function useAutomation(route: DetailRoute): {
   const rpc = useRpc<typeof automationRpcContract>();
   const { projectId, automationId } = route;
   const [state, setState] = useState<{
-    automation: AutomationResponse | null;
+    automation: AutomationReadResult | null;
     error: string | null;
     missing: boolean;
   }>({ automation: null, error: null, missing: false });
@@ -209,7 +219,7 @@ function useAutomation(route: DetailRoute): {
     rpc.call("automations_get", { projectId, automationId }).then(
       (result) => {
         if (requestRef.current !== requestId) return;
-        const automation = result as AutomationResponse | null;
+        const automation = result as AutomationReadResult | null;
         setState({
           automation: automation ?? null,
           error: null,
@@ -369,6 +379,52 @@ function useMutations() {
   };
 }
 
+function useAutomationRepair(onRepaired: () => void) {
+  const mutations = useMutations();
+  const [target, setTarget] = useState<AutomationRepairTarget | null>(null);
+  const [prompt, setPrompt] = useState("");
+  const [pending, setPending] = useState(false);
+
+  const open = useCallback((next: AutomationRepairTarget) => {
+    setPrompt("");
+    setTarget(next);
+  }, []);
+  const onOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen && !pending) setTarget(null);
+    },
+    [pending],
+  );
+  const confirm = useCallback(async () => {
+    if (target === null || prompt.trim().length === 0) return;
+    setPending(true);
+    try {
+      await mutations.update(
+        { projectId: target.projectId, automationId: target.id },
+        { prompt },
+      );
+      toast.success("Automation repaired");
+      setTarget(null);
+      setPrompt("");
+      onRepaired();
+    } catch (rpcError: unknown) {
+      toast.error(`Failed to repair automation: ${errorText(rpcError)}`);
+    } finally {
+      setPending(false);
+    }
+  }, [mutations, onRepaired, prompt, target]);
+
+  return {
+    target,
+    prompt,
+    pending,
+    setPrompt,
+    open,
+    onOpenChange,
+    confirm,
+  };
+}
+
 /**
  * Confirm-before-delete dialog, controlled by the caller. Uses the responsive
  * Dialog — a centered modal on desktop, a bottom drawer on compact viewports —
@@ -427,6 +483,69 @@ function DeleteAutomationDialog({
   );
 }
 
+export function RepairAutomationDialog({
+  target,
+  prompt,
+  pending,
+  onPromptChange,
+  onOpenChange,
+  onConfirm,
+}: {
+  target: AutomationRepairTarget | null;
+  prompt: string;
+  pending: boolean;
+  onPromptChange: (prompt: string) => void;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  const open = target !== null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        {target !== null ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Repair automation</DialogTitle>
+              <DialogDescription>
+                &ldquo;{target.name}&rdquo; was created by an older bb version
+                without a prompt. Add the prompt it should run.
+              </DialogDescription>
+            </DialogHeader>
+            <label className="space-y-1 text-sm font-medium">
+              Prompt
+              <Textarea
+                aria-label="Automation prompt"
+                autoFocus
+                value={prompt}
+                className="min-h-28 resize-y text-sm"
+                disabled={pending}
+                onChange={(event) => onPromptChange(event.target.value)}
+              />
+            </label>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pending}
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={pending || prompt.trim().length === 0}
+                onClick={onConfirm}
+              >
+                {pending ? "Saving…" : "Save prompt"}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // List view (panel root): the cross-project overview.
 // ---------------------------------------------------------------------------
@@ -443,6 +562,7 @@ function OverviewView({
   const navigate = useBbNavigate();
   const { entries, error, refetch } = useOverview();
   const mutations = useMutations();
+  const repair = useAutomationRepair(refetch);
 
   const changeEnabled = useCallback(
     async (enabled: boolean, route: DetailRoute) => {
@@ -467,16 +587,27 @@ function OverviewView({
   );
 
   return (
-    <AutomationOverviewView
-      entries={entries}
-      error={error}
-      onRetry={refetch}
-      onOpenDetail={onOpenDetail}
-      onEnabledChange={changeEnabled}
-      onCreateViaChat={createViaChat}
-      activeMode={activeMode}
-      onModeChange={onModeChange}
-    />
+    <>
+      <AutomationOverviewView
+        entries={entries}
+        error={error}
+        onRetry={refetch}
+        onOpenDetail={onOpenDetail}
+        onRepair={repair.open}
+        onEnabledChange={changeEnabled}
+        onCreateViaChat={createViaChat}
+        activeMode={activeMode}
+        onModeChange={onModeChange}
+      />
+      <RepairAutomationDialog
+        target={repair.target}
+        prompt={repair.prompt}
+        pending={repair.pending}
+        onPromptChange={repair.setPrompt}
+        onOpenChange={repair.onOpenChange}
+        onConfirm={() => void repair.confirm()}
+      />
+    </>
   );
 }
 
@@ -495,6 +626,7 @@ function DetailView({
   const overviewState = useOverview();
   const runsState = useRuns(route);
   const mutations = useMutations();
+  const repair = useAutomationRepair(refetch);
   const [actionPending, setActionPending] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -537,7 +669,7 @@ function DetailView({
   );
 
   const openEdit = useCallback(() => {
-    if (automation === null) return;
+    if (automation === null || "problem" in automation) return;
     if (automation.execution.mode === "agent") {
       setEditingRequested(true);
       return;
@@ -603,6 +735,56 @@ function DetailView({
           layout="detail"
         />
       </DelayedLoading>
+    );
+  }
+
+  if ("problem" in automation) {
+    const repairTarget =
+      automation.problem === "missing-agent-prompt" ? automation : null;
+    return (
+      <>
+        <div className="mx-auto w-full max-w-3xl">
+          <ResourceListPanel>
+            <div className="flex items-center gap-3 py-4">
+              <Icon
+                name={repairTarget !== null ? "AlertCircle" : "CircleX"}
+                className={cn(
+                  repairTarget !== null ? "text-warning" : "text-destructive",
+                  COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
+                )}
+                aria-hidden
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {automation.name}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {repairTarget !== null
+                    ? "A prompt is required before this automation can run."
+                    : "The stored configuration cannot be read."}
+                </p>
+              </div>
+              {repairTarget !== null ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => repair.open(repairTarget)}
+                >
+                  Repair
+                </Button>
+              ) : null}
+            </div>
+          </ResourceListPanel>
+        </div>
+        <RepairAutomationDialog
+          target={repair.target}
+          prompt={repair.prompt}
+          pending={repair.pending}
+          onPromptChange={repair.setPrompt}
+          onOpenChange={repair.onOpenChange}
+          onConfirm={() => void repair.confirm()}
+        />
+      </>
     );
   }
 
