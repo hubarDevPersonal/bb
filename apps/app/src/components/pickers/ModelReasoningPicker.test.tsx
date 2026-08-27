@@ -162,6 +162,7 @@ function renderPicker({
   modelLoadError = null,
   compact = false,
   splitPane = false,
+  muted = false,
 }: {
   onSelectedProviderChange?: ((value: string) => void) | null;
   onModelChange?: (value: string) => void;
@@ -179,6 +180,7 @@ function renderPicker({
   modelLoadError?: SystemExecutionOptionsModelLoadError | null;
   compact?: boolean;
   splitPane?: boolean;
+  muted?: boolean;
 } = {}) {
   const { queryClient, wrapper } = createQueryClientTestHarness();
   queryClient.setQueryData(
@@ -218,6 +220,7 @@ function renderPicker({
         fastModeEnabled={false}
         onFastModeChange={vi.fn()}
         showFastModeToggle={false}
+        muted={muted}
         modal={false}
       />
       <button type="button">Composer action</button>
@@ -251,6 +254,17 @@ afterEach(() => {
 });
 
 describe("ModelReasoningPicker", () => {
+  it("uses the lower-emphasis chrome token for the composer caret", () => {
+    renderPicker({ muted: true });
+
+    const trigger = screen.getByRole("button", {
+      name: "Provider, model and reasoning",
+    });
+    expect(
+      trigger.querySelector('[data-icon="ChevronDown"]')?.classList,
+    ).toContain("text-subtle-foreground/75");
+  });
+
   it("gives a non-SVG provider mark the same 16px trigger size as button SVGs", () => {
     renderPicker({
       pickerProviderOptions: [

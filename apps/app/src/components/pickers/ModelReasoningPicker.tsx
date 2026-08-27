@@ -186,9 +186,10 @@ export function buildModelNavRows({
   isSearching: boolean;
   showMoreModels: boolean;
 }): ModelNavRow[] {
-  const rows: ModelNavRow[] = modelOptions.map(
-    (option): ModelNavRow => ({ kind: "model", option }),
-  );
+  const rows: ModelNavRow[] = modelOptions.map((option): ModelNavRow => ({
+    kind: "model",
+    option,
+  }));
   if (moreModelOptions.length === 0) return rows;
 
   // While searching, flatten every match into one list so results otherwise
@@ -981,7 +982,10 @@ export function ModelReasoningPicker({
       {disabled ? null : (
         <Icon
           name="ChevronDown"
-          className="size-3.5 shrink-0 text-muted-foreground"
+          className={cn(
+            "size-3.5 shrink-0",
+            muted ? "text-subtle-foreground/75" : "text-muted-foreground",
+          )}
         />
       )}
       <AppCommandShortcutHint

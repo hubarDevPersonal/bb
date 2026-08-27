@@ -17,6 +17,7 @@ import { useResolvedComposerPlusMenuItems } from "@/components/plugin/composer-s
 import { useOptionalPluginComposerView } from "@/components/plugin/plugin-composer-host";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { CREATE_PLUGIN_PROMPT } from "@bb/client-core";
 import type { ProviderPromptActionCommand } from "@bb/client-core";
 
@@ -193,6 +194,7 @@ export function PromptBoxActionsMenu({
           aria-label="Prompt actions"
           className={cn(
             COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS,
+            CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
             // Outdent so the "+" glyph lines up with the placeholder/text
             // (toolbar px-3.5 + button px-2 sits 6px right of the editor's px-4).
             "-ml-1.5",
