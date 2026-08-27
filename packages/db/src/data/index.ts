@@ -105,9 +105,22 @@ export type {
 export {
   getAppKeybindingOverrides,
   getAppSettings,
+  getThreadSettings,
   setAppKeybindingOverrides,
   setAppSettings,
+  setThreadSettings,
 } from "./app-settings.js";
+export {
+  cancelThreadRetention,
+  clearArchivedConversationDeletion,
+  completeThreadResourceCleanup,
+  getThreadRetentionSchedule,
+  listDueArchivedConversationDeletions,
+  listDueThreadResourceCleanups,
+  scheduleArchivedThreadRetention,
+  scheduleImmediateThreadResourceCleanup,
+  type ThreadRetentionSchedule,
+} from "./thread-retention.js";
 export { getStoredThreadTabs, replaceStoredThreadTabs } from "./thread-tabs.js";
 export { getExperiments, setExperiments } from "./experiments.js";
 export {

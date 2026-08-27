@@ -708,7 +708,9 @@ function dropEventToolNameColumn(db: DbConnection): void {
 }
 
 function dropEventParentToolCallIdColumn(db: DbConnection): void {
-  // Every rewind before 0103 also rewinds the later generated tool-name column.
+  // Every rewind before 0103 also rewinds the later generated tool-name column
+  // and the 0110 retention-intent table.
+  db.$client.prepare("DROP TABLE IF EXISTS thread_retention_schedules").run();
   dropEventToolNameColumn(db);
   const columns = db.$client
     .prepare<[], TableInfoRow>("PRAGMA table_info(events)")

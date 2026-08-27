@@ -50,6 +50,10 @@ import { hasLiveThreadStartInFlight } from "../threads/thread-lifecycle.js";
 import { advanceThreadProvisioning } from "../threads/thread-provisioning.js";
 import { runQueuedMessageAutoSendSweep } from "../threads/queued-messages.js";
 import { runDeferredThreadMessageSweep } from "../threads/thread-send-request.js";
+import {
+  runArchivedConversationRetentionSweep,
+  runThreadResourceCleanupSweep,
+} from "../threads/thread-retention.js";
 import { LIVE_DAEMON_COMMAND_TIMEOUT_MS } from "../hosts/live-command.js";
 import { runEventLoopWork, runEventLoopWorkSync } from "./event-loop-work.js";
 
@@ -576,6 +580,12 @@ const PERIODIC_SWEEP_JOBS: PeriodicSweepJob[] = [
   },
   {
     cadenceMs: 0,
+    category: "retention",
+    name: "archived-conversation-retention",
+    run: (deps, now) => runArchivedConversationRetentionSweep(deps, { now }),
+  },
+  {
+    cadenceMs: 0,
     category: "orphan-cleanup",
     name: "environment-provisioning-orphan-cleanup",
     run: runEnvironmentProvisioningSweep,
@@ -603,6 +613,12 @@ const PERIODIC_SWEEP_JOBS: PeriodicSweepJob[] = [
     category: "durable-intent-retry",
     name: "managed-environment-archive-cleanup-recovery",
     run: runManagedEnvironmentArchiveCleanupRecoverySweep,
+  },
+  {
+    cadenceMs: 0,
+    category: "durable-intent-retry",
+    name: "thread-resource-cleanup",
+    run: (deps, now) => runThreadResourceCleanupSweep(deps, { now }),
   },
   {
     cadenceMs: 0,

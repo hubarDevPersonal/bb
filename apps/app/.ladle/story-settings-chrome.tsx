@@ -22,14 +22,7 @@ export type SettingsStoryRoute =
   | { kind: "machine"; id: string }
   | { kind: "section"; id: SettingsStorySectionId };
 
-export type SettingsStorySectionId = SettingsSectionId | "threads";
-
-const THREADS_SETTINGS_ROUTE_PATH = "/settings/threads";
-const SETTINGS_STORY_NAV_SECTIONS = [
-  SETTINGS_NAV_SECTIONS[0],
-  { icon: "MessageSquare", id: "threads", label: "Threads" },
-  ...SETTINGS_NAV_SECTIONS.slice(1),
-] as const;
+export type SettingsStorySectionId = SettingsSectionId;
 
 type SettingsSidebarNavigation = ComponentProps<
   typeof SettingsSidebarContent
@@ -41,9 +34,6 @@ export function useSettingsStoryRoute(): SettingsStoryRoute {
   const machineMatch = matchPath(SETTINGS_MACHINE_ROUTE_PATH, pathname);
   if (machineMatch?.params.hostId !== undefined) {
     return { kind: "machine", id: machineMatch.params.hostId };
-  }
-  if (pathname === THREADS_SETTINGS_ROUTE_PATH) {
-    return { kind: "section", id: "threads" };
   }
   const section = SETTINGS_NAV_SECTIONS.find((entry) =>
     entry.id === "general"
@@ -81,7 +71,7 @@ export function SettingsStoryChrome({
             activePluginId: null,
             activeSection: resolvedActiveSection,
             pluginEntries: [],
-            sections: SETTINGS_STORY_NAV_SECTIONS,
+            sections: SETTINGS_NAV_SECTIONS,
           } as SettingsSidebarNavigation
         }
         onResizeMouseDown={() => {}}

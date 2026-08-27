@@ -12,7 +12,10 @@ export const DAEMON_ACTIVE_WORK_DISCONNECT_GRACE_MS = LEASE_TIMEOUT_MS;
  * the lifecycle-owned `retireRequestedAt` timestamp, so metadata updates cannot
  * move the clock and the window remains durable across restart.
  */
-export const MANAGED_ENVIRONMENT_RETIRE_GRACE_MS = 5 * 60_000;
+export const MANAGED_ENVIRONMENT_RETIRE_GRACE_MS = 24 * 60 * 60_000;
+export const THREAD_RESOURCE_RETENTION_MS = 24 * 60 * 60_000;
+export const ARCHIVED_CONVERSATION_RETENTION_MS = 30 * 24 * 60 * 60_000;
+export const DEFAULT_THREAD_RETENTION_SWEEP_BATCH_SIZE = 25;
 export const WORKSPACE_DIFF_MAX_DIFF_BYTES = 2 * 1024 * 1024;
 export const WORKSPACE_DIFF_MAX_FILE_LIST_BYTES = 256 * 1024;
 /**

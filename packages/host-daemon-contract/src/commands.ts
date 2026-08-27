@@ -419,6 +419,24 @@ const threadArchiveCommandSchema = hostDaemonThreadWorkspaceTargetSchema
   })
   .strict();
 
+/** The daemon derives the exact storage path from its own root and this id. */
+export const threadStorageDeleteCommandSchema = z
+  .object({
+    type: z.literal("thread.storage.delete"),
+    threadId: z
+      .string()
+      .min(1)
+      .refine(
+        (threadId) =>
+          threadId !== "." &&
+          threadId !== ".." &&
+          !threadId.includes("/") &&
+          !threadId.includes("\\"),
+        "threadId must be a single path segment",
+      ),
+  })
+  .strict();
+
 // Carries environmentId (not just threadId) so the host daemon can serialize
 // it in the same per-environment write lane as thread.archive; otherwise a
 // slower archive can land after a later unarchive and leave the provider
@@ -1629,6 +1647,15 @@ export const hostDaemonCommandRegistry = {
     retryable: false,
     flushEventsBeforeResult: false,
     envLane: "write",
+  }),
+  "thread.storage.delete": defineHostDaemonCommandDescriptor({
+    type: "thread.storage.delete",
+    schema: threadStorageDeleteCommandSchema,
+    resultSchema: emptyCommandResultSchema,
+    transport: "settled",
+    retryable: false,
+    flushEventsBeforeResult: false,
+    envLane: null,
   }),
   "interactive.resolve": defineHostDaemonCommandDescriptor({
     type: "interactive.resolve",

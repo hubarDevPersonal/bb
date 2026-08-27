@@ -654,6 +654,38 @@ export const threads = sqliteTable(
   ],
 );
 
+// Server-owned cleanup intent captured when a thread is archived or permanently
+// deleted. Deliberately has no foreign key to threads or hosts: resource cleanup
+// must remain retryable after the thread transcript is hard-deleted, and after
+// a host record temporarily disappears. `archivedAt` identifies the archive
+// generation so an old in-flight cleanup cannot settle a fresh rearchive.
+export const threadRetentionSchedules = sqliteTable(
+  "thread_retention_schedules",
+  {
+    threadId: text("thread_id").primaryKey(),
+    hostId: text("host_id"),
+    archivedAt: integer("archived_at"),
+    resourceCleanupDueAt: integer("resource_cleanup_due_at"),
+    conversationDeleteDueAt: integer("conversation_delete_due_at"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => [
+    index("thread_retention_resource_due_idx").on(table.resourceCleanupDueAt),
+    index("thread_retention_conversation_due_idx").on(
+      table.conversationDeleteDueAt,
+    ),
+    check(
+      "thread_retention_resource_host_check",
+      sql`${table.resourceCleanupDueAt} IS NULL OR ${table.hostId} IS NOT NULL`,
+    ),
+    check(
+      "thread_retention_deadline_check",
+      sql`${table.resourceCleanupDueAt} IS NOT NULL OR ${table.conversationDeleteDueAt} IS NOT NULL`,
+    ),
+  ],
+);
+
 // Server-owned tab descriptors for a thread's shared secondary-panel workspace.
 // Presentation state such as active tab, panel visibility, and width remains
 // client-local; this row stores only the ordered durable tab list.

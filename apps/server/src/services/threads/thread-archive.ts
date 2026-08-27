@@ -1,4 +1,5 @@
 import {
+  getThreadSettings,
   listLiveThreadsInEnvironment,
   listUnarchivedAssignedChildThreads,
   listUnarchivedHiddenSourceThreads,
@@ -86,6 +87,9 @@ function archiveThreadWithLifecycleEffects(
   args: ArchiveThreadWithLifecycleEffectsArgs,
 ): Thread | null {
   const archivedThread = archiveThreadAndReleaseChildren(deps, {
+    archivedConversationRetention: getThreadSettings(deps.db)
+      .archivedConversationRetention,
+    hostId: args.environment?.hostId ?? null,
     threadId: args.thread.id,
   });
   if (!archivedThread) {

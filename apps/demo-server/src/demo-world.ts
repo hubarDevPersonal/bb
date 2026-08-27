@@ -8,6 +8,7 @@
 
 import {
   defaultAppSettings,
+  defaultThreadSettings,
   defaultAppTheme,
   defaultExperiments,
   defaultFeatureFlags,
@@ -64,6 +65,7 @@ import {
 const SYSTEM_CONFIG = systemConfigResponseSchema.parse({
   ...configFixture,
   generalSettings: defaultAppSettings,
+  threadSettings: defaultThreadSettings,
   // The mobile experiment gates the app's own settings surfaces.
   experiments: { ...defaultExperiments, mobileApp: true },
   appearance: defaultAppTheme,
