@@ -261,6 +261,7 @@ function createTestStartContext(): BbAppStartContext {
     logDir: "/tmp/bb-app-test/logs",
     packageRoot: "/tmp/bb-app-test/package",
     serverEntry: "/tmp/bb-app-test/server/dist/index.js",
+    serverLockDir: "/tmp/bb-app-test/server.lock.lock",
     serverPort: 38886,
     serverUrl: "http://127.0.0.1:38886",
   };
@@ -587,6 +588,7 @@ describe("bb-app launcher", () => {
     expect(context.serverEntry).toBe(
       "/repo/packages/bb-app/server/dist/index.js",
     );
+    expect(context.serverLockDir).toBe("/home/tester/.bb/server.lock.lock");
     expect(context.daemonEntry).toBe(
       "/repo/packages/bb-app/host-daemon/dist/daemon-bundle.mjs",
     );

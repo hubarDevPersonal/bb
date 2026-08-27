@@ -51,7 +51,9 @@ describe("server data-directory ownership", () => {
     const releaseLock = await acquireServerLock(serverConfig.BB_DATA_DIR);
 
     try {
-      await expect(runServer(serverConfig)).rejects.toThrow(
+      await expect(
+        runServer(serverConfig, { lockOptions: { initialRetries: 0 } }),
+      ).rejects.toThrow(
         `Server lock is already held for data directory ${serverConfig.BB_DATA_DIR}`,
       );
       expect(initDb).not.toHaveBeenCalled();
@@ -66,12 +68,21 @@ describe("server data-directory ownership", () => {
     const lockDirPath = `${lockPath}.lock`;
     await fs.writeFile(lockPath, "");
     await fs.mkdir(lockDirPath);
-    // Keep the lock inside the 10-second stale window. A crashed server cannot
-    // refresh it, so startup should wait briefly and then reclaim it.
-    const nearlyStale = new Date(Date.now() - 8_000);
+    // Use a short lock window here; shared lock tests cover the production
+    // timing, while this test verifies server startup ordering and cleanup.
+    const staleMs = 2_000;
+    const nearlyStale = new Date(Date.now() - 1_900);
     await fs.utimes(lockDirPath, nearlyStale, nearlyStale);
 
-    await expect(runServer(serverConfig)).rejects.toThrow(STARTUP_FAILURE);
+    await expect(
+      runServer(serverConfig, {
+        lockOptions: {
+          initialRetries: 5,
+          retryIntervalMs: 50,
+          staleMs,
+        },
+      }),
+    ).rejects.toThrow(STARTUP_FAILURE);
     expect(initDb).toHaveBeenCalledOnce();
 
     const releaseLock = await acquireServerLock(serverConfig.BB_DATA_DIR);

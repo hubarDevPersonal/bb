@@ -93,6 +93,7 @@ function createStartContext(args: {
     logDir: `${dataDir}/logs`,
     packageRoot: `${dataDir}/package`,
     serverEntry: args.serverEntry,
+    serverLockDir: `${dataDir}/server.lock.lock`,
     serverPort: args.serverPort,
     serverUrl: `http://127.0.0.1:${args.serverPort}`,
   };

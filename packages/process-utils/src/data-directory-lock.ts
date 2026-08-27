@@ -7,6 +7,7 @@ import lockfile from "proper-lockfile";
 // proper-lockfile refreshes the held lock's mtime while the holder is alive.
 // A lock older than the stale window is therefore abandoned and reclaimable.
 const DEFAULT_LOCK_STALE_MS = 10_000;
+const MINIMUM_LOCK_STALE_MS = 2_000;
 const DEFAULT_LOCK_RETRY_INTERVAL_MS = 1_000;
 const DEFAULT_LOCK_ACQUIRE_RETRIES = 13;
 // Each failed re-acquire cycle spans the full acquisition retry budget
@@ -24,7 +25,10 @@ export interface AcquireDataDirectoryLockOptions {
   lockFileName: string;
   /** Human-readable owner used in diagnostics, such as "Server". */
   ownerName: string;
-  /** Lock is treated as stale once its mtime is older than this many ms. */
+  /**
+   * Lock is treated as stale once its mtime is older than this many ms.
+   * Values below two seconds are clamped to proper-lockfile's minimum.
+   */
   staleMs?: number;
   /**
    * Number of retries when the lock is first acquired. Together with
@@ -76,7 +80,10 @@ export async function acquireDataDirectoryLock(
   // Pass lockfilePath explicitly so exit cleanup does not depend on an
   // undocumented default.
   const lockDirPath = `${lockPath}.lock`;
-  const staleMs = options.staleMs ?? DEFAULT_LOCK_STALE_MS;
+  const staleMs = Math.max(
+    options.staleMs ?? DEFAULT_LOCK_STALE_MS,
+    MINIMUM_LOCK_STALE_MS,
+  );
   const retryIntervalMs =
     options.retryIntervalMs ?? DEFAULT_LOCK_RETRY_INTERVAL_MS;
   const initialRetries = options.initialRetries ?? DEFAULT_LOCK_ACQUIRE_RETRIES;
@@ -86,6 +93,7 @@ export async function acquireDataDirectoryLock(
   const onLockLost = options.onLockLost ?? (() => process.exit(1));
 
   let released = false;
+  let releasePromise: Promise<void> | null = null;
   let reacquiring = false;
   let holdsLock = false;
   let release: ReleaseDataDirectoryLock | null = null;
@@ -208,20 +216,25 @@ export async function acquireDataDirectoryLock(
   };
   process.once("exit", onExit);
 
-  return async () => {
-    if (released) {
-      return;
-    }
+  return () => {
+    if (releasePromise !== null) return releasePromise;
     released = true;
-    try {
-      await release?.();
-    } catch (error) {
-      // A compromised lock is already dropped by proper-lockfile.
-      if (!isErrorWithCode(error, "ERELEASED")) {
-        throw error;
+    releasePromise = (async () => {
+      try {
+        await release?.();
+      } catch (error) {
+        // A compromised lock is already dropped by proper-lockfile.
+        if (!isErrorWithCode(error, "ERELEASED")) {
+          throw error;
+        }
+      } finally {
+        // proper-lockfile stops refreshing and gives up ownership before it
+        // attempts to remove the directory. Even when that removal fails, an
+        // exit handler must not later delete a successor's lock at this path.
+        holdsLock = false;
+        process.removeListener("exit", onExit);
       }
-    }
-    holdsLock = false;
-    process.removeListener("exit", onExit);
+    })();
+    return releasePromise;
   };
 }

@@ -8,7 +8,11 @@ import { toOptionalString } from "@bb/config/strings";
 import { createLogger, type Logger } from "@bb/logger";
 import { getAppSettings } from "@bb/db";
 import { initDb } from "./db.js";
-import { acquireServerLock } from "./server-lock.js";
+import {
+  acquireServerLock,
+  type ServerLockTimingOptions,
+} from "./server-lock.js";
+import { createServerProcessLifecycle } from "./server-process-lifecycle.js";
 import { createApp } from "./server.js";
 import { PendingInteractionLifecycle } from "./services/interactions/pending-interactions.js";
 import { createMachineAuthService } from "./services/machine-auth.js";
@@ -51,6 +55,10 @@ export function startHttpListener(args: StartHttpListenerArgs) {
 interface RunningServer {
   logger: Logger;
   shutdown(): Promise<void>;
+}
+
+interface RunServerOptions {
+  lockOptions?: ServerLockTimingOptions;
 }
 
 async function startOwnedServer(
@@ -236,108 +244,161 @@ async function startOwnedServer(
     fetch: app.fetch,
     serverConfig,
   });
-  injectWebSocket(server);
 
-  logger.info(
-    {
-      bindHost: serverConfig.BB_SERVER_BIND_HOST,
-      port: serverConfig.BB_SERVER_PORT,
-      dataDir: serverConfig.BB_DATA_DIR,
-    },
-    "Server listening",
-  );
-  telemetry.capture({ name: "app_started" });
-
-  // Plugins load after the listener is up: they are additive, and a slow
-  // plugin must not delay serving. Bind the loopback SDK first so bb.sdk is
-  // usable from the moment factories run.
-  pluginService.bindSdk({
-    baseUrl: `http://127.0.0.1:${serverConfig.BB_SERVER_PORT}`,
-  });
-  void pluginService
-    .start()
-    .catch((error: unknown) => {
-      logger.error({ err: error }, "Plugin startup failed");
-    })
-    .finally(() => {
-      // Success or failure, the registry now holds whatever loaded: release
-      // the requests waiting for providers rather than stalling them out.
-      providerRegistry.markRegistrationsSettled();
-      // Check installed plugins for updates every 6 hours. A check only
-      // records what is available; it never installs or runs plugin code.
-      pluginService.startPeriodicUpdateChecks();
-    });
-  // Discovery metadata only: a refresh never installs, updates, or runs
-  // plugin code, and a failure keeps the last-known-good catalog.
-  pluginCatalogService.startPeriodicRefresh();
-
-  const sweepInterval = setInterval(() => {
-    void runPeriodicSweeps(sweepDeps);
-  }, 10_000);
-  sweepInterval.unref();
-
+  let sweepInterval: ReturnType<typeof setInterval> | null = null;
   let shutdownPromise: Promise<void> | null = null;
   const runShutdown = (): Promise<void> => {
     if (shutdownPromise) {
       return shutdownPromise;
     }
     shutdownPromise = (async () => {
+      let shutdownFailure: unknown = null;
+      const runShutdownStep = async (
+        name: string,
+        step: () => Promise<void>,
+      ): Promise<void> => {
+        try {
+          await step();
+        } catch (error) {
+          shutdownFailure ??= error;
+          logger.warn(
+            { err: error, step: name },
+            "Server shutdown step failed",
+          );
+        }
+      };
+
       try {
         eventLoopStallMonitor.stop();
-        clearInterval(sweepInterval);
+        if (sweepInterval !== null) clearInterval(sweepInterval);
         pluginCatalogService.stopPeriodicRefresh();
-        await pluginService.stopPeriodicUpdateChecks();
-        await pluginService.stop().catch((error: unknown) => {
-          logger.warn({ err: error }, "Plugin shutdown failed");
+
+        // Stop accepting work before plugin disposal. A plugin hook may hang,
+        // but a server yielding its data-directory lock must stop serving.
+        const closeServer = new Promise<void>((resolvePromise, reject) => {
+          try {
+            server.close((error) => {
+              if (error) {
+                reject(error);
+                return;
+              }
+              resolvePromise();
+            });
+          } catch (error) {
+            reject(error);
+          }
         });
-        const closeServer = new Promise<void>((resolve, reject) => {
-          server.close((error) => {
-            if (error) {
-              reject(error);
-              return;
-            }
-            resolve();
-          });
+        // Attach rejection handling immediately: WebSocket closure can take a
+        // few seconds, during which an early HTTP close error must not become
+        // an unhandled rejection.
+        const guardedCloseServer = closeServer.catch((error: unknown) => {
+          shutdownFailure ??= error;
+          logger.warn(
+            { err: error, step: "http-server" },
+            "Server shutdown step failed",
+          );
         });
-        await closeWebSockets();
-        await closeServer;
+        await runShutdownStep("websockets", closeWebSockets);
+        await guardedCloseServer;
+
+        await runShutdownStep("plugin-update-checks", () =>
+          pluginService.stopPeriodicUpdateChecks(),
+        );
+        await runShutdownStep("plugins", () => pluginService.stop());
+
+        if (shutdownFailure !== null) {
+          throw shutdownFailure;
+        }
       } finally {
+        try {
+          db.$client.close();
+        } catch (error) {
+          logger.warn({ err: error }, "Database shutdown failed");
+        }
         await releaseLock();
       }
     })();
     return shutdownPromise;
   };
 
-  // Plugins run in-process. An error a plugin service raises outside its
-  // start() promise (an unlistened EventEmitter 'error', a throw in a timer
-  // callback, a detached rejection) arrives here, not in the service
-  // supervisor; without this listener Node exits, the process manager
-  // restarts the server, the plugin reloads, and the crash loops. A claimed
-  // error restarts that one service. Anything else keeps Node's default:
-  // the diagnostics monitor in index.ts has already written its report.
-  process.on("uncaughtException", (error: unknown) => {
-    if (pluginService.handleUncaughtException(error)) return;
-    const message =
-      error instanceof Error ? (error.stack ?? error.message) : String(error);
-    process.stderr.write(`${message}\n`);
-    process.exit(1);
-  });
+  try {
+    injectWebSocket(server);
 
-  process.once("SIGINT", () => {
-    void runShutdown().finally(() => process.exit(0));
-  });
-  process.once("SIGTERM", () => {
-    void runShutdown().finally(() => process.exit(0));
-  });
+    logger.info(
+      {
+        bindHost: serverConfig.BB_SERVER_BIND_HOST,
+        port: serverConfig.BB_SERVER_PORT,
+        dataDir: serverConfig.BB_DATA_DIR,
+      },
+      "Server listening",
+    );
+    telemetry.capture({ name: "app_started" });
 
-  return { logger, shutdown: runShutdown };
+    // Plugins load after the listener is up: they are additive, and a slow
+    // plugin must not delay serving. Bind the loopback SDK first so bb.sdk is
+    // usable from the moment factories run.
+    pluginService.bindSdk({
+      baseUrl: `http://127.0.0.1:${serverConfig.BB_SERVER_PORT}`,
+    });
+    void pluginService
+      .start()
+      .catch((error: unknown) => {
+        logger.error({ err: error }, "Plugin startup failed");
+      })
+      .finally(() => {
+        // Success or failure, the registry now holds whatever loaded: release
+        // the requests waiting for providers rather than stalling them out.
+        providerRegistry.markRegistrationsSettled();
+        // Check installed plugins for updates every 6 hours. A check only
+        // records what is available; it never installs or runs plugin code.
+        pluginService.startPeriodicUpdateChecks();
+      });
+    // Discovery metadata only: a refresh never installs, updates, or runs
+    // plugin code, and a failure keeps the last-known-good catalog.
+    pluginCatalogService.startPeriodicRefresh();
+
+    sweepInterval = setInterval(() => {
+      void runPeriodicSweeps(sweepDeps);
+    }, 10_000);
+    sweepInterval.unref();
+
+    // Plugins run in-process. An error a plugin service raises outside its
+    // start() promise (an unlistened EventEmitter 'error', a throw in a timer
+    // callback, a detached rejection) arrives here, not in the service
+    // supervisor; without this listener Node exits, the process manager
+    // restarts the server, the plugin reloads, and the crash loops. A claimed
+    // error restarts that one service. Anything else keeps Node's default:
+    // the diagnostics monitor in index.ts has already written its report.
+    process.on("uncaughtException", (error: unknown) => {
+      if (pluginService.handleUncaughtException(error)) return;
+      const message =
+        error instanceof Error ? (error.stack ?? error.message) : String(error);
+      process.stderr.write(`${message}\n`);
+      process.exit(1);
+    });
+
+    return { logger, shutdown: runShutdown };
+  } catch (error) {
+    await runShutdown().catch((cleanupError: unknown) => {
+      logger.warn(
+        { err: cleanupError },
+        "Server startup-failure cleanup failed",
+      );
+    });
+    throw error;
+  }
 }
 
-export async function runServer(serverConfig: ServerConfig): Promise<void> {
+export async function runServer(
+  serverConfig: ServerConfig,
+  options: RunServerOptions = {},
+): Promise<void> {
   // The logger and database both write into BB_DATA_DIR, so neither may be
   // created until this process exclusively owns that directory.
   let runningServer: RunningServer | null = null;
+  const processLifecycle = createServerProcessLifecycle();
   const releaseLock = await acquireServerLock(serverConfig.BB_DATA_DIR, {
+    ...options.lockOptions,
     logger: {
       warn: (fields, message) => {
         if (runningServer) {
@@ -354,24 +415,12 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
         }
       },
     },
-    onLockLost: () => {
-      if (!runningServer) {
-        process.exit(1);
-      }
-      void runningServer
-        .shutdown()
-        .catch((error: unknown) => {
-          runningServer?.logger.error(
-            { err: error },
-            "Server lock-loss shutdown failed",
-          );
-        })
-        .finally(() => process.exit(1));
-    },
+    onLockLost: processLifecycle.handleLockLost,
   });
 
   try {
     runningServer = await startOwnedServer(serverConfig, releaseLock);
+    processLifecycle.attach(runningServer);
   } catch (error) {
     await releaseLock().catch(() => undefined);
     throw error;

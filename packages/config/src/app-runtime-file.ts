@@ -76,10 +76,10 @@ export async function writeBbAppRuntimeFile(
  * remove the file when it exits.
  *
  * Ownership is decided by liveness alone. A record whose process is gone is
- * stale and gets replaced. This is not an exclusive lock: the daemon lock and
- * the server port are what actually prevent two bb instances on one data
- * directory. The check only stops a doomed second start from erasing the record
- * of the bb that is running.
+ * stale and gets replaced. This is not an exclusive lock: the daemon and
+ * server data-directory locks prevent two bb instances from sharing their
+ * state. The check only stops a doomed second start from erasing the record of
+ * the bb that is running.
  */
 export async function claimBbAppRuntimeFile(
   args: WriteBbAppRuntimeFileArgs & { isRunning?: (pid: number) => boolean },

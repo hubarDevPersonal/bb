@@ -246,6 +246,7 @@ describe("acquireDataDirectoryLock compromise handling", () => {
       clearInterval(keepContenderFresh);
       await release().catch(() => undefined);
     }
+    await expect(fs.stat(lockDirPath)).resolves.toBeDefined();
   }, 30_000);
 
   it("does not keep the process alive after release during re-acquisition", async () => {
