@@ -340,6 +340,7 @@ function lifecycleEventForInterruptedThread(
     case "manual-stop":
       return { type: "stop.settled" };
     case "host-daemon-restarted":
+    case "host-connection-lost":
       return { type: "run.failed" };
     // Legacy persisted watchdog interruption; no current producer. Lands on
     // "error" like a lost session.
@@ -358,6 +359,8 @@ function pendingInteractionStopReason(
       return "Thread stopped by user request";
     case "host-daemon-restarted":
       return "Host daemon restarted while awaiting user interaction";
+    case "host-connection-lost":
+      return "Connection to host was lost while awaiting user interaction";
     // Legacy persisted watchdog interruption; no current producer.
     case "provider-turn-idle":
       return "Thread stopped after the provider stopped sending progress";
@@ -374,6 +377,8 @@ function threadCommandFailureMessageForInterruption(
       return null;
     case "host-daemon-restarted":
       return "Thread interrupted because the host daemon disconnected";
+    case "host-connection-lost":
+      return "Thread interrupted because the connection to the host was lost";
     // Legacy persisted watchdog interruption; no current producer.
     case "provider-turn-idle":
       return "Live runtime work failed because the provider stopped sending progress";
@@ -389,6 +394,7 @@ function threadCommandFailureDetailForInterruption(
     case "manual-stop":
       return "Thread stopped by user request";
     case "host-daemon-restarted":
+    case "host-connection-lost":
       return "Please retry the thread to continue.";
     // Legacy persisted watchdog interruption; no current producer.
     case "provider-turn-idle":

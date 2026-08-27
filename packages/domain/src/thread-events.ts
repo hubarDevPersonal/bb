@@ -246,6 +246,7 @@ export const systemUserQuestionLifecycleEventDataSchema = z.object({
 const systemThreadInterruptedReasonValues = [
   "manual-stop",
   "host-daemon-restarted",
+  "host-connection-lost",
   // Legacy persisted watchdog interruption; retained for read/replay only,
   // with no current producer.
   "provider-turn-idle",
