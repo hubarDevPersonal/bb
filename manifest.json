@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "capturedAt": "2026-08-27T08:28:46Z",
+  "capturedAt": "2026-08-27T19:47:50Z",
   "harnessSha256": "6531a2dc2df9d4d69e89c67b68b104678c2d27a4d4797cbb518e7abd46dd5603",
   "fixture": {
     "project": "Automations project",
@@ -14,8 +14,8 @@
     "fictional": true
   },
   "coreLayer": {
-    "baseline": "ad79bbb5ec909524f8f281e62d860c588a86f332",
-    "candidate": "7962d2c39746920680ec4202f938f13ac2d2aa10",
+    "baseline": "a2d47f5a6e7779c1d30f3b297582dc342878faec",
+    "candidate": "8ea1e58a55b31645bc54c02e370899af639dffd6",
     "providerFixture": {
       "id": "at-plugin",
       "version": "0.0.0",
@@ -26,8 +26,8 @@
     "afterLog": "core-after-bottom.json"
   },
   "childLayer": {
-    "baseline": "7962d2c39746920680ec4202f938f13ac2d2aa10",
-    "candidate": "5398552058cc7c689fc4ee591ea6f5eedd551c26",
+    "baseline": "8ea1e58a55b31645bc54c02e370899af639dffd6",
+    "candidate": "16c72362970e2b19daff6722708ded8893b8682a",
     "candidatePlugin": {
       "id": "at-plugin",
       "version": "0.1.0",
