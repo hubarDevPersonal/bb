@@ -71,6 +71,70 @@ describe("markdown round-trip", () => {
   it.each(cases)("preserves %s", (_name, markdown) => {
     expect(roundTrip(markdown)).toBe(markdown);
   });
+
+  it("preserves table rows and cells", () => {
+    const markdown =
+      "| Item | Owner |\n| --- | --- |\n| Parser | Ada |\n| Styles | Lin |";
+
+    expect(roundTrip(markdown).trimEnd()).toBe(markdown);
+  });
+
+  it.each([
+    ["plain text", "left \\| right"],
+    ["inline code", "`left\\|right`"],
+  ])("preserves a pipe inside table-cell %s", (_name, cell) => {
+    const markdown = `| Value |\n| --- |\n| ${cell} |`;
+
+    expect(roundTrip(markdown).trimEnd()).toBe(markdown);
+  });
+
+  it("preserves a pipe inside a table-cell link destination", () => {
+    const markdown =
+      "| Value |\n| --- |\n| [destination](https://example.com/a\\|b) |";
+
+    expect(roundTrip(markdown).trimEnd()).toBe(
+      "| Value |\n| --- |\n| [destination](https://example.com/a%7Cb) |",
+    );
+  });
+
+  it("preserves atom-only cells when another block is edited", async () => {
+    const value = [
+      "| Image | Task | Thread |",
+      "| --- | --- | --- |",
+      "| ![diagram](https://example.com/diagram.png) | [TSK-42](bbtask://TSK-42) | [Fix login](bbthread://thr_test) |",
+      "",
+      "Edit here",
+    ].join("\n");
+    const onChange = vi.fn();
+    let editor: Editor | null = null;
+    render(
+      <TasksEditor
+        value={value}
+        onChange={onChange}
+        onEditorReady={(ready) => (editor = ready)}
+      />,
+    );
+
+    editor!.chain().focus("end").insertContent(" elsewhere").run();
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenLastCalledWith(`${value} elsewhere`),
+    );
+  });
+
+  it("renders table headers and cells", () => {
+    const screen = render(
+      <TasksEditor
+        value={"| Item | Owner |\n| --- | --- |\n| Parser | Ada |"}
+        onChange={() => undefined}
+        readOnly
+      />,
+    );
+
+    expect(screen.getByRole("table").closest(".tableWrapper")).toBeTruthy();
+    expect(screen.getAllByRole("columnheader")).toHaveLength(2);
+    expect(screen.getAllByRole("cell")).toHaveLength(2);
+  });
 });
 
 describe("mention extension", () => {
@@ -359,6 +423,26 @@ describe("TasksEditor component", () => {
     expect(
       screen.container.querySelector('[data-variant="comment"]'),
     ).toBeTruthy();
+  });
+
+  it("renders pasted Markdown as rich content", async () => {
+    const markdown =
+      "| Task |\n| --- |\n| [TSK-42](bbtask://TSK-42) |";
+    const onChange = vi.fn();
+    const screen = render(<TasksEditor value="" onChange={onChange} />);
+
+    fireEvent.paste(getEditorSurface(screen.container), {
+      clipboardData: {
+        files: [],
+        getData: (type: string) => (type === "text/plain" ? markdown : ""),
+      },
+    });
+
+    await waitFor(() => expect(screen.getByRole("table")).toBeTruthy());
+    expect(
+      screen.container.querySelector('[data-task-mention="TSK-42"]'),
+    ).toBeTruthy();
+    expect(onChange.mock.lastCall?.[0]?.trimEnd()).toBe(markdown);
   });
 
   it("routes pasted and dropped files to onAttachFiles instead of inline upload", () => {

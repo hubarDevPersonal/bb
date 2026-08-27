@@ -5,7 +5,7 @@ import {
   loadShareIntentModule,
   type ShareIntentModule,
 } from "@/lib/share";
-import { newThreadHref } from "@/screens/shell/hrefs";
+import { webViewShellHref } from "@/screens/shell/hrefs";
 import { toast } from "@/ui";
 import { useProfiles } from "./ProfilesProvider";
 
@@ -50,7 +50,13 @@ function ShareIntentHandlerWithModule({
       toast.info("Only text and links can be sent to bb for now.");
       return;
     }
-    router.navigate(newThreadHref({ initialPrompt: seed.initialPrompt }));
+    // The page's root is its compose view, so a shared link seeds it through
+    // the `initialPrompt` query.
+    router.navigate(
+      webViewShellHref({
+        path: `/?initialPrompt=${encodeURIComponent(seed.initialPrompt)}`,
+      }),
+    );
   }, [activeProfile, hasShareIntent, resetShareIntent, router, shareIntent]);
   return null;
 }

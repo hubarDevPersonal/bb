@@ -434,8 +434,12 @@ export function createPluginFrontendReconcileState(): PluginFrontendReconcileSta
 export interface PluginFrontendReconcileDeps {
   fetchCandidates: () => Promise<PluginFrontendCandidate[]>;
   importModule: (url: string) => Promise<unknown>;
-  /** Synchronously publish (string) or remove (null) the generation's CSS URL. */
-  applyCss: (pluginId: string, url: string | null) => void;
+  /**
+   * Publish (string) or remove (null) the generation's CSS URL. Awaited before
+   * content scripts or registrations go live so injected implementations can
+   * preserve the same ordering as the synchronous production CSS manager.
+   */
+  applyCss: (pluginId: string, url: string | null) => void | Promise<void>;
   /** Retain the published CSS through one non-React consumer's lifetime. */
   retainCss: (pluginId: string) => () => void;
   resetCrashedSlots: (pluginId: string) => void;
@@ -859,7 +863,7 @@ async function reconcileCandidates(
       // Publish the URL before either non-React scripts mount or slot-store
       // notifications can render plugin code. Inactive plugins only preload;
       // an already-mounted generation starts a safe side-by-side replacement.
-      deps.applyCss(pluginId, candidate.bundle.cssUrl);
+      await deps.applyCss(pluginId, candidate.bundle.cssUrl);
       const cssRelease =
         collected.contentScripts.length > 0 ? deps.retainCss(pluginId) : null;
       const disposeFailures = await deactivateCommittedGeneration(

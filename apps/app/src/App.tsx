@@ -11,6 +11,7 @@ import { AuthCallbackView } from "./views/AuthCallbackView";
 import { QuickCreateProjectProvider } from "./hooks/useQuickCreateProject";
 import { RouteNavigationProvider } from "./components/ui/app-route-anchor";
 import { AppNavigationUrlHost } from "./lib/url-open-routing";
+import { NativeShellReporter } from "./lib/native-shell";
 import { AppFileExternalNavigationHost } from "./components/plugin/AppFileExternalNavigationHost";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useFaviconColorSync } from "./lib/favicon-color-preference";
@@ -41,7 +42,6 @@ import {
   SETTINGS_SECTION_ROUTE_PATH,
   SKILLS_ROUTE_PATH,
   TOOLS_PLUGIN_BROWSE_ROUTE_PATH,
-  TOOLS_PLUGIN_DETAIL_ROUTE_PATH,
   TOOLS_PLUGINS_ROUTE_PATH,
   TOOLS_REGISTRY_SKILL_DETAIL_ROUTE_PATH,
   TOOLS_REGISTRY_SKILLS_ROUTE_PATH,
@@ -320,10 +320,6 @@ function AppRoutes() {
             element={<ExtensionsLandingRedirect />}
           />
           <Route
-            path={TOOLS_PLUGIN_DETAIL_ROUTE_PATH}
-            element={<ToolsView />}
-          />
-          <Route
             path={LEGACY_SKILLS_ROUTE_PATH}
             element={<Navigate to={SKILLS_ROUTE_PATH} replace />}
           />
@@ -380,6 +376,7 @@ export function App() {
           <AppNavigationUrlHost>
             <AppFileExternalNavigationHost>
               <HashNavigationScroll />
+              <NativeShellReporter />
               <Routes>
                 <Route
                   path={AUTH_CALLBACK_ROUTE_PATH}

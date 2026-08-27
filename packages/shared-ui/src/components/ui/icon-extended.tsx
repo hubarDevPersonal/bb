@@ -1,5 +1,6 @@
 import type { IconSvgElement } from "@hugeicons/react";
 import {
+  AiBrowserIcon,
   AiContentGenerator01Icon,
   ArrowDown02Icon,
   ArrowDownDoubleIcon,
@@ -188,6 +189,7 @@ const PaletteStrokeRoundedIcon: IconSvgElement = [
 ];
 
 export const EXTENDED_ICON_MAP: ExtendedIconMap = {
+  AiBrowser: AiBrowserIcon,
   AiContentGenerator01: AiContentGenerator01Icon,
   AlignLeft: Menu02Icon,
   AppWindow: BrowserIcon,

@@ -267,11 +267,40 @@ export function buildAcpModelListParams(
   };
 }
 
-function cursorParameterizedModelId(model: string): string {
+interface CursorParameterizedSelection {
+  modelId: string;
+  reasoningLevel?: ReasoningLevel;
+}
+
+const CURSOR_LEGACY_FAMILY_SELECTIONS: Readonly<
+  Record<string, CursorParameterizedSelection>
+> = {
+  "claude-4-sonnet": { modelId: "claude-sonnet-4" },
+  "claude-4.5-opus": { modelId: "claude-opus-4-5" },
+  "claude-4.5-sonnet": { modelId: "claude-sonnet-4-5" },
+  "claude-4.6-opus": { modelId: "claude-opus-4-6" },
+  "claude-4.6-sonnet": { modelId: "claude-sonnet-4-6" },
+  "gemini-3.6-flash-minimal": {
+    modelId: "gemini-3.6-flash",
+    reasoningLevel: "low",
+  },
+  "gpt-5.1-codex-max": { modelId: "gpt-5.1" },
+};
+
+function cursorParameterizedSelection(
+  model: string,
+  reasoningLevel: ReasoningLevel | undefined,
+): CursorParameterizedSelection {
   const familyId = model === "auto" ? "default" : agentModelFamilyId(model);
-  return familyId.startsWith("cursor-")
+  const bareFamilyId = familyId.startsWith("cursor-")
     ? familyId.slice("cursor-".length)
     : familyId;
+  const selection = CURSOR_LEGACY_FAMILY_SELECTIONS[bareFamilyId] ?? {
+    modelId: bareFamilyId,
+  };
+  return selection.reasoningLevel !== undefined || reasoningLevel === undefined
+    ? selection
+    : { ...selection, reasoningLevel };
 }
 
 /** The synthetic "acp-default" id is never forwarded. */
@@ -291,15 +320,18 @@ function buildAcpModelSelectionParam(
     !listCommand ||
     !launchSpec.modelCli?.selectFlag
   ) {
+    const modelSelection =
+      parameterizedModelPicker && dialectId === "cursor"
+        ? cursorParameterizedSelection(model, options.reasoningLevel)
+        : {
+            modelId: model,
+            ...(options.reasoningLevel !== undefined
+              ? { reasoningLevel: options.reasoningLevel }
+              : {}),
+          };
     return {
       modelSelection: {
-        modelId:
-          parameterizedModelPicker && dialectId === "cursor"
-            ? cursorParameterizedModelId(model)
-            : model,
-        ...(options.reasoningLevel !== undefined
-          ? { reasoningLevel: options.reasoningLevel }
-          : {}),
+        ...modelSelection,
         ...(parameterizedModelPicker && options.serviceTier !== undefined
           ? { serviceTier: options.serviceTier }
           : {}),

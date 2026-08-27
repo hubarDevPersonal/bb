@@ -66,10 +66,18 @@
       "expo-router",
       "expo-secure-store",
       "expo-image",
-      "expo-audio",
-      "expo-web-browser",
-      "expo-font",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "image": "./assets/splash-icon-dark.png",
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
       [
         "expo-notifications",
         {
@@ -78,8 +86,8 @@
           "defaultChannel": "threads"
         }
       ],
+      "expo-quick-actions",
       "expo-camera",
-      "expo-image-picker",
       [
         "expo-build-properties",
         {

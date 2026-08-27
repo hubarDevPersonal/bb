@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 // Route views render icons outside the shell's core set. Importing the
 // extended registry here ships it as a static dependency of this route chunk,
 // so those icons never flash blank waiting for an on-demand load.
@@ -397,11 +397,32 @@ function PluginDetailToolView({ pluginId }: { pluginId: string }) {
   );
 }
 
-export function ToolsView() {
+/**
+ * The Extensions detail page, rendered from an explicit plugin id.
+ *
+ * A split pane cannot read the id from `useParams`: only the focused pane
+ * owns the URL, so an unfocused plugin-detail pane would otherwise show
+ * whatever plugin the focused pane happens to name.
+ */
+export function PluginDetailPaneView({ pluginId }: { pluginId: string }) {
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <Suspense fallback={<ToolsBodyFallback />}>
+          <PluginsToolView pluginId={pluginId} />
+        </Suspense>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * `pluginId` must come from the caller: every mount of this view sits under
+ * a `path="*"` route (or a paramless one), so `useParams` never carries the
+ * plugin-detail id — `SplitWorkspaceRoute` derives it from the URL itself.
+ */
+export function ToolsView({ pluginId }: { pluginId?: string } = {}) {
   const location = useLocation();
-  const { pluginId } = useParams<{
-    pluginId?: string;
-  }>();
   const activeSection = resolveToolsSection(location.pathname);
 
   return (

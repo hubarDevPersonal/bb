@@ -11,14 +11,19 @@ import {
   PaletteProvider,
   ProfilesProvider,
   ServerPaletteSync,
+  QuickActionsHandler,
   ShareIntentHandler,
   ThreadOpenSignalHandler,
   useAppBoot,
 } from "@/app-shell";
 import { RootNavigator, RouteErrorBoundary } from "@/screens";
 import { ThemeProvider } from "@/theme";
-import { useAppFonts } from "@/theme/useAppFonts";
 import { SheetProvider, Toaster } from "@/ui";
+
+// Keep the native splash up until boot finishes; `RootLayout` hides it once
+// `useAppBoot` is ready. Module scope so it runs before the first render
+// (fonts are the platform system faces, so nothing else is awaited).
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 // Deep links into a pushed screen still get home underneath.
 export const unstable_settings = { anchor: "index" };
@@ -26,9 +31,8 @@ export const unstable_settings = { anchor: "index" };
 export { RouteErrorBoundary as ErrorBoundary };
 
 export default function RootLayout() {
-  const fonts = useAppFonts();
   const boot = useAppBoot();
-  const ready = fonts.ready && boot.ready;
+  const ready = boot.ready;
 
   useEffect(() => {
     if (ready) void SplashScreen.hideAsync().catch(() => undefined);
@@ -49,6 +53,7 @@ export default function RootLayout() {
                     <RootNavigator />
                     <ThreadOpenSignalHandler />
                     <ShareIntentHandler />
+                    <QuickActionsHandler />
                     <Toaster />
                   </SheetProvider>
                 </ProfilesProvider>

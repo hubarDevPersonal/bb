@@ -1,6 +1,8 @@
 import {
+  cp,
   mkdtemp,
   mkdir,
+  readFile,
   rename,
   rm,
   symlink,
@@ -9,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import semver from "semver";
 import {
   createConnection,
   getInstalledPlugin,
@@ -16,7 +19,7 @@ import {
   upsertInstalledPlugin,
   type DbConnection,
 } from "@bb/db";
-import type { SystemChangeKind } from "@bb/domain";
+import { PLUGIN_SDK_VERSION, type SystemChangeKind } from "@bb/domain";
 import type { Logger } from "@bb/logger";
 import { createAiServiceRegistry } from "../../../src/services/ai/ai-service-registry.js";
 import {
@@ -646,6 +649,77 @@ describe("plugin service", () => {
       "warn plugin notify not loaded (incompatible): requires bb >=0.38.0 <0.39.0, this is 0.39.0",
     );
     await after.stop();
+  });
+
+  it("keeps a persisted 0.4.8 scaffold plugin running after an SDK upgrade", async () => {
+    // This package.json is frozen from `bb plugin new sdk-upgrade-fixture`
+    // shipped by bb 0.39.0 with @get-bb/plugin-sdk 0.4.8. Copy it into a
+    // user-owned path, then persist the registration before starting the
+    // current host so this exercises a real upgrade rather than a fresh
+    // current-version install.
+    const fixtureDir = new URL(
+      "../../fixtures/plugins/bb-plugin-sdk-0.4.8-scaffold/",
+      import.meta.url,
+    );
+    const rootDir = join(workDir, "bb-plugin-sdk-upgrade-fixture");
+    await cp(fixtureDir, rootDir, { recursive: true });
+    const manifest = JSON.parse(
+      await readFile(join(rootDir, "package.json"), "utf8"),
+    ) as {
+      engines: { bbPluginSdk: string };
+      devDependencies: Record<string, string>;
+    };
+    expect(manifest.engines.bbPluginSdk).toBe(">=0.4.8");
+    expect(manifest.devDependencies["@get-bb/plugin-sdk"]).toBe("0.4.8");
+    // The current SDK must be newer than the frozen fixture — the point is
+    // the upgrade, not any particular release, so don't pin the exact
+    // version here.
+    expect(semver.gt(PLUGIN_SDK_VERSION, "0.4.8")).toBe(true);
+
+    upsertInstalledPlugin(db, {
+      id: "sdk-upgrade-fixture",
+      source: `path:${rootDir}`,
+      provenance: { kind: "direct" },
+      sourceIntent: { kind: "path", canonicalPath: rootDir },
+      exactResolution: { kind: "path" },
+      updateState: {
+        lastCheckAt: null,
+        availableCompatibleVersion: null,
+        newestIncompatibleVersion: null,
+        statusDetail: null,
+      },
+      activeArtifactId: null,
+      rootDir,
+      version: "0.1.0",
+      enabled: true,
+    });
+
+    const upgraded = createPluginService({
+      aiServices: createAiServiceRegistry(),
+      telemetry: createNoopTelemetryService(),
+      db,
+      hub: {
+        getDaemonSessionIdForHost: () => null,
+        notifyPluginSignal: () => 0,
+        notifySystem: () => {},
+      },
+      logger,
+      dataDir: join(workDir, "data"),
+      appVersion: "0.39.0",
+      loadTimeoutMs: 2000,
+      bundledPlugins: [],
+    });
+    await upgraded.start();
+    try {
+      const entry = upgraded
+        .list()
+        .find((plugin) => plugin.id === "sdk-upgrade-fixture");
+      expect(entry?.status).toBe("running");
+      expect(entry?.statusDetail).toBeNull();
+      expect(upgraded.getApi("sdk-upgrade-fixture")).toBeDefined();
+    } finally {
+      await upgraded.stop();
+    }
   });
 
   it("skips the engines gate on 0.0.0 dev builds instead of marking everything incompatible", async () => {

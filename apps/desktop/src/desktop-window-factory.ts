@@ -87,7 +87,9 @@ interface CreateDesktopWindowFactoryArgs {
   createWindowStateKey(): WindowStateKey;
   displayWorkAreas: DisplayWorkArea[] | null;
   icon: DesktopWindowIcon;
+  isLinuxTransparent: boolean;
   isMac: boolean;
+  isLinuxFrameless: boolean;
   isQuitting(): boolean;
   openExternalUrl(args: OpenExternalUrlArgs): void;
   preloadPath: string;
@@ -137,7 +139,9 @@ interface LoadUrlIntoWindowArgs {
 interface CreateWindowOptionsArgs {
   bounds: WindowBounds;
   icon: DesktopWindowIcon;
+  isLinuxTransparent: boolean;
   isMac: boolean;
+  isLinuxFrameless: boolean;
   preloadPath: string;
 }
 
@@ -168,6 +172,10 @@ function createWindowOptions(
   args: CreateWindowOptionsArgs,
 ): BrowserWindowConstructorOptions {
   return {
+    ...(args.isLinuxFrameless ? { frame: false } : {}),
+    ...(args.isLinuxTransparent
+      ? { backgroundColor: "#00000000", transparent: true }
+      : {}),
     ...(args.isMac
       ? {
           frame: false,
@@ -237,7 +245,9 @@ export function createDesktopWindowFactory(
         createWindowOptions({
           bounds: restoredState.bounds,
           icon: args.icon,
+          isLinuxTransparent: args.isLinuxTransparent,
           isMac: args.isMac,
+          isLinuxFrameless: args.isLinuxFrameless,
           preloadPath: args.preloadPath,
         }),
       );

@@ -128,6 +128,20 @@ const LazyPluginPanelRightPanelHost = lazy(() =>
   ),
 );
 
+const LazyPluginDetailPaneView = lazy(() =>
+  import("@/views/ToolsView").then(({ PluginDetailPaneView }) => ({
+    default: PluginDetailPaneView,
+  })),
+);
+
+function PluginDetailPaneView({ pluginId }: { pluginId: string }) {
+  return (
+    <Suspense fallback={null}>
+      <LazyPluginDetailPaneView pluginId={pluginId} />
+    </Suspense>
+  );
+}
+
 function PluginPagePanelHost({
   children,
   ...props
@@ -1051,6 +1065,9 @@ function StandalonePaneContent({
   if (content.kind === "new-thread") {
     return <RootComposeView />;
   }
+  if (content.kind === "plugin-detail") {
+    return <PluginDetailPaneView pluginId={content.pluginId} />;
+  }
   const panelEntry = navPanelChrome.find(
     (candidate) =>
       candidate.chrome.pluginId === content.pluginId &&
@@ -1140,7 +1157,9 @@ function NonThreadPaneContent({
           isFocused ? resourceRouteLabel : null,
         )
       : null;
-  const label = panelChrome?.title ?? "New thread";
+  const label =
+    panelChrome?.title ??
+    (content.kind === "plugin-detail" ? "Extension" : "New thread");
   const handlePointerDown = (event: ReactPointerEvent) => {
     if (
       event.target instanceof Element &&
@@ -1245,7 +1264,9 @@ function NonThreadPaneContent({
                       CONTEXT_INACTIVE_TEXT_CLASS,
                   )}
                 >
-                  New thread
+                  {content.kind === "plugin-detail"
+                    ? "Extension"
+                    : "New thread"}
                 </p>
               )}
             </div>
@@ -1264,6 +1285,8 @@ function NonThreadPaneContent({
       >
         {content.kind === "new-thread" ? (
           <RootComposeView />
+        ) : content.kind === "plugin-detail" ? (
+          <PluginDetailPaneView pluginId={content.pluginId} />
         ) : (
           <PluginPanelView
             pluginId={content.pluginId}

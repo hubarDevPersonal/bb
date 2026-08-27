@@ -6,6 +6,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -45,6 +46,7 @@ import {
 import { splitLayoutAtom } from "@/lib/split-layout/atoms";
 import { SPLIT_LAYOUT_STORAGE_KEY } from "@/lib/split-layout/persistence";
 import { NO_COLLAPSED_CHILD_ACTIVITY } from "@bb/client-core";
+import { sdk } from "@/lib/sdk";
 
 vi.mock("@/components/thread/ThreadActionsMenu", () => ({
   ThreadActionsContextMenu: ({ children }: { children: ReactNode }) => (
@@ -244,6 +246,7 @@ afterEach(() => {
   mocks.renameThread.mockReset();
   resetSidebarTitleDoubleClickForTest();
   resetPluginThreadRowStatusesForTest();
+  expect(vi.isMockFunction(sdk.threads.resolveMentions)).toBe(false);
   // The layout is tab-scoped, so it lands in both stores (createTabScopedStorage).
   window.localStorage.removeItem(SPLIT_LAYOUT_STORAGE_KEY);
   window.sessionStorage.removeItem(SPLIT_LAYOUT_STORAGE_KEY);
@@ -651,6 +654,98 @@ describe("ThreadRow", () => {
       screen.getByRole("link", { name: `Open ${resolvedTitle}` }),
     ).not.toBeNull();
     expect(screen.getByTitle(resolvedTitle)).not.toBeNull();
+  });
+
+  it("resolves a serialized thread title mention outside the sidebar cache", async () => {
+    const resolveMentions = vi
+      .spyOn(sdk.threads, "resolveMentions")
+      .mockResolvedValue([
+        {
+          threadId: "thr_dcwivn5n8w",
+          projectId: "proj_mentioned",
+          label: "Mention target",
+        },
+      ]);
+
+    try {
+      render(
+        <ThreadTitleMentionResourcesProvider
+          sectionNamesById={new Map()}
+          projectNamesById={new Map()}
+          threadById={new Map()}
+        >
+          <ThreadRowTestHarness
+            thread={createThread({
+              title: "Continue from @thread:thr_dcwivn5n8w",
+              titleFallback: "Continue from @thread:thr_dcwivn5n8w",
+            })}
+          />
+        </ThreadTitleMentionResourcesProvider>,
+      );
+
+      expect(screen.queryByText("thr_dcwivn5n8w")).toBeNull();
+      expect(
+        screen.getByRole("link", { name: "Open Continue from Thread" }),
+      ).not.toBeNull();
+      await waitFor(() => expect(resolveMentions).toHaveBeenCalledTimes(1));
+      expect(screen.getByText("Mention target")).not.toBeNull();
+      expect(screen.queryByText("thr_dcwivn5n8w")).toBeNull();
+      expect(
+        screen.getByRole("link", {
+          name: "Open Continue from Mention target",
+        }),
+      ).not.toBeNull();
+    } finally {
+      resolveMentions.mockRestore();
+    }
+  });
+
+  it("keeps missing naked thread ids literal across sidebar labels", async () => {
+    const missingThreadId = "thr_dcwivn5n8w";
+    const resolveMentions = vi
+      .spyOn(sdk.threads, "resolveMentions")
+      .mockResolvedValue([]);
+
+    try {
+      render(
+        <ThreadTitleMentionResourcesProvider
+          sectionNamesById={new Map()}
+          projectNamesById={new Map()}
+          threadById={new Map()}
+        >
+          <ThreadRowTestHarness
+            thread={createThread({
+              id: "thr_canonical",
+              title: `Canonical @thread:${missingThreadId}`,
+              titleFallback: `Canonical @thread:${missingThreadId}`,
+            })}
+          />
+          <ThreadRowTestHarness
+            thread={createThread({
+              id: "thr_naked",
+              title: `Naked ${missingThreadId}`,
+              titleFallback: `Naked ${missingThreadId}`,
+            })}
+          />
+        </ThreadTitleMentionResourcesProvider>,
+      );
+
+      await waitFor(() => expect(resolveMentions).toHaveBeenCalledTimes(1));
+      expect(
+        await screen.findByRole("link", {
+          name: "Open Canonical Unavailable thread",
+        }),
+      ).not.toBeNull();
+      expect(screen.getByTitle("Canonical Unavailable thread")).not.toBeNull();
+
+      const nakedTitle = `Naked ${missingThreadId}`;
+      expect(
+        screen.getByRole("link", { name: `Open ${nakedTitle}` }),
+      ).not.toBeNull();
+      expect(screen.getByTitle(nakedTitle).textContent).toBe(nakedTitle);
+    } finally {
+      resolveMentions.mockRestore();
+    }
   });
 
   it("marks a child from another project with the project name", () => {

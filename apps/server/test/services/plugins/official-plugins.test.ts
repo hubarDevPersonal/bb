@@ -102,6 +102,7 @@ describe("official plugin registry invariants", () => {
       memory: "Context & knowledge",
       "monaco-editor": "Interface",
       "pdf-preview": "Interface",
+      "plugin-api-docs": "Developer tools",
       "provider-acp": "Agent interaction",
       "provider-claude-code": "Agent interaction",
       "provider-codex": "Agent interaction",

@@ -8,6 +8,7 @@
  */
 import type { IconSvgElement } from "@hugeicons/react-native";
 import {
+  AiBrowserIcon,
   AiContentGenerator01Icon,
   Alert02Icon,
   AlertCircleIcon,
@@ -279,6 +280,7 @@ const SectionAddStrokeRoundedIcon: IconSvgElement = [
 ];
 
 const ICON_MAP = {
+  AiBrowser: AiBrowserIcon,
   AiContentGenerator01: AiContentGenerator01Icon,
   AlertCircle: AlertCircleIcon,
   AlertTriangle: Alert02Icon,

@@ -127,6 +127,12 @@ export const BUILTIN_PLUGINS = [
     category: "Host access",
   },
   {
+    name: "plugin-api-docs",
+    pluginId: "plugin-api-docs",
+    defaultEnabled: false,
+    category: "Developer tools",
+  },
+  {
     name: "provider-retry",
     pluginId: "provider-retry",
     defaultEnabled: true,

@@ -10,6 +10,7 @@ import type { IconSvgElement } from "@hugeicons/react";
  * enforces that through `Record<ExtendedIconName, IconSvgElement>`.
  */
 export const EXTENDED_ICON_NAMES = [
+  "AiBrowser",
   "AiContentGenerator01",
   "AlignLeft",
   "AppWindow",
