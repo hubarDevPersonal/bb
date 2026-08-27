@@ -633,10 +633,17 @@ add <key-or-comment-id> --file <path>` (task key = task-level; comment ID
 - Use `bb automation list`, `bb automation show <id>`, and
   `bb automation runs <id>` to inspect; `--output <run-id>` prints a script
   run's captured stdout.
-- `list` and `show` keep damaged records visible as `Needs prompt` or `Invalid
-stored data`. A `Needs prompt` record is repairable in the Automations panel;
-  run, update, pause, and resume still validate the complete record before
-  acting.
+- `list` and `show` keep damaged records visible as `Prompt required` or
+  `Invalid data`. A `Prompt required` record is repairable in the Automations
+  panel or with
+  `bb automation update <id> --project <id> --prompt "<prompt>"`.
+  Writes remain strict: run, pause, and resume reject damaged records, and
+  update succeeds only when the resulting complete record is canonical.
+- With `--json`, `list` and `show` return a union discriminated by `problem`.
+  Canonical records omit it; degraded records use `"missing-agent-prompt"` or
+  `"invalid-stored-data"`. The missing-prompt variant retains the full readable
+  automation; the invalid-data variant contains only its identity fields and
+  `problem`.
 - Partially update an existing agent automation in place with any of
   `--prompt`, `--provider`, `--model`, `--reasoning`,
   `--service-tier default|fast|none`, `--permission-mode accept-edits|auto|full`,

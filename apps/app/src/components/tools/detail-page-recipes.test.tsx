@@ -777,17 +777,18 @@ const AUTOMATION: AutomationResponse = {
 
 type TestAutomationDetailProps = Omit<
   ComponentProps<typeof AutomationDetailViewBase>,
-  "editing" | "onCancelEdit" | "onUpdateAgent"
+  "editing" | "requiresPrompt" | "onCancelEdit" | "onUpdateAgent"
 > &
   Partial<
     Pick<
       ComponentProps<typeof AutomationDetailViewBase>,
-      "editing" | "onCancelEdit" | "onUpdateAgent"
+      "editing" | "requiresPrompt" | "onCancelEdit" | "onUpdateAgent"
     >
   >;
 
 function AutomationDetailView({
   editing = false,
+  requiresPrompt = false,
   onCancelEdit = () => {},
   onUpdateAgent = async () => {},
   ...props
@@ -796,6 +797,7 @@ function AutomationDetailView({
     <AutomationDetailViewBase
       {...props}
       editing={editing}
+      requiresPrompt={requiresPrompt}
       onCancelEdit={onCancelEdit}
       onUpdateAgent={onUpdateAgent}
     />

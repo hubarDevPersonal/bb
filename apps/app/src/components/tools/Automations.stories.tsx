@@ -439,6 +439,7 @@ function AutomationDetail({
       }}
       actionPending={false}
       editing={false}
+      requiresPrompt={false}
       onToggle={noop}
       onEdit={noop}
       onCancelEdit={noop}

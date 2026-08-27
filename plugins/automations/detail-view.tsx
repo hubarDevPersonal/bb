@@ -68,7 +68,7 @@ interface AutomationDetailViewProps {
   runsState: AutomationRunsViewState;
   actionPending: boolean;
   editing: boolean;
-  requiresPrompt?: boolean;
+  requiresPrompt: boolean;
   onToggle: (enabled: boolean) => void;
   onEdit: () => void;
   onCancelEdit: () => void;
@@ -715,7 +715,7 @@ export function AutomationDetailView({
   runsState,
   actionPending,
   editing,
-  requiresPrompt = false,
+  requiresPrompt,
   onToggle,
   onEdit,
   onCancelEdit,
@@ -829,6 +829,7 @@ export function AutomationDetailView({
                 execution.mode === "agent" ? "Edit prompt" : "Edit with chat"
               }
               icon="Edit"
+              disabled={editing}
               onClick={onEdit}
             />
           }
@@ -922,7 +923,7 @@ export function AutomationDetailView({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={actionPending}
+                  disabled={actionPending || requiresPrompt}
                   onClick={onRunNow}
                 >
                   <Icon name="Play" className="size-3.5" aria-hidden />
