@@ -5,6 +5,7 @@ import {
   automationResponseSchema,
   automationRunResponseSchema,
   automationTriggerSchema,
+  repairableAutomationExecutionSchema,
   type AutomationExecution,
   type AutomationOrigin,
   type AutomationResponse,
@@ -248,7 +249,7 @@ function serializeTrigger(trigger: AutomationTrigger): string {
 }
 
 function serializeExecution(execution: AutomationExecution): string {
-  return JSON.stringify(execution);
+  return JSON.stringify(automationExecutionSchema.parse(execution));
 }
 
 export function parseAutomationTrigger(
@@ -261,6 +262,12 @@ export function parseAutomationExecution(
   execution: string,
 ): AutomationExecution {
   return automationExecutionSchema.parse(JSON.parse(execution));
+}
+
+export function parseRepairableAutomationExecution(
+  execution: string,
+): AutomationExecution {
+  return repairableAutomationExecutionSchema.parse(JSON.parse(execution));
 }
 
 export function toAutomationResponse(row: AutomationRow): AutomationResponse {

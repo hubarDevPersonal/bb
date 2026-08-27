@@ -710,6 +710,28 @@ describe("workflow thread panel", () => {
     });
   });
 
+  it.each([
+    ["loading", () => new Promise<never>(() => undefined)],
+    ["an initial RPC error", () => Promise.reject(new Error("Unavailable"))],
+    ["no matching run", () => ({ run: null })],
+  ])("keeps local spacing while showing %s", async (_name, workflowRunView) => {
+    const slot = renderSlot(
+      app.threadPanelActions[0]!,
+      { threadId: "thr_origin", params: { runId: run.id } },
+      { rpc: { workflowRunView } },
+    );
+
+    await waitFor(() => {
+      const state =
+        slot.container.querySelector('[aria-busy="true"]') ??
+        slot.container.querySelector('[role="alert"]');
+      expect(state?.parentElement?.className).toContain("p-4");
+      expect(state?.className).not.toMatch(
+        /\b(?:bg-muted|border|p-3|px-3|rounded-lg|rounded-md)\b/,
+      );
+    });
+  });
+
   it("rejects restored panel params with unknown fields", async () => {
     const slot = renderSlot(
       app.threadPanelActions[0]!,

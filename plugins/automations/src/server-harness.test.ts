@@ -6,6 +6,7 @@ import {
   type FakePluginHost,
 } from "@get-bb/plugin-sdk/testing";
 import plugin from "./server.js";
+import { createAutomationService } from "./service.js";
 import {
   automationListResponseSchema,
   automationsOverviewResponseSchema,
@@ -641,6 +642,123 @@ describe("automations server plugin harness", () => {
       }),
     );
     expect(repaired.execution).toMatchObject({ prompt: "short again" });
+
+    await harness.dispose();
+  });
+
+  it("does not persist a CLI create rejected by execution validation", async () => {
+    const { harness } = await bootAutomationsPlugin();
+
+    const result = await harness.runCli([
+      "create",
+      "--project",
+      PROJECT_ID,
+      "--name",
+      "Invalid empty prompt",
+      "--in",
+      "1h",
+      "--prompt",
+      "",
+      "--provider",
+      "codex",
+      "--model",
+      "gpt-5",
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(
+      automationListResponseSchema.parse(
+        await harness.callRpc("automations_list", { projectId: PROJECT_ID }),
+      ),
+    ).toHaveLength(0);
+
+    await harness.dispose();
+  });
+
+  it("repairs a desktop v0.40.0 empty-prompt row through the public update path", async () => {
+    const host = await bootAutomationsPlugin();
+    const { harness } = host;
+    const created = await createAgentAutomation(harness);
+    if (created.execution.mode !== "agent") {
+      throw new Error("Expected an agent automation");
+    }
+    host.bb.storage
+      .database()
+      .prepare("UPDATE automations SET execution = ? WHERE id = ?")
+      .run(JSON.stringify({ ...created.execution, prompt: "" }), created.id);
+
+    await expect(
+      harness.callRpc("automations_list", { projectId: PROJECT_ID }),
+    ).rejects.toThrow("Too small");
+
+    const repaired = automationResponseSchema.parse(
+      await harness.callRpc("automations_update", {
+        projectId: PROJECT_ID,
+        automationId: created.id,
+        agent: { prompt: "repaired prompt" },
+      }),
+    );
+    expect(repaired.execution).toMatchObject({ prompt: "repaired prompt" });
+    expect(
+      automationListResponseSchema.parse(
+        await harness.callRpc("automations_list", { projectId: PROJECT_ID }),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        id: created.id,
+        execution: expect.objectContaining({ prompt: "repaired prompt" }),
+      }),
+    ]);
+
+    await harness.dispose();
+  });
+
+  it("preserves valid rows after rejected full and partial updates", async () => {
+    const host = await bootAutomationsPlugin();
+    const { harness } = host;
+    const full = await createAgentAutomation(harness, { name: "Full" });
+    const partial = await createAgentAutomation(harness, { name: "Partial" });
+
+    const fullResult = await harness.runCli([
+      "update",
+      full.id,
+      "--project",
+      PROJECT_ID,
+      "--prompt",
+      "",
+      "--provider",
+      "codex",
+      "--model",
+      "gpt-5",
+    ]);
+    expect(fullResult.exitCode).toBe(1);
+
+    const service = createAutomationService({
+      bb: host.bb as never,
+      db: host.bb.storage.database(),
+      pluginDataDir: "/tmp/bb-automations-test",
+      serverUrl: "http://127.0.0.1:38886",
+    });
+    await expect(
+      service.update({
+        projectId: PROJECT_ID,
+        automationId: partial.id,
+        agent: { prompt: "" },
+      } as never),
+    ).rejects.toThrow();
+
+    for (const automationId of [full.id, partial.id]) {
+      const unchanged = automationResponseSchema.parse(
+        await harness.callRpc("automations_get", {
+          projectId: PROJECT_ID,
+          automationId,
+        }),
+      );
+      expect(unchanged.execution).toMatchObject({
+        mode: "agent",
+        prompt: "summarize the inbox",
+      });
+    }
 
     await harness.dispose();
   });

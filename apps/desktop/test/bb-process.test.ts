@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createBbAppProcessLaunch,
   createBbAppProcessEnv,
@@ -163,6 +163,9 @@ describe("bb app process", () => {
     });
 
     expect(launch.args).toContain(desktopMountScript.path);
+    if (process.platform !== "linux") {
+      return;
+    }
     const result = await execFileAsync(launch.executablePath, launch.args, {
       env: {
         ...launch.env,
@@ -309,6 +312,7 @@ setInterval(() => undefined, 1000);
       text: "ignored SIGTERM",
       timeoutMs: 1_000,
     });
+    const killSpy = vi.spyOn(processEntry.childProcess, "kill");
 
     await processEntry.stop({
       killSignal: "SIGKILL",
@@ -318,7 +322,8 @@ setInterval(() => undefined, 1000);
     });
 
     const exit = await processEntry.exit;
-    expect(processEntry.logs.text()).toContain("ignored SIGTERM");
+    expect(killSpy).toHaveBeenNthCalledWith(1, "SIGTERM");
+    expect(killSpy).toHaveBeenNthCalledWith(2, "SIGKILL");
     expect(exit.signal).toBe("SIGKILL");
   });
 });

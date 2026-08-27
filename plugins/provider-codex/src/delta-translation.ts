@@ -177,6 +177,7 @@ function mergeCodexRateLimitSnapshot(
     credits: update.credits ?? previous?.credits ?? null,
     individualLimit:
       update.individualLimit ?? previous?.individualLimit ?? null,
+    spendControlReached: update.spendControlReached ?? null,
     planType: update.planType ?? previous?.planType ?? null,
     rateLimitReachedType: update.rateLimitReachedType ?? null,
   };
@@ -249,11 +250,12 @@ function normalizeCodexRateLimits(
           : windows.length > 0 || snapshot.credits?.hasCredits === true
             ? "allowed"
             : "unknown";
+  const isSpendControlBlocked = snapshot.spendControlReached === true;
 
   return {
     providerId: "codex",
-    status,
-    kind,
+    status: isSpendControlBlocked ? "blocked" : status,
+    kind: isSpendControlBlocked ? "spend-control" : kind,
     windows,
     reachedReason,
     overageStatus: null,
@@ -327,11 +329,14 @@ function getProviderErrorCategory(
     switch (errorInfo) {
       case "contextWindowExceeded":
         return "context-window-exceeded";
+      case "sessionBudgetExceeded":
+        return "budget-exceeded";
       case "usageLimitExceeded":
         return "rate-limit";
       case "serverOverloaded":
         return "overloaded";
       case "cyberPolicy":
+      case "misalignmentPolicyViolation":
         return "policy";
       case "internalServerError":
         return "internal";

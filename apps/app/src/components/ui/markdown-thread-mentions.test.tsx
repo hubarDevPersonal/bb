@@ -165,7 +165,7 @@ const ACTIVE_MESSAGE_DIRECTIVES: MarkdownMessageDirectives = {
 
 afterEach(() => {
   cleanup();
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   setPreferredTheme("system");
 });
 
@@ -556,6 +556,39 @@ describe("MarkdownPreview thread mentions", () => {
     expect(
       await screen.findByRole("link", { name: "Strict mode target" }),
     ).not.toBeNull();
+    expect(sdk.threads.resolveMentions).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a failed title mention batch once", async () => {
+    vi.useFakeTimers();
+    try {
+      const threadId = "thr_2222222222";
+    vi.mocked(sdk.threads.resolveMentions)
+      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockRejectedValueOnce(new Error("temporary failure"));
+      renderMarkdown(
+        <ThreadTitleMentions title={`Review @thread:${threadId}`} />,
+        [],
+      );
+
+      await act(async () => vi.advanceTimersByTimeAsync(60));
+      expect(sdk.threads.resolveMentions).toHaveBeenCalledTimes(2);
+      await act(async () => vi.advanceTimersByTimeAsync(1_000));
+      expect(sdk.threads.resolveMentions).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("marks an omitted title mention unavailable", async () => {
+    const threadId = "thr_2222222222";
+    vi.mocked(sdk.threads.resolveMentions).mockResolvedValueOnce([]);
+    renderMarkdown(
+      <ThreadTitleMentions title={`Review @thread:${threadId}`} />,
+      [],
+    );
+
+    expect(await screen.findByText("Unavailable thread")).not.toBeNull();
     expect(sdk.threads.resolveMentions).toHaveBeenCalledTimes(1);
   });
 
