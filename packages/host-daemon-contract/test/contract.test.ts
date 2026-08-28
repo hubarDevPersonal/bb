@@ -488,7 +488,9 @@ const SETTLED_RESPONSE_RESULT_FIXTURES: SettledResponseResultFixtures = {
     path: "/home/me/.bb/checkouts/project",
     gitRemoteUrl: "git@example.com:me/project.git",
   },
-  "environment.destroy": {},
+  "environment.destroy": {
+    transcript: [],
+  },
   "workspace.commit": {
     commitSha: "abcdef123456",
     commitSubject: "Checkpoint work",

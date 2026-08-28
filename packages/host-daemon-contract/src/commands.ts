@@ -914,6 +914,8 @@ const environmentProvisionCancelCommandSchema =
 const environmentDestroyCommandSchema = hostDaemonWorkspaceTargetSchema
   .extend({
     type: z.literal("environment.destroy"),
+    /** Maximum time in ms to wait for the teardown script. */
+    teardownTimeoutMs: z.number().int().positive(),
   })
   .strict();
 
@@ -1230,6 +1232,11 @@ const environmentProvisionResultSchema =
 const environmentProvisionCancelResultSchema = z.object({
   aborted: z.boolean(),
 });
+const environmentDestroyResultSchema = z
+  .object({
+    transcript: z.array(provisioningTranscriptEntrySchema),
+  })
+  .strict();
 const workspaceCommitResultSchema = z.object({
   commitSha: z.string().min(1),
   commitSubject: z.string().min(1),
@@ -1451,7 +1458,7 @@ export const hostDaemonCommandRegistry = {
   "environment.destroy": defineHostDaemonCommandDescriptor({
     type: "environment.destroy",
     schema: environmentDestroyCommandSchema,
-    resultSchema: emptyCommandResultSchema,
+    resultSchema: environmentDestroyResultSchema,
     transport: "settled",
     retryable: false,
     flushEventsBeforeResult: false,
@@ -1832,7 +1839,9 @@ type HostDaemonRetryableOnlineRpcCommandSchema =
 type HostDaemonResultSchemaMapForTransport<
   Transport extends HostDaemonCommandTransport,
 > = {
-  [Descriptor in HostDaemonCommandDescriptorForTransport<Transport> as Descriptor["type"]]: Descriptor["resultSchema"];
+  [
+    Descriptor in HostDaemonCommandDescriptorForTransport<Transport> as Descriptor["type"]
+  ]: Descriptor["resultSchema"];
 };
 
 type HostDaemonCommandResultSchemaMap =
