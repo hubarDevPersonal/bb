@@ -6,11 +6,8 @@ import { runGit, WorkspaceError, type GitProcessOptions } from "./git.js";
 import { withWorktreeMetadataLock } from "./worktree-metadata-lock.js";
 
 export interface DeleteThreadStorageArgs {
-  /** Daemon-owned root that contains one directory per thread. */
   threadStorageRootPath: string;
-  /** Thread directory name. Must be one path segment. */
   threadId: string;
-  /** Resolved login-shell PATH used for Git commands. */
   shellPath?: string;
 }
 
@@ -166,11 +163,6 @@ async function unregisterLinkedWorktree(
   }
 }
 
-/**
- * Delete one daemon-owned thread storage directory. Linked Git worktrees are
- * unregistered before the recursive delete so their repositories do not keep
- * stale worktree metadata. Ordinary clones are deleted with the other files.
- */
 export async function deleteThreadStorage(
   args: DeleteThreadStorageArgs,
 ): Promise<void> {
@@ -180,8 +172,6 @@ export async function deleteThreadStorage(
     return;
   }
 
-  // Never follow a replacement symlink outside the daemon-owned root. Removing
-  // the link itself is sufficient because bb owns the exact thread path only.
   if (!storageStat.isDirectory()) {
     await fs.rm(threadStoragePath, { force: true });
     return;

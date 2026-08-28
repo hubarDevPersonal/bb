@@ -8,7 +8,6 @@ export type ArchivedConversationRetention = z.infer<
   typeof archivedConversationRetentionSchema
 >;
 
-/** Server-backed preferences owned by Settings → Threads. */
 export const threadSettingsSchema = z
   .object({
     archivedConversationRetention: archivedConversationRetentionSchema,

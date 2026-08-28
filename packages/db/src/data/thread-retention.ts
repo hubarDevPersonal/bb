@@ -101,11 +101,6 @@ export function cancelThreadRetention(
   );
 }
 
-/**
- * Preserve an archive-captured host while making permanent deletion eligible
- * for resource cleanup now. Conversation retention is no longer needed once
- * the caller hard-deletes the transcript.
- */
 export function scheduleImmediateThreadResourceCleanup(
   db: ThreadRetentionWriteConnection,
   args: ScheduleImmediateThreadResourceCleanupArgs,
