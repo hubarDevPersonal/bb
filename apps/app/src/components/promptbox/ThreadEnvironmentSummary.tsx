@@ -96,7 +96,7 @@ export const ThreadEnvironmentSummary = memo(function ThreadEnvironmentSummary({
               name={environmentIcon}
               className={cn(
                 "size-4 shrink-0",
-                environmentIcon === "Spinner" && "animate-spin",
+                environmentIcon === "Loading" && "animate-spin",
               )}
             />
           ) : null}
