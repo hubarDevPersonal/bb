@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useCallback, useRef } from "react";
 import type {
   CommandListResponse,
   ProjectBranchesResponse,
@@ -61,10 +62,10 @@ interface UseProjectCommandsArgs {
 
 const PROJECT_SOURCE_BRANCHES_LIMIT = 50;
 /**
- * The branch list is a daemon git RPC (throttled fetch + several git
- * commands). Realtime `project-sources-changed` refreshes it and the branch
- * picker refetches on open, so a foreground/focus refetch only re-runs that
- * RPC without new information.
+ * Initial source inspection reads cached refs while starting a throttled
+ * remote refresh. Opening the picker explicitly requests a blocking refresh
+ * and replaces this query's data when it completes. Window-focus refetches are
+ * disabled because picker-open owns remote convergence.
  */
 const PROJECT_SOURCE_BRANCHES_STALE_MS = 30_000;
 
@@ -99,7 +100,16 @@ export function useProjectSourceBranches(
   const query = options?.query?.trim() ?? "";
   const limit = options?.limit ?? PROJECT_SOURCE_BRANCHES_LIMIT;
   const selectedBranch = options?.selectedBranch?.trim() ?? "";
-  return useQuery<ProjectBranchesResponse>({
+  // Picker-open marks one complete TanStack fetch lifecycle as blocking. The
+  // signal identifies retries of that lifecycle, while unrelated key changes
+  // keep using cached refs. Routing through the query keeps `isFetching` true
+  // and preserves cancellation without writing the cache directly.
+  const remoteRefreshRef = useRef<{
+    blockingSignal: AbortSignal | null;
+    inFlight: Promise<void> | null;
+    requested: boolean;
+  }>({ blockingSignal: null, inFlight: null, requested: false });
+  const result = useQuery<ProjectBranchesResponse>({
     queryKey: projectSourceBranchesQueryKey(
       projectId ?? "",
       hostId ?? "",
@@ -107,15 +117,28 @@ export function useProjectSourceBranches(
       limit,
       selectedBranch,
     ),
-    queryFn: ({ signal }) =>
-      sdk.projects.branches({
+    queryFn: ({ signal }) => {
+      const remoteRefresh = remoteRefreshRef.current;
+      const startsBlockingRefresh =
+        remoteRefresh.requested && remoteRefresh.blockingSignal === null;
+      const refresh =
+        startsBlockingRefresh || remoteRefresh.blockingSignal === signal
+          ? "blocking"
+          : "background";
+      if (startsBlockingRefresh) {
+        remoteRefresh.requested = false;
+        remoteRefresh.blockingSignal = signal;
+      }
+      return sdk.projects.branches({
         projectId: requireProjectId(projectId, "useProjectSourceBranches"),
         hostId: hostId ?? "",
         ...(query ? { query } : {}),
         ...(selectedBranch ? { selectedBranch } : {}),
         limit: String(limit),
+        refresh,
         signal,
-      }),
+      });
+    },
     enabled,
     ...REALTIME_OWNED_NO_FOCUS_QUERY_POLICY,
     staleTime: PROJECT_SOURCE_BRANCHES_STALE_MS,
@@ -131,6 +154,30 @@ export function useProjectSourceBranches(
           })
         : undefined,
   });
+  const refetch = result.refetch;
+  const refreshFromRemote = useCallback((): Promise<void> => {
+    const remoteRefresh = remoteRefreshRef.current;
+    if (remoteRefresh.inFlight) return remoteRefresh.inFlight;
+
+    const run = async (): Promise<void> => {
+      remoteRefresh.requested = true;
+      remoteRefresh.blockingSignal = null;
+      try {
+        await refetch();
+        // With no cached data, TanStack coalesces a refetch into the initial
+        // background request without calling queryFn. The unconsumed request
+        // means picker-open still owes one authoritative blocking read.
+        if (remoteRefresh.requested) await refetch();
+      } finally {
+        remoteRefresh.requested = false;
+        remoteRefresh.blockingSignal = null;
+        remoteRefresh.inFlight = null;
+      }
+    };
+    remoteRefresh.inFlight = run();
+    return remoteRefresh.inFlight;
+  }, [refetch]);
+  return { ...result, refreshFromRemote };
 }
 
 export function useProjectPromptHistory(

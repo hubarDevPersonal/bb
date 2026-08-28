@@ -329,7 +329,7 @@ function requireLiveSourceThread(
 }
 
 /**
- * Pick the ref a new managed worktree starts from. `host.list_branches`
+ * Pick the ref a new managed worktree starts from. `host.inspect_git_source`
  * refreshes the remote-tracking refs and reports how the local default branch
  * relates to origin; the default spec and a plain name that is the default
  * branch both prefer origin when local is equal or behind. A fork names the
@@ -356,9 +356,9 @@ async function resolveManagedBaseBranchForCreate(
       hostId: args.hostId,
       timeoutMs: COMMAND_TIMEOUT_MS,
       command: {
-        type: "host.list_branches",
+        type: "host.inspect_git_source",
         path: args.sourcePath,
-        limit: 1,
+        remoteRefresh: "blocking",
       },
     });
     return args.baseBranch.kind === "named"

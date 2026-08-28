@@ -273,9 +273,7 @@ const ONLINE_RPC_RESPONSE_RESULT_FIXTURES: OnlineRpcResponseResultFixtures = {
       { name: "bb-cli", path: "/home/user/.agents/skills/bb-cli" },
     ],
   },
-  "host.list_branches": {
-    branches: ["main"],
-    branchesTruncated: false,
+  "host.inspect_git_source": {
     checkout: {
       kind: "branch",
       branchName: "main",
@@ -288,12 +286,6 @@ const ONLINE_RPC_RESPONSE_RESULT_FIXTURES: OnlineRpcResponseResultFixtures = {
       kind: "none",
     },
     originDefaultBranch: "origin/main",
-    remoteBranches: ["origin/main"],
-    remoteBranchesTruncated: false,
-    selectedBranch: {
-      name: "main",
-      kind: "local",
-    },
   },
   "host.list_branch_options": {
     branches: ["main"],
@@ -668,7 +660,7 @@ const INTENTIONAL_OPTIONAL_HOST_DAEMON_FIELDS: Record<string, string> = {
   "hostDaemonOnlineRpcCommandSchema.rootPath":
     "host.read_file and host.file_metadata may omit rootPath only for explicit absolute disk reads; ref-based reads still require it.",
   "hostDaemonOnlineRpcCommandSchema.selectedBranch":
-    "host.list_branches may omit exact selected-branch classification when the caller only needs a branch option page.",
+    "host.list_branch_options may omit exact selected-branch classification when the caller only needs a branch option page.",
   "hostDaemonCommandSchema.threadStoragePath":
     "thread.start may include a storage path so the daemon creates the directory before the agent starts.",
   "hostDaemonCommandSchema.fork":
@@ -1046,7 +1038,7 @@ describe("host-daemon command schemas", () => {
   // mixed version. Version 113 carried the Devin Desktop open target rename
   // and remains part of the protocol lineage.
   it("uses the current host-daemon protocol version", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(172);
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(173);
     expect(HOST_ARTIFACT_MAX_BYTES).toBe(256 * 1024 * 1024);
   });
 
@@ -1499,18 +1491,14 @@ describe("host-daemon command schemas", () => {
 
     expect(
       hostDaemonOnlineRpcCommandSchema.parse({
-        type: "host.list_branches",
+        type: "host.inspect_git_source",
         path: "/tmp/workspace",
-        query: "release",
-        selectedBranch: "origin/main",
-        limit: 50,
+        remoteRefresh: "background",
       }),
     ).toMatchObject({
-      type: "host.list_branches",
+      type: "host.inspect_git_source",
       path: "/tmp/workspace",
-      query: "release",
-      selectedBranch: "origin/main",
-      limit: 50,
+      remoteRefresh: "background",
     });
 
     expect(
@@ -1668,9 +1656,9 @@ describe("host-daemon command schemas", () => {
         remoteRefresh: "none",
       },
       {
-        type: "host.list_branches",
+        type: "host.inspect_git_source",
         path: "/tmp/workspace",
-        limit: 50,
+        remoteRefresh: "blocking",
       },
       {
         type: "host.file_metadata",
@@ -2690,10 +2678,11 @@ describe("host-daemon command schemas", () => {
   it("rejects invalid branch names at command boundaries", () => {
     expect(
       hostDaemonCommandSchema.safeParse({
-        type: "host.list_branches",
+        type: "host.list_branch_options",
         path: "/tmp/workspace",
         selectedBranch: "origin/main lock",
         limit: 50,
+        remoteRefresh: "none",
       }).success,
     ).toBe(false);
 
@@ -2912,9 +2901,7 @@ describe("host-daemon command schemas", () => {
     });
 
     expect(
-      hostDaemonOnlineRpcResultSchemaByType["host.list_branches"].parse({
-        branches: ["main", "feature/test"],
-        branchesTruncated: false,
+      hostDaemonOnlineRpcResultSchemaByType["host.inspect_git_source"].parse({
         checkout: {
           kind: "branch",
           branchName: "feature/test",
@@ -2925,9 +2912,6 @@ describe("host-daemon command schemas", () => {
         hasUncommittedChanges: true,
         operation: { kind: "merge", hasConflicts: true },
         originDefaultBranch: "origin/main",
-        remoteBranches: ["origin/main"],
-        remoteBranchesTruncated: false,
-        selectedBranch: { name: "origin/main", kind: "remote" },
       }),
     ).toMatchObject({
       checkout: {

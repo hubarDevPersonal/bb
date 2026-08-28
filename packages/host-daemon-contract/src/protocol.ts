@@ -340,9 +340,14 @@
 // session. The session-open connectShares semantics changed across the daemon
 // boundary, so enrolled daemons must update with the server.
 //
+// Version 173 splits Git source inspection from branch pagination. Project
+// composers compose cached `host.inspect_git_source` metadata with
+// `host.list_branch_options`, while thread creation requests authoritative
+// source metadata without enumerating branch pages.
+//
 // The version mismatch is what triggers the enrolled daemon's automatic update
 // instead of an `invalid-message` reconnect loop.
-export const HOST_DAEMON_PROTOCOL_VERSION = 172 as const;
+export const HOST_DAEMON_PROTOCOL_VERSION = 173 as const;
 
 /**
  * Absolute ceiling for any executable artifact delivered to a host daemon —

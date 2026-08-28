@@ -296,6 +296,8 @@ status|install` to inspect or install provider CLIs on a selected machine.
   project source; omitting both intentionally uses the primary machine source.
   `bb project content --json` returns UTF-8 text or base64 binary content with
   an explicit `contentEncoding`.
+- `bb project branches <project-id> --host <id>` reads cached refs by default;
+  pass `--refresh` to wait for remote refs before listing.
 - Use `bb project attachment upload <project-id> --client-file <path>` when the
   bytes live on the CLI machine, including when the CLI and bb server are on
   different hosts. It reads locally and sends multipart bytes through the

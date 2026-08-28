@@ -700,7 +700,7 @@ export function NewThreadComposer({
   // Branch data enriches the picker and can downgrade a confirmed non-Git or
   // commitless source, but loading it is not a creation prerequisite. A
   // default worktree request is resolved authoritatively by the server during
-  // thread creation, including a host.list_branches inspection.
+  // thread creation, including a host.inspect_git_source inspection.
   useEffect(() => {
     if (
       !worktreeUnavailable ||
@@ -805,20 +805,11 @@ export function NewThreadComposer({
   const selectedEnvironment = useMemo(
     () =>
       resolveRootComposeThreadEnvironment({
-        defaultBranch: branchesQuery.data?.defaultBranch,
-        defaultWorktreeBaseBranch:
-          branchesQuery.data?.defaultWorktreeBaseBranch,
         environmentValue: effectiveEnvironmentValue,
         projectId,
         selectedBranch,
       }),
-    [
-      branchesQuery.data?.defaultBranch,
-      branchesQuery.data?.defaultWorktreeBaseBranch,
-      effectiveEnvironmentValue,
-      projectId,
-      selectedBranch,
-    ],
+    [effectiveEnvironmentValue, projectId, selectedBranch],
   );
 
   const seedInitialPrompt = promptDraft.restoreIfEmpty;
@@ -1208,12 +1199,12 @@ export function NewThreadComposer({
     },
     [serviceTier, setServiceTier, snapshotDraftBeforeOptionChange],
   );
-  const refetchBranches = branchesQuery.refetch;
+  const refreshBranchesFromRemote = branchesQuery.refreshFromRemote;
   const handleBranchOpenChange = useCallback(
     (open: boolean) => {
-      if (open) void refetchBranches();
+      if (open) void refreshBranchesFromRemote().catch(() => undefined);
     },
-    [refetchBranches],
+    [refreshBranchesFromRemote],
   );
   const handleWorktreeChange = useCallback(
     (environmentId: string) => {

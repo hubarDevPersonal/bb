@@ -2,11 +2,12 @@ import {
   availableModelSchema,
   discoveredWorkspacePropertiesSchema,
   dynamicToolSchema,
+  gitBranchOptionsSchema,
+  gitSourceInspectionSchema,
   instructionModeSchema,
   pendingInteractionResolutionSchema,
   permissionModeSchema,
   promptInputSchema,
-  projectSourceCheckoutSchema,
   providerForkSchema,
   threadGitDiffResponseSchema,
   workspaceProvisionTypeSchema,
@@ -903,17 +904,19 @@ const hostGlobalSkillsStatusCommandSchema = z
   .strict();
 
 /**
- * List a bounded page of git branches at an absolute host path. Path-only
- * sibling of `host.list_files`. Does not require an environment row, does not
- * provision anything, and does not create daemon-side workspace state.
+ * Inspect Git checkout and default-ref metadata at an absolute host path.
+ * Callers that need an authoritative local-vs-remote relationship block on
+ * the throttled remote refresh; initial UI reads use cached refs while starting
+ * that refresh in the background, then picker-open reads block to converge.
+ * Branch pagination is a separate `host.list_branch_options` concern.
  */
-const hostListBranchesCommandSchema = z.object({
-  type: z.literal("host.list_branches"),
-  path: z.string().min(1),
-  query: z.string().max(BRANCH_LIST_QUERY_MAX_LENGTH).optional(),
-  selectedBranch: gitBranchNameSchema.optional(),
-  limit: z.number().int().positive().max(BRANCH_LIST_LIMIT_MAX),
-});
+const hostInspectGitSourceCommandSchema = z
+  .object({
+    type: z.literal("host.inspect_git_source"),
+    path: z.string().min(1),
+    remoteRefresh: z.enum(["background", "blocking"]),
+  })
+  .strict();
 
 /**
  * List cached branch options without coupling picker latency to a remote
@@ -929,14 +932,6 @@ const hostListBranchOptionsCommandSchema = z
     remoteRefresh: z.enum(["background", "none"]),
   })
   .strict();
-
-const hostBranchOptionsResultSchema = projectSourceCheckoutSchema.pick({
-  branches: true,
-  branchesTruncated: true,
-  remoteBranches: true,
-  remoteBranchesTruncated: true,
-  selectedBranch: true,
-});
 
 const providerListModelsCommandSchema = z.object({
   type: z.literal("provider.list_models"),
@@ -1891,10 +1886,10 @@ export const hostDaemonCommandRegistry = {
     flushEventsBeforeResult: false,
     envLane: null,
   }),
-  "host.list_branches": defineHostDaemonCommandDescriptor({
-    type: "host.list_branches",
-    schema: hostListBranchesCommandSchema,
-    resultSchema: projectSourceCheckoutSchema,
+  "host.inspect_git_source": defineHostDaemonCommandDescriptor({
+    type: "host.inspect_git_source",
+    schema: hostInspectGitSourceCommandSchema,
+    resultSchema: gitSourceInspectionSchema,
     transport: "onlineRpc",
     retryable: true,
     flushEventsBeforeResult: false,
@@ -1903,7 +1898,7 @@ export const hostDaemonCommandRegistry = {
   "host.list_branch_options": defineHostDaemonCommandDescriptor({
     type: "host.list_branch_options",
     schema: hostListBranchOptionsCommandSchema,
-    resultSchema: hostBranchOptionsResultSchema,
+    resultSchema: gitBranchOptionsSchema,
     transport: "onlineRpc",
     retryable: true,
     flushEventsBeforeResult: false,
