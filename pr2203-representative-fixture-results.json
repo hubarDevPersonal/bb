@@ -1,0 +1,62 @@
+{
+  "candidate": "0aaf2be394addf9033c502acf89c64911a07191f",
+  "browser": "Chrome for Testing 152.0.7977.64",
+  "viewport": "1440x900",
+  "theme": "light",
+  "cases": [
+    {
+      "id": "cross-group-exact-and-intact",
+      "query": "@automations",
+      "groups": ["Installed", "Projects"],
+      "rows": ["Automations", "Automations helper", "Automations project"],
+      "keyboardSelection": "Automations",
+      "clearReset": "PASS",
+      "result": "PASS"
+    },
+    {
+      "id": "identity-over-supporting-text",
+      "query": "@recurring",
+      "groups": ["Projects", "Installed"],
+      "rows": ["Recurring", "Automations"],
+      "keyboardSelection": "Recurring",
+      "clearReset": "PASS",
+      "result": "PASS"
+    },
+    {
+      "id": "tier-ordering",
+      "query": "@fixture",
+      "groups": ["Projects", "Installed"],
+      "rows": ["Fixture", "Fixture migration", "My fixture notes", "Automations helper"],
+      "keyboardSelection": "Fixture",
+      "clearReset": "PASS",
+      "result": "PASS"
+    },
+    {
+      "id": "stable-equal-tier-order",
+      "query": "@ranktie",
+      "groups": ["Projects"],
+      "rows": ["Ranktie alpha", "Ranktie zulu"],
+      "keyboardSelection": "Ranktie alpha",
+      "clearReset": "PASS",
+      "result": "PASS"
+    }
+  ],
+  "fixtureCorrections": [
+    {
+      "case": "tier-ordering",
+      "change": "Used lowercase @fixture because the established project retriever uses smart-case and uppercase input intentionally excludes lowercase names before shared ranking."
+    },
+    {
+      "case": "stable-equal-tier-order",
+      "change": "Anchored the tie to the project adapter's established score/name/id order; the shared ranker preserved that input order."
+    }
+  ],
+  "coverageBoundary": [
+    "exact, prefix, substring, and supporting-text relevance",
+    "group ranking by strongest row while keeping groups intact",
+    "same first row for rendering and Enter selection",
+    "stable equal-tier source order",
+    "clear/reset recovery"
+  ],
+  "result": "PASS"
+}

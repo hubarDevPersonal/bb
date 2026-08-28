@@ -1,0 +1,21 @@
+{
+  "name": "bb-plugin-automations-helper-qa-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "QA fixture for mention ordering.",
+  "engines": {
+    "bb": ">=0.0"
+  },
+  "bb": {
+    "name": "Automations helper",
+    "description": "QA fixture for mention ordering.",
+    "branding": {
+      "icon": "Wrench"
+    },
+    "server": "./server.mjs",
+    "skills": [
+      "skills"
+    ]
+  }
+}

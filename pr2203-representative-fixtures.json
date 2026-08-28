@@ -1,0 +1,54 @@
+{
+  "candidate": "0aaf2be394addf9033c502acf89c64911a07191f",
+  "browser": "Chrome for Testing 152.0.7977.64",
+  "viewport": "1440x900",
+  "cases": [
+    {
+      "id": "cross-group-exact-and-intact",
+      "query": "@automations",
+      "fixture": [
+        "Installed / Automations",
+        "Installed / Automations helper",
+        "Projects / Automations project"
+      ],
+      "expectedGroups": ["Installed", "Projects"],
+      "expectedRows": ["Automations", "Automations helper", "Automations project"],
+      "expectedKeyboardSelection": "Automations"
+    },
+    {
+      "id": "identity-over-supporting-text",
+      "query": "@recurring",
+      "fixture": [
+        "Projects / Recurring",
+        "Installed / Automations — Schedule recurring and one-shot agent or script work."
+      ],
+      "expectedGroups": ["Projects", "Installed"],
+      "expectedRows": ["Recurring", "Automations"],
+      "expectedKeyboardSelection": "Recurring"
+    },
+    {
+      "id": "tier-ordering",
+      "query": "@fixture",
+      "fixture": [
+        "Projects / My fixture notes",
+        "Projects / Fixture migration",
+        "Projects / Fixture",
+        "Installed / Automations helper — QA fixture for mention ordering."
+      ],
+      "expectedGroups": ["Projects", "Installed"],
+      "expectedRows": ["Fixture", "Fixture migration", "My fixture notes", "Automations helper"],
+      "expectedKeyboardSelection": "Fixture"
+    },
+    {
+      "id": "stable-equal-tier-order",
+      "query": "@ranktie",
+      "fixture": [
+        "Projects / Ranktie zulu",
+        "Projects / Ranktie alpha"
+      ],
+      "expectedGroups": ["Projects"],
+      "expectedRows": ["Ranktie alpha", "Ranktie zulu"],
+      "expectedKeyboardSelection": "Ranktie alpha"
+    }
+  ]
+}
