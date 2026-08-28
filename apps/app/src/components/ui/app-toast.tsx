@@ -93,8 +93,6 @@ function AppToastActionButton({
 }: AppToastActionButtonProps) {
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     action.onClick(event);
-    // Match Sonner's action behavior: callers may preventDefault to keep the
-    // toast visible after a primary action completes.
     if (priority === "primary" && event.defaultPrevented) {
       return;
     }

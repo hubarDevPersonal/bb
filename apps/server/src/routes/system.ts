@@ -220,8 +220,6 @@ export function registerSystemRoutes(
 
   put(routes.experiments, (context, payload) => {
     setExperiments(deps.db, { ...getExperiments(deps.db), ...payload });
-    // The same kind a config reload broadcasts: every window re-reads
-    // /system/config and re-gates its experiment-flagged surfaces.
     deps.hub.notifySystem(["config-changed"]);
     return context.json(getExperiments(deps.db));
   });
@@ -247,8 +245,6 @@ export function registerSystemRoutes(
     }
     const { faviconColor } = payload;
     setStoredAppearance(deps.db, { themeId, faviconColor });
-    // Broadcast like experiments: every window re-reads /system/config and
-    // re-applies the active palette.
     deps.hub.notifySystem(["config-changed"]);
     return context.json(await resolveSelectedTheme(themeId, faviconColor));
   });
@@ -296,9 +292,6 @@ export function registerSystemRoutes(
 
   get(routes.providerLogo, async (context) => {
     const providerId = context.req.param("id");
-    // Plugin-registered providers serve the icon snapshot captured at
-    // registration; a disabled plugin's registration (and icon) is gone with
-    // it, and clients draw the display name's initial.
     const registration = deps.providerRegistry.get(providerId);
     if (registration?.icon !== undefined) {
       return pluginImageResponse(context, registration.icon, "no-store");

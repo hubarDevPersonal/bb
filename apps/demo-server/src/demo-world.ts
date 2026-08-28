@@ -1,10 +1,3 @@
-// The demo world: every route the mobile app touches, answered from typed
-// fixtures plus the messages this client has sent.
-//
-// This module is pure so `demo-world.test.ts` can drive it with plain
-// Request/Response objects and a fake clock. `demo-state.ts` wraps one world
-// per client in a Durable Object and fans its change notices out to that
-// client's WebSockets.
 
 import {
   defaultAppSettings,
@@ -57,22 +50,14 @@ import {
   type DemoThreadView,
 } from "./fixtures/world.js";
 
-// The keybinding tables are captured JSON (their defaults live in the server,
-// which a worker cannot import), so they enter through the contract's own
-// parser: a stale fixture fails module load (and the test) loudly instead of
-// reaching the app as a shape it cannot render. Fields with a domain default
-// take the default, so they cannot drift at all.
 const SYSTEM_CONFIG = systemConfigResponseSchema.parse({
   ...configFixture,
   generalSettings: defaultAppSettings,
   threadSettings: defaultThreadSettings,
-  // The mobile experiment gates the app's own settings surfaces.
   experiments: { ...defaultExperiments, mobileApp: true },
   appearance: defaultAppTheme,
   featureFlags: defaultFeatureFlags,
-  // Replaced per request with the origin the app reached us on.
   serverUrl: "https://demo.invalid",
-  // The demo serves no AI service; the settings name the defaults.
   aiServices: {
     inference: "codex/gpt-5.5",
     inferenceFallback: "codex/gpt-5.5",
@@ -81,13 +66,10 @@ const SYSTEM_CONFIG = systemConfigResponseSchema.parse({
   },
 });
 
-/** How long a thread shows "Working…" before the scripted reply lands. */
 export const REPLY_DELAY_MS = 1_800;
 
-/** Sent text beyond this is cut. The demo echoes input back to the sender only, but it should not echo megabytes. */
 export const MAX_MESSAGE_CHARS = 4_000;
 
-/** Sent turns kept per thread. Older ones fall off so a session cannot grow without bound. */
 export const MAX_TURNS_PER_THREAD = 20;
 
 const THREAD_PATH =
@@ -105,7 +87,6 @@ interface ThreadState {
 
 interface DemoWorldOptions {
   now?: () => number;
-  /** Runs `fn` after `ms`; swapped for a manual scheduler in tests. */
   schedule?: (fn: () => void, ms: number) => void;
 }
 
@@ -115,11 +96,6 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
-/**
- * Everything outside the demo path. A reviewer who wanders into an
- * unimplemented corner should read "not part of the demo", not see an empty
- * screen that looks like a bug.
- */
 function notImplemented(method: string, path: string): Response {
   return json(
     {
@@ -154,7 +130,6 @@ async function readJson(request: Request): Promise<unknown> {
   }
 }
 
-/** The text of a prompt, as the composer sends it: text parts joined, attachments dropped. */
 function promptText(input: readonly PromptInput[]): string {
   return input
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
@@ -179,7 +154,6 @@ export class DemoWorld {
     this.schedule = options.schedule ?? ((fn, ms) => setTimeout(fn, ms));
   }
 
-  /** Receives every realtime notice the world would push to its client. */
   onChanged(listener: (message: ThreadChangedMessage) => void): () => void {
     this.listeners.add(listener);
     return () => {
@@ -187,7 +161,6 @@ export class DemoWorld {
     };
   }
 
-  /** Answers a WebSocket frame from the app: pong for ping, nothing otherwise. */
   socketReply(raw: string): string | null {
     let parsed: unknown;
     try {
@@ -195,8 +168,6 @@ export class DemoWorld {
     } catch {
       return null;
     }
-    // Subscriptions are ignored on purpose: this world belongs to one client,
-    // so it already sees everything.
     return pingMessageSchema.safeParse(parsed).success
       ? JSON.stringify({ type: "pong" })
       : null;
@@ -308,8 +279,6 @@ export class DemoWorld {
       return json(threadResponse(this.view(state, now), now));
     }
     if (sub === "stop") {
-      // Stop lands the pending reply now rather than dropping it: the demo
-      // has nothing to interrupt, and an empty turn would look broken.
       const pending = state.turns.find((turn) => this.replyPending(turn, now));
       if (pending) {
         pending.sentAt = now - REPLY_DELAY_MS;
@@ -360,12 +329,6 @@ export class DemoWorld {
     return null;
   }
 
-  /**
-   * The thread screen persists its panel tabs on open. A 501 here is not
-   * harmless: the app retries and stacks "Couldn't sync tabs" toasts over the
-   * timeline, which is what a reviewer would see and report as broken. The
-   * demo accepts the write and echoes it back without storing it.
-   */
   private async handleUpdateTabs(request: Request): Promise<Response> {
     const body = updateThreadTabsRequestSchema.safeParse(
       await readJson(request),
@@ -378,11 +341,6 @@ export class DemoWorld {
     return json(response);
   }
 
-  /**
-   * The probe that adds a server compares `serverUrl` with the URL the user
-   * typed and flags a mismatch, so the config reports whatever origin the
-   * request came in on.
-   */
   private systemConfig(origin: string): SystemConfigResponse {
     return { ...SYSTEM_CONFIG, serverUrl: origin };
   }
@@ -468,13 +426,6 @@ export class DemoWorld {
     };
   }
 
-  /**
-   * Records a sent message. The user row appears at once and the thread turns
-   * busy; the scripted reply lands after REPLY_DELAY_MS. Both moments are
-   * announced over the socket so the app refetches, exactly as it would for a
-   * real turn. The reply is a function of time, not of the timer firing, so a
-   * lost timer only delays the second notice.
-   */
   private appendTurn(state: ThreadState, text: string, now: number): void {
     state.turns.push({ text, sentAt: now });
     if (state.turns.length > MAX_TURNS_PER_THREAD) {

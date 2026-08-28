@@ -28,7 +28,6 @@ type SettingsSidebarNavigation = ComponentProps<
   typeof SettingsSidebarContent
 >["navigation"];
 
-/** Resolve the story's real Settings links without depending on live app data. */
 export function useSettingsStoryRoute(): SettingsStoryRoute {
   const { pathname } = useLocation();
   const machineMatch = matchPath(SETTINGS_MACHINE_ROUTE_PATH, pathname);
@@ -43,7 +42,6 @@ export function useSettingsStoryRoute(): SettingsStoryRoute {
   return { kind: "section", id: section?.id ?? "general" };
 }
 
-/** Production application chrome around full-page Settings stories. */
 export function SettingsStoryChrome({
   activeSection,
   children,
@@ -51,7 +49,6 @@ export function SettingsStoryChrome({
 }: {
   activeSection?: SettingsStorySectionId;
   children: ReactNode;
-  /** Detail routes already render their production PageShell. */
   contentOwnsPageShell?: boolean;
 }) {
   const route = useSettingsStoryRoute();

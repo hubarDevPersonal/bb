@@ -57,7 +57,6 @@ export type SystemExecutionOptionsResult = SystemExecutionOptionsResponse;
 export type SystemReloadConfigResult = SystemConfigReloadResponse;
 export type SystemInstallCliSkillsArgs = SystemInstallCliSkillsRequest;
 export interface SystemCliSkillsStatusArgs {
-  /** Omit for every enrolled machine. */
   hostIds?: readonly string[];
   signal?: AbortSignal;
 }
@@ -81,12 +80,6 @@ export interface SystemArea {
   executionOptions(
     args?: SystemExecutionOptionsArgs,
   ): Promise<SystemExecutionOptionsResult>;
-  /**
-   * Copy bb's built-in CLI skills into each named machine's global agent skill
-   * roots (`~/.agents/skills` and `~/.claude/skills`). Machines install
-   * independently; the result reports each machine's outcome.
-   */
-  /** Per-machine install state of bb's built-in CLI skills. */
   cliSkillsStatus(
     args?: SystemCliSkillsStatusArgs,
   ): Promise<SystemCliSkillsStatusResult>;
@@ -107,7 +100,6 @@ export interface SystemArea {
   updateKeyboardSettings(
     args: AppKeybindingOverrides,
   ): Promise<SystemUpdateKeyboardSettingsResult>;
-  /** Live host-local install and authentication state for every provider. */
   providerStates(
     args?: SystemProviderStatesArgs,
   ): Promise<SystemProviderStatesResult>;
