@@ -33,8 +33,8 @@ describe("ThreadsSettingsSection", () => {
       screen.getByLabelText("Steer running threads on Enter"),
     ).toBeDefined();
     expect(
-      screen.getByLabelText("Archived conversations").textContent,
-    ).toContain("Keep forever");
+      screen.getByLabelText("Keep archived conversations").textContent,
+    ).toContain("Forever");
     expect(
       screen.queryByText(/Use Enter to steer the current run/u),
     ).toBeNull();
@@ -57,11 +57,12 @@ describe("ThreadsSettingsSection", () => {
       />,
     );
 
-    fireEvent.pointerDown(screen.getByLabelText("Archived conversations"), {
-      button: 0,
-    });
+    fireEvent.pointerDown(
+      screen.getByLabelText("Keep archived conversations"),
+      { button: 0 },
+    );
     fireEvent.click(
-      await screen.findByRole("menuitem", { name: "Delete after 30 days" }),
+      await screen.findByRole("menuitem", { name: "For 30 days" }),
     );
     expect(onChange).toHaveBeenCalledWith("30-days");
   });

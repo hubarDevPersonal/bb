@@ -545,10 +545,10 @@ const UNHANDLED_PROVIDER_EVENTS_SETTING_LABEL =
 const STEER_ACTIVE_THREAD_ON_ENTER_SETTING_LABEL =
   "Steer running threads on Enter";
 const STREAMER_MODE_SETTING_LABEL = "Streamer mode";
-const ARCHIVED_CONVERSATIONS_SETTING_LABEL = "Archived conversations";
+const ARCHIVED_CONVERSATIONS_SETTING_LABEL = "Keep archived conversations";
 const ARCHIVED_CONVERSATION_RETENTION_OPTIONS = [
-  { label: "Keep forever", value: "forever" },
-  { label: "Delete after 30 days", value: "30-days" },
+  { label: "Forever", value: "forever" },
+  { label: "For 30 days", value: "30-days" },
 ] as const;
 
 export function AppearanceSettingsSection({
@@ -773,7 +773,7 @@ export function ThreadsSettingsSection({
   const selectedRetentionLabel =
     ARCHIVED_CONVERSATION_RETENTION_OPTIONS.find(
       (option) => option.value === archivedConversationRetention,
-    )?.label ?? "Keep forever";
+    )?.label ?? "Forever";
 
   return (
     <SettingsSection title="Threads">
