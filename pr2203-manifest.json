@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-28T09:18:49Z",
+  "pullRequest": 2203,
+  "baseline": "ec8f4ef04105c2cb5a59f7a9a9328bf2b16b39ce",
+  "candidate": "0aaf2be394addf9033c502acf89c64911a07191f",
+  "fixture": {
+    "query": "@automations",
+    "project": "Automations project",
+    "plugin": {
+      "sourceRepository": "brsbl/bb-plugins",
+      "sourceCommit": "80d1412cea72873593775503512ef06f94114953",
+      "path": "plugins/at-plugin",
+      "version": "0.1.0",
+      "provider": "Installed",
+      "itemTitle": "Automations",
+      "itemSubtitle": "Schedule recurring and one-shot agent or script work."
+    }
+  },
+  "browser": "Chrome for Testing 152.0.7977.64",
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "deviceScaleFactor": 1
+  },
+  "theme": "light",
+  "flow": [
+    "load the exact revision app",
+    "hard reload",
+    "navigate to New thread",
+    "enter @automations",
+    "wait for project and installed-provider results",
+    "select the first visible result with Enter",
+    "clear the composer"
+  ],
+  "before": {
+    "groupOrder": ["Projects", "Installed"],
+    "candidateOrder": ["Automations project", "Automations"],
+    "keyboardSelection": "Automations project",
+    "result": "REPRODUCED"
+  },
+  "after": {
+    "groupOrder": ["Installed", "Projects"],
+    "candidateOrder": ["Automations", "Automations project"],
+    "keyboardSelection": "Automations",
+    "clearReset": "PASS",
+    "runtimeErrors": 0,
+    "result": "PASS"
+  },
+  "files": {
+    "harness": {
+      "name": "pr2203-qa.mjs",
+      "sha256": "1b272b33ecf6705c2252c87d2a483e96e7a870cb67c9b7e5c42a32fe723506ea"
+    },
+    "beforeMenu": {
+      "name": "pr2203-before-menu.png",
+      "sha256": "d1f5506e6a2f513219625cbc33ab0236c7422ee96009f227f2f848e8607c3360"
+    },
+    "afterMenu": {
+      "name": "pr2203-after-menu.png",
+      "sha256": "f807e36989a94ada6b8ffd11d8ec7f2de9ff79e20eed4f807b12236e27745a7a"
+    },
+    "beforeSelected": {
+      "name": "pr2203-before-selected.png",
+      "sha256": "4be4950ed9b649db6634d7decb2781c653fc6ef46cfaa56aca74a99b49067b70"
+    },
+    "afterSelected": {
+      "name": "pr2203-after-selected.png",
+      "sha256": "57883111dfd93f93f386952057c7576b588be74af9ad5a37f7d2c31d893221f2"
+    },
+    "beforeResult": {
+      "name": "pr2203-before-result.json",
+      "sha256": "95937747a836ec65de0d5da84457936815cde3972e74952f58c830518ad7f897"
+    },
+    "afterResult": {
+      "name": "pr2203-after-result.json",
+      "sha256": "e2483bbe54b63062200cd52247b2a90ec28b18ca50373445f319174f877b2ccf"
+    }
+  }
+}

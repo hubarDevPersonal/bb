@@ -1,0 +1,198 @@
+{
+  "mode": "before",
+  "candidate": "ec8f4ef04105c2cb5a59f7a9a9328bf2b16b39ce",
+  "browser": "Chrome/152.0.7977.64",
+  "viewport": "1440x900",
+  "theme": "light",
+  "route": "/",
+  "firstPaint": [
+    {
+      "name": "first-paint",
+      "startTime": 4044
+    }
+  ],
+  "menuState": {
+    "text": "Projects\nAutomations project\nInstalled\nAutomations\nSchedule recurring and one-shot agent or script work.",
+    "installedIndex": 29,
+    "projectsIndex": 0,
+    "automationsIndex": 9,
+    "projectIndex": 9,
+    "buttons": [
+      {
+        "text": "Automations project",
+        "ariaSelected": null,
+        "dataSelected": null,
+        "dataHighlighted": null
+      },
+      {
+        "text": "Automations\nSchedule recurring and one-shot agent or script work.",
+        "ariaSelected": null,
+        "dataSelected": null,
+        "dataHighlighted": null
+      }
+    ]
+  },
+  "selectedText": "Automations project\n \n\n5.6-Sol\nMedium\nWork in a project\nApprove for me",
+  "resetState": {
+    "text": "\n",
+    "menuVisible": false
+  },
+  "networkSearches": [
+    {
+      "url": "http://localhost:13811/api/v1/plugins/mentions/search?q=automations&trigger=%40",
+      "status": 200,
+      "body": "{\"ok\":true,\"groups\":[{\"pluginId\":\"at-plugin\",\"providerId\":\"installed\",\"label\":\"Installed\",\"items\":[{\"itemId\":\"installed:automations\",\"title\":\"Automations\",\"subtitle\":\"Schedule recurring and one-shot agent or script work.\",\"icon\":null}]}]}"
+    }
+  ],
+  "consoleProblems": [
+    {
+      "type": "warning",
+      "text": "[DEPRECATED] loadable is deprecated and will be removed in v3. Please use a userland util with the `unwrap` util: https://github.com/pmndrs/jotai/pull/3217"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/custom-instructions/assets/app.css?h=5b5ef9c5b690b1dd was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/automations/assets/app.css?h=b87ad9cbd98a1c32 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/pdf-preview/assets/app.css?h=7ddd6e672a373ecc was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/side-chat/assets/app.css?h=8ec173792d37bbbf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/keep-awake/assets/app.css?h=a4f60e70e6383be9 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/provider-retry/assets/app.css?h=f813587350ecd3ea was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/connect/assets/app.css?h=ea39ce618edd29a1 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/secrets/assets/app.css?h=b098d8edb6055b64 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/inline-vis/assets/app.css?h=ad56d638d867f963 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/custom-instructions/assets/app.css?h=5b5ef9c5b690b1dd was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/automations/assets/app.css?h=b87ad9cbd98a1c32 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/pdf-preview/assets/app.css?h=7ddd6e672a373ecc was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/side-chat/assets/app.css?h=8ec173792d37bbbf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/keep-awake/assets/app.css?h=a4f60e70e6383be9 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/provider-retry/assets/app.css?h=f813587350ecd3ea was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/connect/assets/app.css?h=ea39ce618edd29a1 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/secrets/assets/app.css?h=b098d8edb6055b64 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/inline-vis/assets/app.css?h=ad56d638d867f963 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/custom-instructions/assets/app.css?h=5b5ef9c5b690b1dd was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/automations/assets/app.css?h=b87ad9cbd98a1c32 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/pdf-preview/assets/app.css?h=7ddd6e672a373ecc was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/side-chat/assets/app.css?h=8ec173792d37bbbf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/keep-awake/assets/app.css?h=a4f60e70e6383be9 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/provider-retry/assets/app.css?h=f813587350ecd3ea was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/connect/assets/app.css?h=ea39ce618edd29a1 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/secrets/assets/app.css?h=b098d8edb6055b64 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:13811/api/v1/plugins/inline-vis/assets/app.css?h=ad56d638d867f963 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "source": "javascript"
+    },
+    {
+      "type": "warning",
+      "text": "[DEPRECATED] loadable is deprecated and will be removed in v3. Please use a userland util with the `unwrap` util: https://github.com/pmndrs/jotai/pull/3217"
+    },
+    {
+      "type": "warning",
+      "text": "[DEPRECATED] loadable is deprecated and will be removed in v3. Please use a userland util with the `unwrap` util: https://github.com/pmndrs/jotai/pull/3217"
+    }
+  ],
+  "screenshotPath": "/Users/brsbl/.bb-machines/brsbl.getbb.app/thread-storage/thr_7mkij6e445/qa/pr2203-before-menu.png",
+  "selectedScreenshotPath": "/Users/brsbl/.bb-machines/brsbl.getbb.app/thread-storage/thr_7mkij6e445/qa/pr2203-before-selected.png"
+}
