@@ -50,6 +50,7 @@ interface OptionPickerProps<T extends string> {
   options: readonly PickerOption<T>[];
   onChange: (value: T) => void;
   className?: string;
+  caretClassName?: string;
   contentClassName?: string;
   /** Render with the stable muted treatment used inside the prompt box. */
   muted?: boolean;
@@ -86,6 +87,7 @@ export function OptionPicker<T extends string>({
   options,
   onChange,
   className,
+  caretClassName,
   contentClassName,
   muted,
   defaultOpen,
@@ -153,7 +155,10 @@ export function OptionPicker<T extends string>({
       {disabled && !showChevronWhenDisabled ? null : (
         <Icon
           name="ChevronDown"
-          className="size-3.5 shrink-0 text-muted-foreground"
+          className={cn(
+            "size-3.5 shrink-0 text-muted-foreground",
+            caretClassName,
+          )}
         />
       )}
     </Button>
