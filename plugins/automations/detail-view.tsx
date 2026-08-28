@@ -68,7 +68,6 @@ interface AutomationDetailViewProps {
   runsState: AutomationRunsViewState;
   actionPending: boolean;
   editing: boolean;
-  requiresPrompt: boolean;
   onToggle: (enabled: boolean) => void;
   onEdit: () => void;
   onCancelEdit: () => void;
@@ -715,7 +714,6 @@ export function AutomationDetailView({
   runsState,
   actionPending,
   editing,
-  requiresPrompt,
   onToggle,
   onEdit,
   onCancelEdit,
@@ -732,6 +730,8 @@ export function AutomationDetailView({
     runCount: automation.runCount,
     lastRunStatus: automation.lastRunStatus,
   });
+  const requiresPrompt =
+    automation.execution.mode === "agent" && automation.execution.prompt === "";
   const lifecycleLocked =
     requiresPrompt || !oneShotLifecycleAllowsToggle(oneShotLifecycle);
   const lifecycleDisabledReason = requiresPrompt
