@@ -36,6 +36,7 @@ const DISCOVERED_MODELS: ModelInfo[] = [
 ];
 
 const CURATED_MODELS = [
+  "claude-fable-5-1",
   "claude-fable-5",
   "claude-opus-5[1m]",
   "claude-opus-4-8[1m]",
