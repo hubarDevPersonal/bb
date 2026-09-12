@@ -22,6 +22,7 @@ import {
 } from "@bb/db";
 import {
   formatClientTurnRequestIdSuffix,
+  resolveTaskDiffTarget,
   threadScope,
   turnScope,
 } from "@bb/domain";
@@ -32,10 +33,19 @@ import type {
   ThreadRuntimeState,
 } from "@bb/domain";
 import { DAEMON_ACTIVE_WORK_DISCONNECT_GRACE_MS } from "../../../src/constants.js";
+import { createLifecycleDedupers } from "../../../src/lifecycle-dedupers.js";
+import { createAiServiceRegistry } from "../../../src/services/ai/ai-service-registry.js";
+import { taskDiffStatsCacheKey } from "../../../src/services/environments/task-diff-stats.js";
+import { WorkspaceReadCaches } from "../../../src/services/environments/workspace-read-cache.js";
+import type { MachineAuthService } from "../../../src/services/machine-auth.js";
+import { PluginHostArtifactRegistry } from "../../../src/services/plugins/plugin-host-artifact-registry.js";
+import { SkillTreeRegistry } from "../../../src/services/skills/injected-skills.js";
+import { createNoopTelemetryService } from "../../../src/services/system/telemetry.js";
 import {
   resolveThreadRuntimeState,
   toThreadListEntryResponses,
 } from "../../../src/services/threads/thread-runtime-display.js";
+import type { ServerRuntimeConfig } from "../../../src/types.js";
 import { NotificationHub } from "../../../src/ws/hub.js";
 import { createTestProviderRegistry } from "../../helpers/provider-registry.js";
 
@@ -63,6 +73,8 @@ interface CreateThreadWithEnvironmentArgs {
   db: DbConnection;
   environmentProviderId?: string;
   hostId: string;
+  isGitRepo?: boolean;
+  isWorktree?: boolean;
   providerId?: string;
   status?: Thread["status"];
 }
@@ -133,6 +145,24 @@ function setup(): SetupResult {
     name: "Runtime Display Host",
   });
   return { db, hostId: host.id, hub };
+}
+
+function taskDiffTestDeps(base: {
+  db: DbConnection;
+  hub: NotificationHub;
+  providerRegistry: typeof providerRegistry;
+}) {
+  return {
+    ...base,
+    config: {} as ServerRuntimeConfig,
+    lifecycleDedupers: createLifecycleDedupers(),
+    machineAuth: {} as MachineAuthService,
+    pluginHostArtifacts: new PluginHostArtifactRegistry(),
+    aiServices: createAiServiceRegistry(),
+    skillTreeRegistry: new SkillTreeRegistry(),
+    telemetry: createNoopTelemetryService(),
+    workspaceReadCaches: new WorkspaceReadCaches({ hub: base.hub }),
+  };
 }
 
 function registerTestDaemon(
@@ -206,6 +236,8 @@ function createThreadWithEnvironment(args: CreateThreadWithEnvironmentArgs) {
               inputs: null,
             },
           },
+    isGitRepo: args.isGitRepo ?? false,
+    isWorktree: args.isWorktree ?? false,
   });
   const thread = createThread(args.db, noopNotifier, {
     projectId: project.id,
@@ -442,7 +474,7 @@ describe("thread runtime display", () => {
     });
 
     const entries = toThreadListEntryResponses(
-      { db, hub, providerRegistry },
+      taskDiffTestDeps({ db, hub, providerRegistry }),
       {
         now,
         threads: [
@@ -549,7 +581,7 @@ describe("thread runtime display", () => {
 
     expect(
       toThreadListEntryResponses(
-        { db, hub, providerRegistry },
+        taskDiffTestDeps({ db, hub, providerRegistry }),
         {
           now: 1_000,
           threads,
@@ -712,7 +744,7 @@ describe("thread runtime display", () => {
     });
 
     const entries = toThreadListEntryResponses(
-      { db, hub, providerRegistry },
+      taskDiffTestDeps({ db, hub, providerRegistry }),
       {
         threads: [
           createThreadListEntry({
@@ -770,5 +802,50 @@ describe("thread runtime display", () => {
       activePlanModeCount: 1,
       activeGoalCount: 0,
     });
+  });
+
+  it("serves a cached task diff stat without awaiting the daemon", async () => {
+    const { db, hostId, hub } = setup();
+    const { environment, thread } = createThreadWithEnvironment({
+      db,
+      hostId,
+      isGitRepo: true,
+      isWorktree: true,
+    });
+    const deps = taskDiffTestDeps({ db, hub, providerRegistry });
+    const targetInfo = resolveTaskDiffTarget(environment);
+    await deps.workspaceReadCaches.taskDiff.read({
+      environmentId: environment.id,
+      hostId,
+      key: taskDiffStatsCacheKey(targetInfo),
+      load: () =>
+        Promise.resolve({
+          outcome: "available" as const,
+          stats: { changedFiles: 2, insertions: 4, deletions: 1 },
+        }),
+    });
+
+    const entries = toThreadListEntryResponses(deps, {
+      threads: [createThreadListEntry({ environmentHostId: hostId, thread })],
+    });
+
+    expect(entries[0]?.taskDiffStats).toEqual({
+      changedFiles: 2,
+      insertions: 4,
+      deletions: 1,
+    });
+  });
+
+  it("omits task diff stats for a non-git environment", () => {
+    const { db, hostId, hub } = setup();
+    const { thread } = createThreadWithEnvironment({ db, hostId });
+    const entries = toThreadListEntryResponses(
+      taskDiffTestDeps({ db, hub, providerRegistry }),
+      {
+        threads: [createThreadListEntry({ environmentHostId: hostId, thread })],
+      },
+    );
+
+    expect(entries[0]?.taskDiffStats).toBeNull();
   });
 });

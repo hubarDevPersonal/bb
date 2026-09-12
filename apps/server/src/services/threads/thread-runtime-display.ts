@@ -3,6 +3,7 @@ import {
   getLatestSessionForHost,
   getSessionById,
   listActiveBackgroundTaskCountsByThreadIds,
+  listEnvironmentsByIds,
   listLatestThreadStateEventRowsByThreadIds,
   listLatestSessionsForHosts,
   listOpenTurnInputAcceptedRowsByThreadIds,
@@ -13,8 +14,14 @@ import {
   type ThreadClientTurnRequestKey,
   type ThreadWithPendingInteractionState,
 } from "@bb/db";
-import { LEGACY_CODEX_GOAL_EXTENSION_KIND } from "@bb/domain";
+import {
+  LEGACY_CODEX_GOAL_EXTENSION_KIND,
+  resolveTaskDiffTarget,
+} from "@bb/domain";
 import type {
+  Environment,
+  TaskDiffStats,
+  TaskDiffTarget,
   Thread,
   ThreadActivityState,
   ThreadChangeMetadata,
@@ -31,7 +38,13 @@ import {
 } from "@bb/thread-view";
 import type { ThreadResponse } from "@bb/server-contract";
 import { DAEMON_ACTIVE_WORK_DISCONNECT_GRACE_MS } from "../../constants.js";
+import type { AppDeps } from "../../types.js";
 import type { NotificationHub } from "../../ws/hub.js";
+import {
+  loadTaskDiffStatsResult,
+  taskDiffStatsCacheKey,
+} from "../environments/task-diff-stats.js";
+import type { WorkspaceReadCaches } from "../environments/workspace-read-cache.js";
 import { resolveProviderPlanCommand } from "../providers/provider-plan-command.js";
 import type { ProviderRegistryService } from "../providers/provider-registry.js";
 import {
@@ -58,6 +71,19 @@ interface ThreadRuntimeDisplayDeps {
 interface ThreadPromptBannerDeps extends ThreadRuntimeDisplayDeps {
   providerRegistry: ProviderRegistryService;
 }
+
+type ToThreadListEntryResponsesDeps = ThreadPromptBannerDeps &
+  Pick<
+    AppDeps,
+    | "config"
+    | "lifecycleDedupers"
+    | "machineAuth"
+    | "pluginHostArtifacts"
+    | "aiServices"
+    | "skillTreeRegistry"
+    | "telemetry"
+    | "workspaceReadCaches"
+  > & { hub: NotificationHub };
 
 interface ResolveThreadRuntimeStateArgs {
   environmentHostId: string | null;
@@ -93,7 +119,21 @@ interface ToThreadListEntryResponseFromLatestSessionArgs {
   latestSession: HostDaemonSessionRow | null;
   now?: number;
   queuedWork: ThreadQueuedWork;
+  taskDiffStats: TaskDiffStats | null;
   thread: ThreadWithPendingInteractionState;
+}
+
+interface ResolveThreadListEntryTaskDiffStatsArgs {
+  environment: Environment | null;
+  thread: ThreadWithPendingInteractionState;
+}
+
+interface TaskDiffReloadGroup {
+  environment: Environment;
+  key: string;
+  servedStats: TaskDiffStats | null;
+  targetInfo: TaskDiffTarget;
+  threadIds: string[];
 }
 
 interface BuildThreadStatusChangeMetadataByThreadIdArgs {
@@ -321,6 +361,7 @@ function toThreadStatusChangeMetadata(
   args: ToThreadStatusChangeMetadataArgs,
 ): ThreadChangeMetadata {
   return {
+    environmentId: args.thread.environmentId,
     projectId: args.thread.projectId,
     statusChange: {
       status: args.thread.status,
@@ -549,8 +590,124 @@ function buildThreadQueuedWorkByThreadId(
   return result;
 }
 
+const pendingTaskDiffReloadGroupsByCache = new WeakMap<
+  WorkspaceReadCaches,
+  Set<string>
+>();
+
+function pendingTaskDiffReloadGroupsFor(
+  caches: WorkspaceReadCaches,
+): Set<string> {
+  let groups = pendingTaskDiffReloadGroupsByCache.get(caches);
+  if (!groups) {
+    groups = new Set();
+    pendingTaskDiffReloadGroupsByCache.set(caches, groups);
+  }
+  return groups;
+}
+
+function taskDiffStatsEqual(
+  left: TaskDiffStats | null,
+  right: TaskDiffStats | null,
+): boolean {
+  if (left === null || right === null) {
+    return left === right;
+  }
+  return (
+    left.changedFiles === right.changedFiles &&
+    left.insertions === right.insertions &&
+    left.deletions === right.deletions
+  );
+}
+
+function startTaskDiffBackgroundReload(
+  deps: ToThreadListEntryResponsesDeps,
+  group: TaskDiffReloadGroup,
+): void {
+  const groupKey = `${group.environment.id} ${group.key}`;
+  const pendingGroups = pendingTaskDiffReloadGroupsFor(
+    deps.workspaceReadCaches,
+  );
+  if (pendingGroups.has(groupKey)) {
+    return;
+  }
+  pendingGroups.add(groupKey);
+  deps.workspaceReadCaches.taskDiff
+    .read({
+      environmentId: group.environment.id,
+      hostId: group.environment.hostId,
+      key: group.key,
+      load: () =>
+        loadTaskDiffStatsResult(deps, {
+          environment: group.environment,
+          targetInfo: group.targetInfo,
+        }),
+    })
+    .then((result) => {
+      if (
+        result.outcome === "available" &&
+        !taskDiffStatsEqual(result.stats, group.servedStats)
+      ) {
+        for (const threadId of group.threadIds) {
+          deps.hub.notifyThread(threadId, ["task-diff-changed"]);
+        }
+      }
+    })
+    .catch(() => {})
+    .finally(() => {
+      pendingGroups.delete(groupKey);
+    });
+}
+
+function resolveThreadListEntryTaskDiffStats(
+  deps: ToThreadListEntryResponsesDeps,
+  args: ResolveThreadListEntryTaskDiffStatsArgs,
+  reloadGroups: Map<string, TaskDiffReloadGroup>,
+): TaskDiffStats | null {
+  const environment = args.environment;
+  if (
+    environment === null ||
+    environment.status !== "ready" ||
+    !environment.isGitRepo
+  ) {
+    return null;
+  }
+
+  const targetInfo = resolveTaskDiffTarget(environment);
+  const key = taskDiffStatsCacheKey(targetInfo);
+  const peeked = deps.workspaceReadCaches.taskDiff.peek(environment.id, key);
+  const servedStats =
+    peeked === undefined
+      ? null
+      : peeked.value.outcome === "available"
+        ? peeked.value.stats
+        : null;
+  const needsReload = peeked === undefined || peeked.stale;
+
+  if (
+    needsReload &&
+    args.thread.archivedAt === null &&
+    hasOpenDaemonSessionForHost(deps, environment.hostId)
+  ) {
+    const groupKey = `${environment.id} ${key}`;
+    const group = reloadGroups.get(groupKey);
+    if (group) {
+      group.threadIds.push(args.thread.id);
+    } else {
+      reloadGroups.set(groupKey, {
+        environment,
+        key,
+        servedStats,
+        targetInfo,
+        threadIds: [args.thread.id],
+      });
+    }
+  }
+  return servedStats;
+}
+
 export function toThreadListEntryResponses(
-  deps: ThreadPromptBannerDeps,
+  deps: ToThreadListEntryResponsesDeps,
   args: ToThreadListEntryResponsesArgs,
 ): ThreadListEntry[] {
   const activityByThreadId = buildThreadActivityStateByThreadId(
@@ -580,7 +737,17 @@ export function toThreadListEntryResponses(
     deps,
     args.threads,
   );
-  return args.threads.map((thread) => {
+  const environmentsById = new Map(
+    listEnvironmentsByIds(
+      deps.db,
+      args.threads.flatMap((thread) =>
+        thread.environmentId ? [thread.environmentId] : [],
+      ),
+    ).map((environment) => [environment.id, environment]),
+  );
+  const reloadGroups = new Map<string, TaskDiffReloadGroup>();
+
+  const entries = args.threads.map((thread) => {
     const entry = toThreadListEntryResponseFromLatestSession({
       activity: activityByThreadId.get(thread.id) ?? EMPTY_THREAD_ACTIVITY,
       queuedWork: queuedWorkByThreadId.get(thread.id) ?? "none",
@@ -592,6 +759,16 @@ export function toThreadListEntryResponses(
           ? null
           : (latestSessionByHostId.get(thread.environmentHostId) ?? null),
       now: args.now,
+      taskDiffStats: resolveThreadListEntryTaskDiffStats(
+        deps,
+        {
+          environment: thread.environmentId
+            ? (environmentsById.get(thread.environmentId) ?? null)
+            : null,
+          thread,
+        },
+        reloadGroups,
+      ),
       thread,
     });
     return thread.environmentHostId === null &&
@@ -602,6 +779,12 @@ export function toThreadListEntryResponses(
         }
       : entry;
   });
+
+  for (const group of reloadGroups.values()) {
+    startTaskDiffBackgroundReload(deps, group);
+  }
+
+  return entries;
 }
 
 function toThreadListEntryResponseFromLatestSession(
@@ -631,5 +814,6 @@ function toThreadListEntryResponseFromLatestSession(
       now: args.now,
       status: thread.status,
     }),
+    taskDiffStats: args.taskDiffStats,
   };
 }

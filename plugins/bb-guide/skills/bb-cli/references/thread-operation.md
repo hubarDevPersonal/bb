@@ -113,6 +113,8 @@ hostId, providerId, projectId, parentThreadId, groupBy })`.
 - Use `bb thread show <thread-id>` for status, parent, environment, pull request
   status, and result.
 - Use `bb thread show <thread-id> --git-diff` to review file changes.
+- Use `bb thread diff <thread-id>` for the task's summary diff stats (changed
+  files, insertions, deletions) against its base branch or working tree.
 - Use `bb thread log <thread-id>` to inspect the conversation. The default
   shows only the newest 20 user-message turns and ends with a notice when older
   history was omitted. For timeline text, `--limit <n>` accepts at most 100.

@@ -222,6 +222,10 @@ Inspecting:
   bb thread output [id]                    Get the final output of a thread
     --self                                 Target current thread
 
+  bb thread diff [id]                      Show the thread's task diff stats against its base
+    --self                                 Target current thread
+    --json                                 Print machine-readable JSON output
+
   bb thread wait <id>                      Wait for a thread status or event (defaults to --status idle)
     --status <status>                      Wait for this status
     --event <type>                         Wait for this event type

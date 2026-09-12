@@ -436,6 +436,10 @@ export const REALTIME_THREAD_CHANGE_REGISTRY = {
     flush: "debounced",
     dirty: [dirtyThreadTerminalQueries],
   },
+  "task-diff-changed": {
+    flush: "debounced",
+    dirty: [dirtyThreadListQueries],
+  },
 } satisfies ThreadChangeRegistry;
 
 export const REALTIME_ENVIRONMENT_CHANGE_REGISTRY = {

@@ -241,6 +241,7 @@ export {
   getEnvironment,
   findProjectEnvironmentByHostPath,
   listEnvironments,
+  listEnvironmentsByIds,
   findForeignManagedEnvironmentAtHostPath,
   findProviderEnvironmentContainingPath,
   listRetiredLoadedEnvironmentIdsOnHost,

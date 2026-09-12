@@ -2,6 +2,7 @@ import { z } from "zod";
 import { threadCreateOriginSchema } from "./thread-create-origin.js";
 import { environmentWorkspaceDisplayKindSchema } from "./environment.js";
 import { gitCheckoutRefSchema } from "./git-checkout.js";
+import { taskDiffStatsSchema } from "./task-diff.js";
 import {
   queuedMessageFailureReasonSchema,
   queuedMessagePayloadSchema,
@@ -449,5 +450,6 @@ export const threadListEntrySchema = threadWithRuntimeSchema.extend({
   environmentProviderId: z.string().nullable(),
   environmentIsWorktree: z.boolean().nullable(),
   environmentWorkspaceDisplayKind: environmentWorkspaceDisplayKindSchema,
+  taskDiffStats: taskDiffStatsSchema.nullable(),
 });
 export type ThreadListEntry = z.infer<typeof threadListEntrySchema>;

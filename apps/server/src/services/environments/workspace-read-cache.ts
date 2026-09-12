@@ -1,6 +1,7 @@
 import type { EnvironmentChangeKind } from "@bb/domain";
 import type { HostDaemonOnlineRpcResult } from "@bb/host-daemon-contract";
 import type { ServerChangedMessage } from "../../ws/hub.js";
+import type { TaskDiffStatsResult } from "./task-diff-stats.js";
 
 const IGNORED_ENVIRONMENT_CHANGES: ReadonlySet<EnvironmentChangeKind> = new Set(
   ["metadata-changed", "thread-storage-changed"],
@@ -9,6 +10,7 @@ const IGNORED_ENVIRONMENT_CHANGES: ReadonlySet<EnvironmentChangeKind> = new Set(
 interface CacheEntry<TValue> {
   expiresAt: number;
   hostId: string;
+  stale: boolean;
   value: TValue;
 }
 
@@ -24,9 +26,14 @@ interface EnvironmentReadCacheReadArgs<TValue> {
   load: () => Promise<TValue>;
 }
 
-interface EnvironmentReadCacheOptions {
+interface EnvironmentReadCacheOptions<TValue> {
   now: () => number;
-  ttlMs: number;
+  ttlMs: number | ((value: TValue) => number);
+}
+
+export interface EnvironmentReadCachePeekResult<TValue> {
+  stale: boolean;
+  value: TValue;
 }
 
 interface EnvironmentReadCacheInvalidation {
@@ -40,16 +47,13 @@ export class EnvironmentReadCache<
   private readonly entries = new Map<string, CacheEntry<TValue>>();
   private readonly inFlight = new Map<string, InFlightEntry<TValue>>();
 
-  constructor(private readonly options: EnvironmentReadCacheOptions) {}
+  constructor(private readonly options: EnvironmentReadCacheOptions<TValue>) {}
 
   read(args: EnvironmentReadCacheReadArgs<TValue>): Promise<TValue> {
     const cacheKey = `${args.environmentId} ${args.key}`;
     const cached = this.entries.get(cacheKey);
-    if (cached && cached.expiresAt > this.options.now()) {
+    if (cached && !this.isStale(cached)) {
       return Promise.resolve(cached.value);
-    }
-    if (cached) {
-      this.entries.delete(cacheKey);
     }
 
     const pending = this.inFlight.get(cacheKey);
@@ -61,9 +65,14 @@ export class EnvironmentReadCache<
       (value) => {
         if (this.inFlight.get(cacheKey)?.promise === promise) {
           this.inFlight.delete(cacheKey);
+          const ttlMs =
+            typeof this.options.ttlMs === "function"
+              ? this.options.ttlMs(value)
+              : this.options.ttlMs;
           this.entries.set(cacheKey, {
-            expiresAt: this.options.now() + this.options.ttlMs,
+            expiresAt: this.options.now() + ttlMs,
             hostId: args.hostId,
+            stale: false,
             value,
           });
         }
@@ -80,6 +89,18 @@ export class EnvironmentReadCache<
     return promise;
   }
 
+  peek(
+    environmentId: string,
+    key: string,
+  ): EnvironmentReadCachePeekResult<TValue> | undefined {
+    const cacheKey = `${environmentId} ${key}`;
+    const cached = this.entries.get(cacheKey);
+    if (!cached) {
+      return undefined;
+    }
+    return { stale: this.isStale(cached), value: cached.value };
+  }
+
   invalidateEnvironment(environmentId: string): void {
     const prefix = `${environmentId} `;
     this.dropWhere((cacheKey) => cacheKey.startsWith(prefix));
@@ -89,12 +110,16 @@ export class EnvironmentReadCache<
     this.dropWhere((_cacheKey, entryHostId) => entryHostId === hostId);
   }
 
+  private isStale(entry: CacheEntry<TValue>): boolean {
+    return entry.stale || entry.expiresAt <= this.options.now();
+  }
+
   private dropWhere(
     predicate: (cacheKey: string, hostId: string) => boolean,
   ): void {
     for (const [cacheKey, entry] of this.entries) {
       if (predicate(cacheKey, entry.hostId)) {
-        this.entries.delete(cacheKey);
+        entry.stale = true;
       }
     }
     for (const [cacheKey, entry] of this.inFlight) {
@@ -107,6 +132,8 @@ export class EnvironmentReadCache<
 
 const WORKSPACE_STATUS_CACHE_TTL_MS = 3_000;
 const WORKSPACE_PULL_REQUEST_CACHE_TTL_MS = 10_000;
+const WORKSPACE_TASK_DIFF_AVAILABLE_TTL_MS = 5 * 60_000;
+const WORKSPACE_TASK_DIFF_UNAVAILABLE_TTL_MS = 10_000;
 
 interface WorkspaceReadCachesDeps {
   hub: {
@@ -124,6 +151,7 @@ export class WorkspaceReadCaches {
   readonly pullRequest: EnvironmentReadCache<
     HostDaemonOnlineRpcResult<"workspace.pull_request">
   >;
+  readonly taskDiff: EnvironmentReadCache<TaskDiffStatsResult>;
 
   constructor(deps: WorkspaceReadCachesDeps) {
     const now = deps.now ?? Date.now;
@@ -135,13 +163,20 @@ export class WorkspaceReadCaches {
       now,
       ttlMs: WORKSPACE_PULL_REQUEST_CACHE_TTL_MS,
     });
+    this.taskDiff = new EnvironmentReadCache<TaskDiffStatsResult>({
+      now,
+      ttlMs: (result) =>
+        result.outcome === "available"
+          ? WORKSPACE_TASK_DIFF_AVAILABLE_TTL_MS
+          : WORKSPACE_TASK_DIFF_UNAVAILABLE_TTL_MS,
+    });
     deps.hub.onChangedMessage((message) => {
       this.handleChangedMessage(message);
     });
   }
 
   private get caches(): EnvironmentReadCacheInvalidation[] {
-    return [this.status, this.pullRequest];
+    return [this.status, this.pullRequest, this.taskDiff];
   }
 
   invalidateEnvironment(environmentId: string): void {
@@ -175,6 +210,16 @@ export class WorkspaceReadCaches {
       )
     ) {
       this.invalidateHost(message.id);
+      return;
+    }
+    if (message.entity === "thread") {
+      if (!message.changes.includes("status-changed")) {
+        return;
+      }
+      const environmentId = message.metadata?.environmentId;
+      if (environmentId) {
+        this.taskDiff.invalidateEnvironment(environmentId);
+      }
     }
   }
 }

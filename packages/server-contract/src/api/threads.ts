@@ -21,6 +21,7 @@ import {
   serviceTierSchema,
   startedOnBehalfOfSchema,
   threadCreateOriginSchema,
+  taskDiffStatsSchema,
   threadOriginKindSchema,
   threadListEntrySchema,
   threadQueuedMessageSchema,
@@ -33,9 +34,11 @@ import {
   threadEventTypeValues,
   threadVisibilitySchema,
   threadWithRuntimeSchema,
+  workspaceDiffTargetSchema,
 } from "@bb/domain";
 import type { CallerExecutionInputSource } from "@bb/domain";
 import { THREAD_EVENT_LIST_PAGE_SIZE } from "../common.js";
+import { workspaceResolutionFailureSchema } from "@bb/host-daemon-contract/workspace";
 import {
   timelineDeltaSchema,
   timelineRowSchema,
@@ -1134,4 +1137,45 @@ export const threadStoragePathListResponseSchema =
   });
 export type ThreadStoragePathListResponse = z.infer<
   typeof threadStoragePathListResponseSchema
+>;
+
+export const threadTaskDiffNotApplicableReasonSchema = z.enum([
+  "no_environment",
+  "non_git_environment",
+]);
+export type ThreadTaskDiffNotApplicableReason = z.infer<
+  typeof threadTaskDiffNotApplicableReasonSchema
+>;
+
+export const threadTaskDiffKindSchema = z.enum(["branch", "working_tree"]);
+export type ThreadTaskDiffKind = z.infer<typeof threadTaskDiffKindSchema>;
+
+export const threadTaskDiffResponseSchema = z.discriminatedUnion("outcome", [
+  z
+    .object({
+      outcome: z.literal("available"),
+      threadId: z.string(),
+      environmentId: z.string(),
+      kind: threadTaskDiffKindSchema,
+      target: workspaceDiffTargetSchema,
+      baseBranch: z.string().nullable(),
+      branchName: z.string().nullable(),
+      stats: taskDiffStatsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      outcome: z.literal("not_applicable"),
+      reason: threadTaskDiffNotApplicableReasonSchema,
+    })
+    .strict(),
+  z
+    .object({
+      outcome: z.literal("unavailable"),
+      failure: workspaceResolutionFailureSchema,
+    })
+    .strict(),
+]);
+export type ThreadTaskDiffResponse = z.infer<
+  typeof threadTaskDiffResponseSchema
 >;
