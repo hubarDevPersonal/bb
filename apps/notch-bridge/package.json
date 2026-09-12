@@ -1,0 +1,30 @@
+{
+  "name": "@bb/notch-bridge",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Bridges bb thread state and pending interactions to the NotchAgent macOS notch widget.",
+  "bin": {
+    "bb-notch": "./bin/bb-notch"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-node-entry.mjs src/index.ts dist/index.js --clean-dist",
+    "start": "node dist/index.js",
+    "dev": "node --conditions=source --import tsx src/index.ts",
+    "clean": "rimraf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "rimraf": "^6.1.0",
+    "tsx": "^4.23.1",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}
