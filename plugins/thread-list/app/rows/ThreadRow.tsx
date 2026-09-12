@@ -101,6 +101,7 @@ import { SidebarThreadDragChip } from "../dnd/sidebarThreadDragChip.js";
 import { SplitPaneMiniMap } from "@/components/ui/split-pane-mini-map";
 import { ThreadRowQuickActions } from "./ThreadRowQuickActions.js";
 import { toThreadActionTarget } from "./threadActionTarget.js";
+import { ThreadRowTaskDiffStats } from "./ThreadRowTaskDiffStats.js";
 import {
   useIsSelectionHidingActiveRow,
   useIsThreadSelected,
@@ -774,6 +775,7 @@ function ThreadRowComponent({
           (isEditing || isCustomizingActions) && "hidden",
         )}
       >
+        <ThreadRowTaskDiffStats thread={thread} />
         {thread.archivedAt !== null ? (
           <span className="relative flex items-center [@media(hover:none)]:hidden">
             <div

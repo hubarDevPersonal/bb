@@ -175,6 +175,7 @@ import {
   useSidebarThreadDragOverlayModifiers,
   SidebarThreadDragChip,
 } from "../dnd/sidebarThreadDragChip.js";
+import { ThreadRowTaskDiffStatsProvider } from "../rows/threadRowTaskDiffContext.js";
 
 const SIDEBAR_STICKY_PARENT_DEPTH_CAP = 4;
 
@@ -223,6 +224,7 @@ interface ProjectThreadTreeProps {
   onProjectSelect?: () => void;
   onToggleThreadCollapsed: (threadId: string) => void;
   onToggleEnvironmentCollapsed: (environmentId: string) => void;
+  showTaskDiffStats?: boolean;
 }
 
 interface SectionThreadTreeProps {
@@ -1819,6 +1821,7 @@ export const ProjectThreadTree = memo(function ProjectThreadTree({
   onProjectSelect,
   onToggleThreadCollapsed,
   onToggleEnvironmentCollapsed,
+  showTaskDiffStats = false,
 }: ProjectThreadTreeProps) {
   const projectThreads =
     threadListState.status === "ready"
@@ -1862,18 +1865,20 @@ export const ProjectThreadTree = memo(function ProjectThreadTree({
   }
 
   return (
-    <SectionThreadTreeItems
-      items={rootItems}
-      sectionDnd={dndParentKey !== undefined ? sectionDnd : null}
-      projectId={projectId}
-      sortableParentKey={projectId}
-      selectedThreadId={selectedThreadId}
-      collapsedThreadIds={collapsedThreadIds}
-      collapsedEnvironmentIds={collapsedEnvironmentIds}
-      onProjectSelect={onProjectSelect}
-      onToggleThreadCollapsed={onToggleThreadCollapsed}
-      onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
-    />
+    <ThreadRowTaskDiffStatsProvider value={showTaskDiffStats}>
+      <SectionThreadTreeItems
+        items={rootItems}
+        sectionDnd={dndParentKey !== undefined ? sectionDnd : null}
+        projectId={projectId}
+        sortableParentKey={projectId}
+        selectedThreadId={selectedThreadId}
+        collapsedThreadIds={collapsedThreadIds}
+        collapsedEnvironmentIds={collapsedEnvironmentIds}
+        onProjectSelect={onProjectSelect}
+        onToggleThreadCollapsed={onToggleThreadCollapsed}
+        onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
+      />
+    </ThreadRowTaskDiffStatsProvider>
   );
 });
 

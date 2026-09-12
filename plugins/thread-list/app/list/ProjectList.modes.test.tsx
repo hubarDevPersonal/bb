@@ -63,7 +63,9 @@ const { useSidebarModeSectionOrder } =
 
 const mockBuildMachineThreadGroups = vi.mocked(buildMachineThreadGroups);
 
-function getModeOrderProbeConfig(mode: SidebarOrganizationMode): {
+type OrderedMode = Exclude<SidebarOrganizationMode, "state">;
+
+function getModeOrderProbeConfig(mode: OrderedMode): {
   entitySectionIds: SidebarSectionId[];
   hasThreadsSection?: boolean;
 } {
@@ -77,7 +79,7 @@ function getModeOrderProbeConfig(mode: SidebarOrganizationMode): {
   }
 }
 
-function ModeOrderProbe({ mode }: { mode: SidebarOrganizationMode }) {
+function ModeOrderProbe({ mode }: { mode: OrderedMode }) {
   const config = getModeOrderProbeConfig(mode);
   const { order } = useSidebarModeSectionOrder({
     mode,
@@ -110,6 +112,7 @@ function ActiveModeOrderProbe({
       renderChronological={renderChronological}
       renderMachine={renderMachine}
       renderProject={renderProject}
+      renderState={() => null}
     />
   );
 }

@@ -10,6 +10,7 @@ export const organizationModeSchema = z.enum([
   "project",
   "chronological",
   "machine",
+  "state",
 ]);
 export type OrganizationMode = z.infer<typeof organizationModeSchema>;
 
@@ -109,7 +110,7 @@ export const preferenceDefinitions = {
   organizationMode: definePreference(
     organizationModeSchema,
     "chronological",
-    "How the list groups threads: by project, chronologically with custom sections, or by machine.",
+    "How the list groups threads: by project, chronologically with custom sections, by machine, or by task state (Action needed, Running, Done).",
     "sidebar.organizationMode",
   ),
   environmentGrouping: definePreference(
@@ -206,6 +207,12 @@ export const preferenceDefinitions = {
     stringListSchema,
     [],
     "Machine ids whose rows are collapsed.",
+    null,
+  ),
+  collapsedStateGroups: definePreference(
+    z.array(z.enum(["action-needed", "running", "done"])).max(3),
+    [],
+    "Task-state groups (action-needed, running, done) that are collapsed.",
     null,
   ),
 } as const;
