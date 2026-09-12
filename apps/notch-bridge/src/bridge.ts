@@ -96,7 +96,8 @@ export class NotchBridge {
       }
       if (!args.initial) await this.announceFinishedTurns(next);
       this.threads = next;
-      await this.pushStatus();
+      // Notch outages must not stop interaction forwarding, and vice versa.
+      await this.pushStatus().catch((error) => this.log.warn(`status push failed: ${String(error)}`));
       await this.forwardPendingInteractions();
     } catch (error) {
       this.log.warn(`refresh failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -137,8 +138,10 @@ export class NotchBridge {
     const busy = [...this.threads.values()].some((thread) => BUSY_STATUSES.has(thread.status));
     const status: NotchStatus = busy ? "working" : "idle";
     if (status === this.lastStatus) return;
-    this.lastStatus = status;
+    // Mark as delivered only after the write succeeded: when NotchAgent is
+    // not up yet, the next refresh must try again instead of going quiet.
     await this.notch.send({ id: `status-${Date.now()}`, type: "Status", message: status });
+    this.lastStatus = status;
   }
 
   private async forwardPendingInteractions(): Promise<void> {
