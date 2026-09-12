@@ -1180,6 +1180,19 @@ export interface PluginSidebarThread {
   updatedAt: number;
   lastReadAt: number | null;
   latestAttentionAt: number;
+  /**
+   * Experimental. The thread task's change summary against its base branch or
+   * working tree: files changed, lines added, lines removed. Null when bb has
+   * not computed it yet or the thread has no git environment.
+   */
+  experimental_taskDiffStats: PluginSidebarTaskDiffStats | null;
+}
+
+/** Experimental. Line and file counts of a thread task's diff. */
+export interface PluginSidebarTaskDiffStats {
+  changedFiles: number;
+  insertions: number;
+  deletions: number;
 }
 
 /**

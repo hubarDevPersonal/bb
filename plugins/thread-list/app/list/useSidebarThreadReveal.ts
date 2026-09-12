@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
 import type { SidebarThread } from "../model/sidebar-thread.js";
 import { NO_MACHINE_GROUP_KEY } from "../model/machine-thread-groups.js";
+import {
+  resolveStateThreadGroupKey,
+  type StateThreadGroupKey,
+} from "../model/state-thread-groups.js";
 import { buildPinnedSidebarState } from "../model/pinned-sidebar-threads.js";
 import {
   CHRONOLOGICAL_CONTAINER_ID,
@@ -18,6 +22,7 @@ import {
   collapsedSidebarSectionIdsAtom,
   collapsedThreadIdsAtom,
   sidebarCollapsedMachinesAtom,
+  sidebarCollapsedStateGroupsAtom,
   sidebarCollapsedThreadSectionsAtom,
   sidebarOrganizationModeAtom,
 } from "../preferences/atoms.js";
@@ -34,6 +39,7 @@ interface ThreadSidebarExpansionArgs {
 interface ThreadSidebarExpansion {
   sectionKey?: string;
   machineKey?: string;
+  stateGroupKey?: StateThreadGroupKey;
   projectId?: string;
   sidebarSectionId?: CollapsibleSidebarSectionId;
 }
@@ -71,6 +77,11 @@ export function getThreadSidebarExpansion({
     return {
       machineKey: thread.host?.id ?? NO_MACHINE_GROUP_KEY,
     };
+  }
+
+  if (organizationMode === "state") {
+    const stateGroupKey = resolveStateThreadGroupKey(thread);
+    return stateGroupKey ? { stateGroupKey } : {};
   }
 
   if (organizationMode === "chronological") {
@@ -125,6 +136,9 @@ export function useSidebarThreadRevealCore({
   const setCollapsedEnvironmentIdList = useSetAtom(collapsedEnvironmentIdsAtom);
   const setCollapsedProjectIdList = useSetAtom(collapsedProjectIdsAtom);
   const setCollapsedMachineKeyList = useSetAtom(sidebarCollapsedMachinesAtom);
+  const setCollapsedStateGroupKeyList = useSetAtom(
+    sidebarCollapsedStateGroupsAtom,
+  );
   const setCollapsedSectionList = useSetAtom(
     sidebarCollapsedThreadSectionsAtom,
   );
@@ -222,6 +236,12 @@ export function useSidebarThreadRevealCore({
           removeCollapsedIds(current, new Set([machineKey])),
         );
       }
+      if (expansion.stateGroupKey) {
+        const stateGroupKey = expansion.stateGroupKey;
+        setCollapsedStateGroupKeyList((current) =>
+          removeCollapsedIds(current, new Set([stateGroupKey])),
+        );
+      }
       if (expansion.sectionKey) {
         const sectionKey = expansion.sectionKey;
         setCollapsedSectionList((current) =>
@@ -254,6 +274,7 @@ export function useSidebarThreadRevealCore({
     setCollapsedEnvironmentIdList,
     setCollapsedProjectIdList,
     setCollapsedMachineKeyList,
+    setCollapsedStateGroupKeyList,
     setCollapsedSectionList,
     setCollapsedSidebarSectionIdList,
   ]);

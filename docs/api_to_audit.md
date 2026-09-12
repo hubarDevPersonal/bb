@@ -3421,3 +3421,18 @@ remain forbidden. New-machine selections continue through creation.
 
 Stabilization requires lifecycle coverage for reuse, missing paths, cleanup in
 progress, cross-project ownership, and concurrent creation before binding.
+
+## `PluginSidebarThread.experimental_taskDiffStats` (`@get-bb/plugin-sdk/app`)
+
+Each sidebar thread carries `experimental_taskDiffStats`: `{ changedFiles,
+insertions, deletions }` for the thread task's diff against its base branch or
+working tree, or null when bb has not computed it or the thread has no git
+environment. The server fills it from a per-environment cache that is refreshed
+in the background; a list push can therefore carry the previous value for one
+round before `task-diff-changed` delivers the fresh one. The thread-list
+plugin's "By state" organization uses it to place idle threads with changes in
+Done and to draw `+N −M` on their rows.
+
+Audit before stabilizing: whether the field should also carry the diff target
+(branch vs working tree), how stale values are signalled to plugins, and the
+refresh cost on hosts with many worktree threads.

@@ -15,8 +15,10 @@ import {
   type LegacySidebarEntityAnchor,
 } from "../model/sidebar-section-order.js";
 
+type OrderedSidebarOrganizationMode = Exclude<SidebarOrganizationMode, "state">;
+
 const MODE_SECTION_ORDER_CONFIG: Record<
-  SidebarOrganizationMode,
+  OrderedSidebarOrganizationMode,
   {
     atom: typeof sidebarSectionOrderAtom;
     entityKind: "project" | "section" | "machine";
@@ -43,7 +45,7 @@ const MODE_SECTION_ORDER_CONFIG: Record<
 interface UseSidebarModeSectionOrderArgs {
   entitySectionIds: readonly SidebarSectionId[];
   hasThreadsSection?: boolean;
-  mode: SidebarOrganizationMode;
+  mode: OrderedSidebarOrganizationMode;
   showPinnedSection: boolean;
 }
 

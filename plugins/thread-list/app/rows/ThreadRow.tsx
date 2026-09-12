@@ -81,6 +81,7 @@ import type {
 import type { SidebarSortableDragBindings } from "./sortableMotion.js";
 import { SidebarThreadDragChip } from "../dnd/sidebarThreadDragChip.js";
 import { SplitPaneMiniMap } from "./SplitPaneMiniMap.js";
+import { ThreadRowTaskDiffStats } from "./ThreadRowTaskDiffStats.js";
 import {
   ThreadActionsContextMenu,
   ThreadActionsMenu,
@@ -652,6 +653,7 @@ function ThreadRowComponent({
           isEditing && "hidden",
         )}
       >
+        <ThreadRowTaskDiffStats thread={thread} />
         {thread.archivedAt !== null ? (
           <span className="relative flex items-center max-md:pointer-coarse:hidden">
             <div

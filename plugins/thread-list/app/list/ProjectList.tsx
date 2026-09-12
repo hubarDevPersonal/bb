@@ -60,6 +60,11 @@ import {
 } from "./ProjectRow.js";
 import type { ProjectThreadListState } from "./ProjectRow.js";
 import { buildMachineThreadGroups } from "../model/machine-thread-groups.js";
+import {
+  buildStateThreadGroups,
+  type StateThreadGroupKey,
+} from "../model/state-thread-groups.js";
+import { TopLevelSidebarSection } from "./TopLevelSidebarSection.js";
 import { buildPinnedSidebarState } from "../model/pinned-sidebar-threads.js";
 import {
   CHRONOLOGICAL_CONTAINER_ID,
@@ -96,6 +101,7 @@ import {
   sidebarGroupThreadsByEnvironmentAtom,
   sidebarSortDirectionAtom,
   sidebarCollapsedMachinesAtom,
+  sidebarCollapsedStateGroupsAtom,
   sidebarManualSectionOrderAtom,
   sidebarOrganizationModeAtom,
 } from "../preferences/atoms.js";
@@ -403,6 +409,7 @@ interface ActiveSidebarModeSectionsProps {
   renderChronological: () => ReactNode;
   renderMachine: () => ReactNode;
   renderProject: () => ReactNode;
+  renderState: () => ReactNode;
 }
 
 export function ActiveSidebarModeSections({
@@ -410,8 +417,10 @@ export function ActiveSidebarModeSections({
   renderChronological,
   renderMachine,
   renderProject,
+  renderState,
 }: ActiveSidebarModeSectionsProps) {
   if (mode === "machine") return renderMachine();
+  if (mode === "state") return renderState();
   if (mode === "chronological") return renderChronological();
   return renderProject();
 }
@@ -1334,6 +1343,140 @@ export function MachineModeSections({
   );
 }
 
+interface StateModeSectionsProps extends BuiltInSectionRenderState {
+  collapsedEnvironmentIds: Set<string>;
+  collapsedThreadIds: Set<string>;
+  compareThreads: ThreadComparator;
+  draftThreadIds: ReadonlySet<string>;
+  effectivePinnedThreadIds: ReadonlySet<string>;
+  onProjectSelect?: () => void;
+  onToggleEnvironmentCollapsed: ToggleCollapsedId;
+  onToggleThreadCollapsed: ToggleCollapsedId;
+  pinnedSection: BuiltInSidebarSectionOptions;
+  selectedThreadId?: string;
+  threads: SidebarThread[];
+  threadsSection: Omit<BuiltInSidebarSectionOptions, "content">;
+}
+
+export function StateModeSections({
+  collapsedEnvironmentIds,
+  collapsedSectionIds,
+  collapsedThreadIds,
+  compareThreads,
+  draftThreadIds,
+  effectivePinnedThreadIds,
+  onProjectSelect,
+  onToggleCollapsed,
+  onToggleEnvironmentCollapsed,
+  onToggleThreadCollapsed,
+  pinnedSection,
+  selectedThreadId,
+  showPinnedSection,
+  threads,
+  threadsSection,
+}: StateModeSectionsProps) {
+  const [collapsedGroupKeyList, setCollapsedGroupKeyList] = useAtom(
+    sidebarCollapsedStateGroupsAtom,
+  );
+  const collapsedGroupKeys = useMemo(
+    () => new Set(collapsedGroupKeyList),
+    [collapsedGroupKeyList],
+  );
+  const toggleGroupCollapsed = useCallback(
+    (key: StateThreadGroupKey) => {
+      setCollapsedGroupKeyList((current) =>
+        current.includes(key)
+          ? current.filter((candidate) => candidate !== key)
+          : [...current, key],
+      );
+    },
+    [setCollapsedGroupKeyList],
+  );
+  const nonPinnedThreads = useMemo(
+    () =>
+      threads.filter(
+        (thread) =>
+          !effectivePinnedThreadIds.has(thread.id) &&
+          isSidebarProjectThread(thread),
+      ),
+    [effectivePinnedThreadIds, threads],
+  );
+  const stateGroups = useMemo(
+    () => buildStateThreadGroups(nonPinnedThreads),
+    [nonPinnedThreads],
+  );
+  const builtInSections: BuiltInSidebarSectionOptionsById = {
+    pinned: pinnedSection,
+    threads: {
+      ...threadsSection,
+      content:
+        stateGroups.length === 0 ? (
+          <ProjectThreadTree
+            threadListState={{ status: "ready", threads: [] }}
+            compareThreads={compareThreads}
+            variant="section"
+            selectedThreadId={selectedThreadId}
+            collapsedThreadIds={collapsedThreadIds}
+            collapsedEnvironmentIds={collapsedEnvironmentIds}
+            onProjectSelect={onProjectSelect}
+            onToggleThreadCollapsed={onToggleThreadCollapsed}
+            onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
+          />
+        ) : null,
+    },
+  };
+
+  return (
+    <>
+      {renderBuiltInSidebarSection({
+        sectionId: "pinned",
+        sections: builtInSections,
+        disabled: true,
+        collapsedSectionIds,
+        onToggleCollapsed,
+        showPinnedSection,
+      })}
+      {renderBuiltInSidebarSection({
+        sectionId: "threads",
+        sections: builtInSections,
+        disabled: true,
+        collapsedSectionIds,
+        onToggleCollapsed,
+        showPinnedSection,
+      })}
+      {stateGroups.map((group) => (
+        <TopLevelSidebarSection
+          key={group.key}
+          sectionId={`state:${group.key}`}
+          label={group.label}
+          collapsedActivity={getCollapsedChildActivity(
+            group.threads,
+            draftThreadIds,
+          )}
+          collapsedThreads={group.threads}
+          collapseControl={{
+            isCollapsed: collapsedGroupKeys.has(group.key),
+            onToggleCollapsed: () => toggleGroupCollapsed(group.key),
+          }}
+        >
+          <ProjectThreadTree
+            threadListState={{ status: "ready", threads: group.threads }}
+            compareThreads={compareThreads}
+            variant="section"
+            selectedThreadId={selectedThreadId}
+            collapsedThreadIds={collapsedThreadIds}
+            collapsedEnvironmentIds={collapsedEnvironmentIds}
+            onProjectSelect={onProjectSelect}
+            onToggleThreadCollapsed={onToggleThreadCollapsed}
+            onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
+            showTaskDiffStats
+          />
+        </TopLevelSidebarSection>
+      ))}
+    </>
+  );
+}
+
 function toThreadListStatus(
   status: ReturnType<typeof useSidebarData>["status"],
 ): ThreadListStatus {
@@ -1796,6 +1939,27 @@ function ProjectListComponent({
               onToggleCollapsed={toggleSidebarSectionCollapsed}
               onToggleThreadCollapsed={toggleThreadCollapsed}
               onToggleEnvironmentCollapsed={toggleEnvironmentCollapsed}
+            />
+          )}
+          renderState={() => (
+            <StateModeSections
+              threads={threads}
+              draftThreadIds={draftThreadIds}
+              effectivePinnedThreadIds={
+                pinnedSidebarState.effectivePinnedThreadIds
+              }
+              showPinnedSection={hasPinnedSection}
+              pinnedSection={pinnedSection}
+              selectedThreadId={selectedThreadId}
+              collapsedSectionIds={collapsedSidebarSectionIds}
+              collapsedThreadIds={collapsedThreadIds}
+              collapsedEnvironmentIds={collapsedEnvironmentIds}
+              compareThreads={sidebarThreadComparator}
+              onProjectSelect={onProjectSelect}
+              onToggleCollapsed={toggleSidebarSectionCollapsed}
+              onToggleThreadCollapsed={toggleThreadCollapsed}
+              onToggleEnvironmentCollapsed={toggleEnvironmentCollapsed}
+              threadsSection={threadsSection}
             />
           )}
           renderProject={() => (

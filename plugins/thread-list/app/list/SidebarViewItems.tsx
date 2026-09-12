@@ -27,6 +27,7 @@ import {
 const SIDEBAR_ORGANIZE_OPTIONS = [
   { label: "By project", mode: "project" },
   { label: "By machine", mode: "machine" },
+  { label: "By state", mode: "state" },
   { label: "Custom", mode: "chronological" },
 ] as const;
 
