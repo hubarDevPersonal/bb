@@ -1160,7 +1160,7 @@ async function revParseRef(
   return trimOutput(result.stdout) || undefined;
 }
 
-async function isAncestorRef(
+export async function isAncestorRef(
   cwd: string,
   ancestorRef: string,
   descendantRef: string,

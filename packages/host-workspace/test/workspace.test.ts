@@ -1186,6 +1186,277 @@ describe("Workspace", () => {
     expect(targetBranchSubject).toBe("Initial commit");
   });
 
+  it("applyBranch reports up_to_date when the source branch is already merged", async () => {
+    const repoPath = await initRepo();
+    await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
+    await runGit(["checkout", "main"], { cwd: repoPath });
+
+    const headSha = (
+      await runGit(["rev-parse", "HEAD"], { cwd: repoPath })
+    ).stdout.trim();
+
+    const workspace = new Workspace(repoPath);
+    const result = await workspace.applyBranch({ sourceBranch: "feature" });
+
+    expect(result).toEqual({
+      outcome: "up_to_date",
+      commitSha: headSha,
+      conflictedFiles: [],
+    });
+  });
+
+  it("applyBranch fast-forwards when HEAD is an ancestor of the source branch", async () => {
+    const repoPath = await initRepo();
+    await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, "feature.txt"), "feature\n", "utf8");
+    await runGit(["add", "feature.txt"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Feature work"], { cwd: repoPath });
+    await runGit(["checkout", "main"], { cwd: repoPath });
+
+    const featureSha = (
+      await runGit(["rev-parse", "feature"], { cwd: repoPath })
+    ).stdout.trim();
+
+    const workspace = new Workspace(repoPath);
+    const result = await workspace.applyBranch({ sourceBranch: "feature" });
+
+    expect(result).toEqual({
+      outcome: "fast_forwarded",
+      commitSha: featureSha,
+      conflictedFiles: [],
+    });
+    await expect(
+      fs.readFile(path.join(repoPath, "feature.txt"), "utf8"),
+    ).resolves.toBe("feature\n");
+  });
+
+  it("applyBranch merges non-conflicting divergent branches", async () => {
+    const repoPath = await initRepo();
+    await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, "feature.txt"), "feature\n", "utf8");
+    await runGit(["add", "feature.txt"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Feature work"], { cwd: repoPath });
+    await runGit(["checkout", "main"], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, "main.txt"), "main\n", "utf8");
+    await runGit(["add", "main.txt"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Main work"], { cwd: repoPath });
+
+    const workspace = new Workspace(repoPath);
+    const result = await workspace.applyBranch({ sourceBranch: "feature" });
+
+    expect(result.outcome).toBe("merged");
+    expect(result.conflictedFiles).toEqual([]);
+    const parents = (
+      await runGit(["log", "-1", "--pretty=%P"], { cwd: repoPath })
+    ).stdout.trim();
+    expect(parents.split(" ")).toHaveLength(2);
+    await expect(
+      fs.readFile(path.join(repoPath, "feature.txt"), "utf8"),
+    ).resolves.toBe("feature\n");
+    await expect(
+      fs.readFile(path.join(repoPath, "main.txt"), "utf8"),
+    ).resolves.toBe("main\n");
+    expect(
+      (await runGit(["status", "--porcelain"], { cwd: repoPath })).stdout,
+    ).toBe("");
+  });
+
+  it("applyBranch reports conflicts without touching the checkout", async () => {
+    const repoPath = await initRepo();
+    await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
+    await fs.writeFile(
+      path.join(repoPath, "README.md"),
+      "feature change\n",
+      "utf8",
+    );
+    await runGit(["commit", "-am", "Feature change"], { cwd: repoPath });
+    await runGit(["checkout", "main"], { cwd: repoPath });
+    await fs.writeFile(
+      path.join(repoPath, "README.md"),
+      "main change\n",
+      "utf8",
+    );
+    await runGit(["commit", "-am", "Main change"], { cwd: repoPath });
+
+    const headBefore = (
+      await runGit(["rev-parse", "HEAD"], { cwd: repoPath })
+    ).stdout.trim();
+
+    const workspace = new Workspace(repoPath);
+    const result = await workspace.applyBranch({ sourceBranch: "feature" });
+
+    expect(result).toEqual({
+      outcome: "conflict",
+      commitSha: null,
+      conflictedFiles: ["README.md"],
+    });
+    expect(
+      (await runGit(["status", "--porcelain"], { cwd: repoPath })).stdout,
+    ).toBe("");
+    expect(
+      (await runGit(["rev-parse", "HEAD"], { cwd: repoPath })).stdout.trim(),
+    ).toBe(headBefore);
+  });
+
+  it("applyBranch refuses to run against a dirty checkout", async () => {
+    const repoPath = await initRepo();
+    await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, "feature.txt"), "feature\n", "utf8");
+    await runGit(["add", "feature.txt"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Feature work"], { cwd: repoPath });
+    await runGit(["checkout", "main"], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, "README.md"), "dirty\n", "utf8");
+
+    const workspace = new Workspace(repoPath);
+
+    await expect(
+      workspace.applyBranch({ sourceBranch: "feature" }),
+    ).rejects.toMatchObject({ code: "dirty_target_checkout" });
+  });
+
+  it("applyBranch throws a typed error for a missing source branch", async () => {
+    const repoPath = await initRepo();
+    const workspace = new Workspace(repoPath);
+
+    await expect(
+      workspace.applyBranch({ sourceBranch: "does-not-exist" }),
+    ).rejects.toMatchObject({ code: "branch_not_found" });
+  });
+
+  it("applyBranch rejects a detached HEAD checkout", async () => {
+    const repoPath = await initRepo();
+    await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, "feature.txt"), "feature\n", "utf8");
+    await runGit(["add", "feature.txt"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Feature work"], { cwd: repoPath });
+    await runGit(["checkout", "--detach", "main"], { cwd: repoPath });
+
+    const workspace = new Workspace(repoPath);
+
+    await expect(
+      workspace.applyBranch({ sourceBranch: "feature" }),
+    ).rejects.toMatchObject({ code: "detached_head" });
+  });
+
+  it("applyBranch reports conflicts for non-ASCII file names without quoting them", async () => {
+    const repoPath = await initRepo();
+    const fileName = "üni file.txt";
+    await fs.writeFile(path.join(repoPath, fileName), "base\n", "utf8");
+    await runGit(["add", "-A"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Add unicode file"], { cwd: repoPath });
+    await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, fileName), "feature\n", "utf8");
+    await runGit(["commit", "-am", "Feature change"], { cwd: repoPath });
+    await runGit(["checkout", "main"], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, fileName), "main\n", "utf8");
+    await runGit(["commit", "-am", "Main change"], { cwd: repoPath });
+
+    const workspace = new Workspace(repoPath);
+    const result = await workspace.applyBranch({ sourceBranch: "feature" });
+
+    expect(result.outcome).toBe("conflict");
+    expect(result.conflictedFiles).toEqual([fileName]);
+  });
+
+  it("applyBranch reports rename/delete conflicts", async () => {
+    const repoPath = await initRepo();
+    await fs.writeFile(
+      path.join(repoPath, "old.txt"),
+      "line1\nline2\nline3\n",
+      "utf8",
+    );
+    await runGit(["add", "-A"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Add old.txt"], { cwd: repoPath });
+    await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
+    await runGit(["mv", "old.txt", "new.txt"], { cwd: repoPath });
+    await fs.writeFile(
+      path.join(repoPath, "new.txt"),
+      "line1\nline2\nCHANGED\n",
+      "utf8",
+    );
+    await runGit(["commit", "-am", "Rename and edit"], { cwd: repoPath });
+    await runGit(["checkout", "main"], { cwd: repoPath });
+    await runGit(["rm", "old.txt"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Delete old.txt"], { cwd: repoPath });
+
+    const workspace = new Workspace(repoPath);
+    const result = await workspace.applyBranch({ sourceBranch: "feature" });
+
+    expect(result.outcome).toBe("conflict");
+    expect(result.conflictedFiles).toContain("new.txt");
+  });
+
+  it("aborts a true merge when a commit hook rejects it, leaving the checkout untouched", async () => {
+    const repoPath = await initRepo();
+    await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, "feature.txt"), "feature\n", "utf8");
+    await runGit(["add", "feature.txt"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Feature work"], { cwd: repoPath });
+    await runGit(["checkout", "main"], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, "main.txt"), "main\n", "utf8");
+    await runGit(["add", "main.txt"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Main work"], { cwd: repoPath });
+
+    const hookPath = path.join(repoPath, ".git", "hooks", "prepare-commit-msg");
+    await fs.writeFile(hookPath, "#!/bin/sh\nexit 1\n", "utf8");
+    await fs.chmod(hookPath, 0o755);
+
+    const headBefore = (
+      await runGit(["rev-parse", "HEAD"], { cwd: repoPath })
+    ).stdout.trim();
+
+    const workspace = new Workspace(repoPath);
+
+    await expect(
+      workspace.applyBranch({ sourceBranch: "feature" }),
+    ).rejects.toMatchObject({ code: "git_command_failed" });
+
+    await expect(
+      fs.stat(path.join(repoPath, ".git", "MERGE_HEAD")),
+    ).rejects.toThrow();
+    expect(
+      (await runGit(["status", "--porcelain"], { cwd: repoPath })).stdout,
+    ).toBe("");
+    expect(
+      (await runGit(["rev-parse", "HEAD"], { cwd: repoPath })).stdout.trim(),
+    ).toBe(headBefore);
+  });
+
+  it("applyBranch refuses when the source branch would overwrite an ignored file", async () => {
+    const repoPath = await initRepo();
+    await fs.writeFile(
+      path.join(repoPath, ".gitignore"),
+      "ignored.txt\n",
+      "utf8",
+    );
+    await runGit(["add", ".gitignore"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Add gitignore"], { cwd: repoPath });
+    await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
+    await fs.writeFile(
+      path.join(repoPath, "ignored.txt"),
+      "tracked content\n",
+      "utf8",
+    );
+    await runGit(["add", "-f", "ignored.txt"], { cwd: repoPath });
+    await runGit(["commit", "-m", "Force-add ignored.txt"], { cwd: repoPath });
+    await runGit(["checkout", "main"], { cwd: repoPath });
+    await fs.writeFile(
+      path.join(repoPath, "ignored.txt"),
+      "local ignored content\n",
+      "utf8",
+    );
+
+    const workspace = new Workspace(repoPath);
+
+    await expect(
+      workspace.applyBranch({ sourceBranch: "feature" }),
+    ).rejects.toMatchObject({ code: "ignored_files_would_be_overwritten" });
+
+    await expect(
+      fs.readFile(path.join(repoPath, "ignored.txt"), "utf8"),
+    ).resolves.toBe("local ignored content\n");
+  });
+
   it("rejects git mutations for non-git directories", async () => {
     const folder = await makeTempDir("bb-workspace-nongit-");
     const workspace = new Workspace(folder);
