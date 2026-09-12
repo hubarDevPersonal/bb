@@ -45,6 +45,7 @@ function makeThread(overrides: ThreadListEntryOverrides = {}): ThreadListEntry {
     title: "Thread",
     titleFallback: "Thread",
     sectionId: null,
+    taskDiffStats: null,
     updatedAt: 1,
     ...overrides,
   };

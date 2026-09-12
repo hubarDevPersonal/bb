@@ -57,6 +57,7 @@ function threadListEntry(
       displayStatus: "idle",
       hostReconnectGraceExpiresAt: null,
     },
+    taskDiffStats: null,
     ...overrides,
   };
 }

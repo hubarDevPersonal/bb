@@ -45,6 +45,7 @@ function makeThread(overrides: Partial<ThreadListEntry> = {}): ThreadListEntry {
       displayStatus: "active",
       hostReconnectGraceExpiresAt: null,
     },
+    taskDiffStats: null,
     ...overrides,
   };
 }

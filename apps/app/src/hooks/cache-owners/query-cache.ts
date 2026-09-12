@@ -584,6 +584,7 @@ export function optimisticallyInsertThread(
         hasPendingInteraction: false,
         pinSortKey: null,
         environmentWorkspaceDisplayKind: "other",
+        taskDiffStats: null,
       },
       ...data,
     ]);

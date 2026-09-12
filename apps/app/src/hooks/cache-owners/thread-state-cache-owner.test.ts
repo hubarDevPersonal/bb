@@ -63,6 +63,7 @@ function makeThreadListEntry(
     environmentName: "Environment",
     environmentBranchName: "main",
     environmentWorkspaceDisplayKind: "managed-worktree",
+    taskDiffStats: null,
     ...thread,
   };
 }

@@ -75,6 +75,7 @@ function createThreadListEntry({
     },
     sourceThreadId: null,
     status: "idle",
+    taskDiffStats: null,
     title,
     titleFallback: null,
     sectionId: null,

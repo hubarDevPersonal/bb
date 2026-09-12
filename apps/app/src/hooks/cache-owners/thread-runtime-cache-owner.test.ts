@@ -95,6 +95,7 @@ function makeThreadListEntry(id = "thread-1"): ThreadListEntry {
     environmentName: "Environment",
     environmentBranchName: "main",
     environmentWorkspaceDisplayKind: "managed-worktree",
+    taskDiffStats: null,
   };
 }
 

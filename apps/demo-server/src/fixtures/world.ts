@@ -79,6 +79,7 @@ export function threadListEntry(
     environmentName: null,
     environmentBranchName: "main",
     environmentWorkspaceDisplayKind: "other",
+    taskDiffStats: null,
   };
 }
 

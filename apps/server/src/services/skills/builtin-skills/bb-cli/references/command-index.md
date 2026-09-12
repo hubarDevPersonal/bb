@@ -103,6 +103,7 @@ This index lists every command path that the core CLI registers. Read the task-s
 - `bb thread fork`
 - `bb thread list`
 - `bb thread show`
+- `bb thread diff`
 - `bb thread log`
 - `bb thread output`
 - `bb thread open`

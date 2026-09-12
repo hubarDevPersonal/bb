@@ -52,6 +52,7 @@ function thread(overrides: Partial<ThreadListEntry>): ThreadListEntry {
       displayStatus: "idle",
       hostReconnectGraceExpiresAt: null,
     },
+    taskDiffStats: null,
     ...overrides,
   };
 }

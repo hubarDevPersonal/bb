@@ -44,6 +44,7 @@ function createThread(overrides: Partial<ThreadListEntry>): ThreadListEntry {
       displayStatus: "idle",
       hostReconnectGraceExpiresAt: null,
     },
+    taskDiffStats: null,
     ...overrides,
   };
 }

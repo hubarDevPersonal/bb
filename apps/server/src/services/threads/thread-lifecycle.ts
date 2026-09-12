@@ -1464,6 +1464,7 @@ function interruptActiveTurnForThreadInTransaction(
     eventTypes.push("system/thread/interrupted");
   }
   deps.hub.notifyThread(args.threadId, ["events-appended", "status-changed"], {
+    environmentId: args.environmentId,
     eventTypes,
   });
 
@@ -1672,7 +1673,9 @@ export function finalizeStoppedThreadInTransaction(
         threadId: currentThread.id,
       });
       if (outcome.applied) {
-        deps.hub.notifyThread(currentThread.id, ["status-changed"]);
+        deps.hub.notifyThread(currentThread.id, ["status-changed"], {
+          environmentId: currentThread.environmentId,
+        });
       }
     }
   } else if (isPreStartThreadStatus(currentThread.status)) {
@@ -1681,7 +1684,9 @@ export function finalizeStoppedThreadInTransaction(
       threadId: currentThread.id,
     });
     if (outcome.applied) {
-      deps.hub.notifyThread(currentThread.id, ["status-changed"]);
+      deps.hub.notifyThread(currentThread.id, ["status-changed"], {
+        environmentId: currentThread.environmentId,
+      });
     }
   }
 

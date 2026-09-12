@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { environmentWorkspaceDisplayKindSchema } from "./environment.js";
 import { gitCheckoutRefSchema } from "./git-checkout.js";
+import { taskDiffStatsSchema } from "./task-diff.js";
 import {
   promptInputSchema,
   permissionModeSchema,
@@ -369,5 +370,6 @@ export const threadListEntrySchema = threadWithRuntimeSchema.extend({
   environmentName: z.string().nullable(),
   environmentBranchName: z.string().nullable(),
   environmentWorkspaceDisplayKind: environmentWorkspaceDisplayKindSchema,
+  taskDiffStats: taskDiffStatsSchema.nullable(),
 });
 export type ThreadListEntry = z.infer<typeof threadListEntrySchema>;

@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { registerActionsCommands } from "./actions.js";
+import { registerDiffCommand } from "./diff.js";
 import { registerInteractionCommands } from "./interactions.js";
 import { registerListCommand } from "./list.js";
 import { registerOpenCommand } from "./open.js";
@@ -20,6 +21,7 @@ export function registerThreadCommands(
   registerForkCommand(thread, getUrl);
   registerListCommand(thread, getUrl);
   registerShowCommand(thread, getUrl);
+  registerDiffCommand(thread, getUrl);
   registerOpenCommand(thread, getUrl);
   registerPaneCommand(thread, getUrl);
   registerOrganizationCommands(thread, getUrl);

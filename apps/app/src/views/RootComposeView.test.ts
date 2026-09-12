@@ -315,6 +315,7 @@ function makeThread(args: MakeThreadArgs): ThreadListEntry {
       displayStatus: "idle",
       hostReconnectGraceExpiresAt: null,
     },
+    taskDiffStats: null,
   };
 }
 

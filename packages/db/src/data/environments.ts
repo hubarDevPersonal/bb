@@ -132,6 +132,21 @@ export function listEnvironments(db: DbConnection, projectId?: string) {
   return db.select().from(environments).all();
 }
 
+export function listEnvironmentsByIds(
+  db: EnvironmentReadConnection,
+  environmentIds: readonly string[],
+) {
+  const uniqueIds = [...new Set(environmentIds)];
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+  return db
+    .select()
+    .from(environments)
+    .where(inArray(environments.id, uniqueIds))
+    .all();
+}
+
 interface EnvironmentMetadataUpdateColumns {
   baseBranch?: string | null;
   branchName?: string | null;

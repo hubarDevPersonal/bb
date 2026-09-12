@@ -83,6 +83,7 @@ function createThread(
       displayStatus: "idle",
       hostReconnectGraceExpiresAt: null,
     },
+    taskDiffStats: null,
     ...overrides,
   };
 }

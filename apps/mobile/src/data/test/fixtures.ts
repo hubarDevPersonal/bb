@@ -56,6 +56,7 @@ export function threadListEntry(
     environmentBranchName: null,
     environmentWorkspaceDisplayKind: "other",
     runtime: { displayStatus: "idle", hostReconnectGraceExpiresAt: null },
+    taskDiffStats: null,
     ...overrides,
   };
 }

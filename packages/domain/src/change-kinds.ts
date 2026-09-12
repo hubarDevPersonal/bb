@@ -27,6 +27,7 @@ export const THREAD_CHANGE_KINDS = [
   "order-changed",
   "tabs-changed",
   "terminals-changed",
+  "task-diff-changed",
 ] as const;
 export type ThreadChangeKind = (typeof THREAD_CHANGE_KINDS)[number];
 
@@ -207,6 +208,7 @@ export type ThreadStatusChangeMetadata = z.infer<
 export const threadChangeMetadataSchema = z
   .object({
     backgroundActivityChanged: z.boolean().optional(),
+    environmentId: z.string().nullable().optional(),
     eventTypes: z.array(threadEventTypeSchema).readonly().optional(),
     hasPendingInteraction: z.boolean().optional(),
     projectId: z.string().optional(),
@@ -291,6 +293,7 @@ const knownThreadEventTypes: ReadonlySet<string> = new Set(
 
 const threadChangeMetadataLenientSchema = z.object({
   backgroundActivityChanged: z.boolean().optional(),
+  environmentId: z.string().nullable().optional(),
   eventTypes: z
     .array(z.string())
     .transform((values) =>

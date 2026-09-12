@@ -254,6 +254,7 @@ function threadListEntry(
     environmentName: "ToC environment",
     environmentBranchName: "main",
     environmentWorkspaceDisplayKind: "managed-worktree",
+    taskDiffStats: null,
     ...thread,
   };
 }
