@@ -22,6 +22,8 @@ import {
   ensureGitRepo,
   getCheckoutRef,
   getCurrentBranch,
+  hasUncommittedChanges,
+  isAncestorRef,
   parseNameStatusEntries,
   parseNameStatusSourceEntries,
   parseNumstatEntriesZ,
@@ -69,6 +71,22 @@ export interface CommitOptions {
 export interface CommitResult {
   commitSha: string;
   commitSubject: string;
+}
+
+export interface ApplyBranchOptions {
+  sourceBranch: string;
+}
+
+export type ApplyBranchOutcome =
+  | "up_to_date"
+  | "fast_forwarded"
+  | "merged"
+  | "conflict";
+
+export interface ApplyBranchResult {
+  outcome: ApplyBranchOutcome;
+  commitSha: string | null;
+  conflictedFiles: string[];
 }
 
 export type PullRequestActionOptions = GitHostPullRequestAction;
@@ -930,6 +948,200 @@ export class Workspace {
 
       return { commitSha, commitSubject };
     });
+  }
+
+  async applyBranch(options: ApplyBranchOptions): Promise<ApplyBranchResult> {
+    await ensureGitRepo(this.path, this.gitProcessOptions);
+
+    return this.withMutation(async () => {
+      if (!(await this.currentBranch)) {
+        throw new WorkspaceError(
+          "detached_head",
+          `Cannot apply branch into detached checkout at ${this.path}`,
+        );
+      }
+
+      if (await hasUncommittedChanges(this.path, this.gitProcessOptions)) {
+        throw new WorkspaceError(
+          "dirty_target_checkout",
+          `Cannot apply branch: checkout at ${this.path} has uncommitted changes`,
+        );
+      }
+
+      const headResult = await this.runGit(
+        ["rev-parse", "--verify", "HEAD^{commit}"],
+        { cwd: this.path, allowFailure: true },
+      );
+      if (headResult.exitCode !== 0) {
+        throw new WorkspaceError(
+          "git_command_failed",
+          `git rev-parse --verify HEAD^{commit} failed: ${headResult.stderr.trim()}`,
+        );
+      }
+      const headSha = headResult.stdout.trim();
+
+      const sourceRef = `refs/heads/${options.sourceBranch}`;
+      const sourceResult = await this.runGit(
+        ["rev-parse", "--verify", `${sourceRef}^{commit}`],
+        { cwd: this.path, allowFailure: true },
+      );
+      if (sourceResult.exitCode !== 0) {
+        throw new WorkspaceError(
+          "branch_not_found",
+          `Source branch does not exist: ${options.sourceBranch}`,
+        );
+      }
+      const sourceSha = sourceResult.stdout.trim();
+
+      const sourceIsMerged = await isAncestorRef(
+        this.path,
+        sourceSha,
+        headSha,
+        this.gitProcessOptions,
+      );
+      if (sourceIsMerged === undefined) {
+        throw new WorkspaceError(
+          "git_command_failed",
+          `git merge-base --is-ancestor ${options.sourceBranch} HEAD failed`,
+        );
+      }
+      if (sourceIsMerged) {
+        return {
+          outcome: "up_to_date",
+          commitSha: headSha,
+          conflictedFiles: [],
+        };
+      }
+
+      const headIsAncestor = await isAncestorRef(
+        this.path,
+        headSha,
+        sourceSha,
+        this.gitProcessOptions,
+      );
+      if (headIsAncestor === undefined) {
+        throw new WorkspaceError(
+          "git_command_failed",
+          `git merge-base --is-ancestor HEAD ${options.sourceBranch} failed`,
+        );
+      }
+      if (headIsAncestor) {
+        await this.ensureNoIgnoredFileOverlap(headSha, sourceSha);
+        try {
+          await this.runGit(["merge", "--ff-only", sourceSha], {
+            cwd: this.path,
+          });
+        } catch (error) {
+          await this.runGit(["merge", "--abort"], {
+            cwd: this.path,
+            allowFailure: true,
+          });
+          throw error;
+        }
+        const commitSha = await revParse(
+          this.path,
+          "HEAD",
+          this.gitProcessOptions,
+        );
+        return { outcome: "fast_forwarded", commitSha, conflictedFiles: [] };
+      }
+
+      const mergeTree = await this.runGit(
+        [
+          "merge-tree",
+          "--write-tree",
+          "--name-only",
+          "--no-messages",
+          "-z",
+          headSha,
+          sourceSha,
+        ],
+        { cwd: this.path, allowFailure: true },
+      );
+      if (mergeTree.exitCode === 1) {
+        const [treeId, ...conflictedFiles] = parseNullSeparatedLines(
+          mergeTree.stdout,
+        );
+        if (!treeId || !/^[0-9a-f]{40,64}$/u.test(treeId)) {
+          throw new WorkspaceError(
+            "git_command_failed",
+            `git merge-tree returned unexpected output: ${mergeTree.stdout.trim()}`,
+          );
+        }
+        return { outcome: "conflict", commitSha: null, conflictedFiles };
+      }
+      if (mergeTree.exitCode !== 0) {
+        throw new WorkspaceError(
+          "git_command_failed",
+          `git merge-tree failed (exit ${mergeTree.exitCode}): ${mergeTree.stderr.trim()}`,
+        );
+      }
+
+      await this.ensureNoIgnoredFileOverlap(headSha, sourceSha);
+      try {
+        await this.runGit(
+          [
+            "merge",
+            "--no-ff",
+            "--no-edit",
+            "--no-verify",
+            "-m",
+            `Merge branch '${options.sourceBranch}'`,
+            sourceSha,
+          ],
+          { cwd: this.path },
+        );
+      } catch (error) {
+        await this.runGit(["merge", "--abort"], {
+          cwd: this.path,
+          allowFailure: true,
+        });
+        throw error;
+      }
+      const commitSha = await revParse(
+        this.path,
+        "HEAD",
+        this.gitProcessOptions,
+      );
+      return { outcome: "merged", commitSha, conflictedFiles: [] };
+    });
+  }
+
+  private async ensureNoIgnoredFileOverlap(
+    headSha: string,
+    sourceSha: string,
+  ): Promise<void> {
+    const ignored = await this.runGit(
+      [
+        "ls-files",
+        "--others",
+        "--ignored",
+        "--exclude-standard",
+        "--directory",
+        "-z",
+      ],
+      { cwd: this.path },
+    );
+    const ignoredEntries = parseNullSeparatedLines(ignored.stdout);
+    if (ignoredEntries.length === 0) {
+      return;
+    }
+
+    const diff = await this.runGit(
+      ["diff", "--name-only", "-z", headSha, sourceSha],
+      { cwd: this.path },
+    );
+    const overlapping = parseNullSeparatedLines(diff.stdout).filter((file) =>
+      ignoredEntries.some((entry) =>
+        entry.endsWith("/") ? file.startsWith(entry) : file === entry,
+      ),
+    );
+    if (overlapping.length > 0) {
+      throw new WorkspaceError(
+        "ignored_files_would_be_overwritten",
+        `Applying branch would overwrite ignored files: ${overlapping.join(", ")}`,
+      );
+    }
   }
 
   private async buildDiffSummary(args: {
