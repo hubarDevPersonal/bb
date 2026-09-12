@@ -853,7 +853,9 @@ function settleThreadCommandFailure(
     threadId: thread.id,
   });
   if (outcome.applied) {
-    args.deps.hub.notifyThread(thread.id, ["status-changed"]);
+    args.deps.hub.notifyThread(thread.id, ["status-changed"], {
+      environmentId: thread.environmentId,
+    });
   }
   if (isParentNotifiableChildThread(thread, "failed")) {
     const parentThreadId = thread.parentThreadId;
@@ -915,7 +917,9 @@ export function settleThreadStartCommandResult(
       threadId: currentThread.id,
     });
     if (outcome.applied) {
-      args.deps.hub.notifyThread(currentThread.id, ["status-changed"]);
+      args.deps.hub.notifyThread(currentThread.id, ["status-changed"], {
+        environmentId: currentThread.environmentId,
+      });
       if (shouldAutoSendQueuedMessagesAfterThreadStart(args.command)) {
         postCommitActions.push({
           run: async (deps) => {
@@ -1741,6 +1745,7 @@ function interruptActiveTurnForThreadInTransaction(
     eventTypes.push("system/thread/interrupted");
   }
   deps.hub.notifyThread(args.threadId, ["events-appended", "status-changed"], {
+    environmentId: args.environmentId,
     timelineSequence: getLatestThreadSequence(deps.db, {
       threadId: args.threadId,
     }),
@@ -1987,7 +1992,9 @@ export function finalizeStoppedThreadInTransaction(
         threadId: currentThread.id,
       });
       if (outcome.applied) {
-        deps.hub.notifyThread(currentThread.id, ["status-changed"]);
+        deps.hub.notifyThread(currentThread.id, ["status-changed"], {
+          environmentId: currentThread.environmentId,
+        });
       }
     }
   } else if (isPreStartThreadStatus(currentThread.status)) {
@@ -1996,7 +2003,9 @@ export function finalizeStoppedThreadInTransaction(
       threadId: currentThread.id,
     });
     if (outcome.applied) {
-      deps.hub.notifyThread(currentThread.id, ["status-changed"]);
+      deps.hub.notifyThread(currentThread.id, ["status-changed"], {
+        environmentId: currentThread.environmentId,
+      });
     }
   }
 

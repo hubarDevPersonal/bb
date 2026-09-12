@@ -451,6 +451,7 @@ type ExpectedThreadsKey =
   | "storageLocation"
   | "storagePaths"
   | "tabs"
+  | "taskDiff"
   | "timeline"
   | "timelineTurnSummaryDetails"
   | "unarchive"

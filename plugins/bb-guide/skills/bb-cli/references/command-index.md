@@ -171,6 +171,7 @@ This index lists every command path that the core CLI registers, including alias
 - `bb thread unread`
 - `bb thread reorder-pinned`
 - `bb thread count`
+- `bb thread diff`
 - `bb thread queue`
 - `bb thread queue list`
 - `bb thread queue create`

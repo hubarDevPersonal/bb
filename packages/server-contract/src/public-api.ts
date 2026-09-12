@@ -289,6 +289,7 @@ import type {
   ThreadStorageLocationResponse,
   ThreadStoragePathListResponse,
   ThreadStoragePathsQuery,
+  ThreadTaskDiffResponse,
   ThreadTimelineQuery,
   ThreadTimelineResponse,
   ThreadContextResponse,
@@ -1802,6 +1803,12 @@ export const publicApiRoutes = {
         threadConversationOutlineQuerySchema,
       ),
       response: jsonResponse<ThreadConversationOutlineResponse>(),
+    }),
+    taskDiff: defineRoute({
+      path: "/threads/:id/task-diff",
+      method: "get",
+      request: noRequest<PathId>(),
+      response: jsonResponse<ThreadTaskDiffResponse>(),
     }),
     timelineTurnSummaryDetails: defineRoute({
       path: "/threads/:id/timeline/turn-summary-details",

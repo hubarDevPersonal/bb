@@ -51,6 +51,7 @@ import type {
   ThreadStorageLocationResponse,
   ThreadStoragePathListResponse,
   ThreadTabsResponse,
+  ThreadTaskDiffResponse,
   ThreadTimelineResponse,
   ThreadContextResponse,
   ThreadWithIncludesResponse,
@@ -229,6 +230,7 @@ export type ThreadStoragePathsResult = ThreadStoragePathListResponse;
 export type ThreadChildSummaryResult = ThreadChildSummaryResponse;
 export type ThreadDefaultExecutionOptionsResult = ResolvedThreadExecutionOptions | null;
 export type ThreadConversationOutlineResult = ThreadConversationOutlineResponse;
+export type ThreadTaskDiffResult = ThreadTaskDiffResponse;
 export type ThreadTimelineTurnSummaryDetailsResult =
   TimelineTurnSummaryDetailsResponse;
 
@@ -708,6 +710,7 @@ export interface ThreadsArea {
   storageFiles(args: ThreadStorageFilesArgs): Promise<ThreadStorageFilesResult>;
   storageLocation(args: ThreadStatusArgs): Promise<ThreadStorageLocationResult>;
   storagePaths(args: ThreadStoragePathsArgs): Promise<ThreadStoragePathsResult>;
+  taskDiff(args: ThreadStatusArgs): Promise<ThreadTaskDiffResult>;
   unarchive(args: ThreadActionArgs): Promise<ThreadUnarchiveResult>;
   unpin(args: ThreadActionArgs): Promise<ThreadMutationResult>;
   update(args: ThreadUpdateArgs): Promise<ThreadMutationResult>;
@@ -1618,6 +1621,14 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
               includeDirectories: input.includeDirectories,
             },
           },
+          ...signalRequestArgs(input.signal),
+        ),
+      );
+    },
+    async taskDiff(input) {
+      return transport.readJson(
+        transport.api.v1.threads[":id"]["task-diff"].$get(
+          { param: { id: input.threadId } },
           ...signalRequestArgs(input.signal),
         ),
       );

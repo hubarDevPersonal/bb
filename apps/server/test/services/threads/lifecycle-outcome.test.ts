@@ -108,6 +108,7 @@ function seedOpenPlanTurnWithGoal(db: DbConnection, threadId: string): void {
 
 interface Setup {
   db: DbConnection;
+  environmentId: string;
   hostId: string;
   hub: NotificationHub;
   threadId: string;
@@ -140,6 +141,7 @@ function setup(status: ThreadStatus): Setup {
   });
   return {
     db,
+    environmentId: environment.id,
     hostId: host.id,
     hub,
     projectId: project.id,
@@ -176,7 +178,8 @@ function lastThreadListMessage(
 
 describe("applyLoggedThreadLifecycleEvent", () => {
   it("broadcasts status-changed with the post-transition row and runtime", () => {
-    const { db, hostId, hub, projectId, threadId } = setup("idle");
+    const { db, environmentId, hostId, hub, projectId, threadId } =
+      setup("idle");
     connectDaemon(db, hub, hostId);
     const socket = createMockHubSocket();
     hub.subscribe(socket, { kind: "thread-list" });
@@ -195,6 +198,7 @@ describe("applyLoggedThreadLifecycleEvent", () => {
       entity: "thread",
       id: threadId,
       metadata: {
+        environmentId,
         projectId,
         statusChange: {
           status: "active",

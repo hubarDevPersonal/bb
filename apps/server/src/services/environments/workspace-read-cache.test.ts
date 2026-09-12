@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ServerChangedMessage } from "../../ws/hub.js";
 import {
   EnvironmentReadCache,
+  StaleWhileRevalidateReadCache,
   WorkspaceReadCaches,
 } from "./workspace-read-cache.js";
 
@@ -161,6 +162,72 @@ describe("EnvironmentReadCache", () => {
     await cache.read({ ...READ, load: counter.load });
     expect(counter.loads).toHaveLength(3);
   });
+
+  it("peeks a cached value without triggering a load", async () => {
+    const clock = createClock();
+    const cache = new StaleWhileRevalidateReadCache<string>({
+      now: clock.now,
+      ttlMs: 3_000,
+    });
+
+    expect(cache.peek("env-1", "k")).toBeUndefined();
+
+    const counter = createCounter<string>([]);
+    const pending = cache.read({ ...READ, load: counter.load });
+    expect(cache.peek("env-1", "k")).toBeUndefined();
+
+    counter.loads[0]?.resolve("a");
+    await pending;
+    expect(cache.peek("env-1", "k")).toEqual({ stale: false, value: "a" });
+
+    clock.advance(3_000);
+    expect(cache.peek("env-1", "k")).toEqual({ stale: true, value: "a" });
+  });
+
+  it("marks a peeked value stale on invalidation instead of dropping it", async () => {
+    const clock = createClock();
+    const cache = new StaleWhileRevalidateReadCache<string>({
+      now: clock.now,
+      ttlMs: 3_000,
+    });
+    const counter = createCounter(["a", "b"]);
+
+    await cache.read({ ...READ, load: counter.load });
+    expect(cache.peek("env-1", "k")).toEqual({ stale: false, value: "a" });
+
+    cache.invalidateEnvironment("env-1");
+    expect(cache.peek("env-1", "k")).toEqual({ stale: true, value: "a" });
+
+    await expect(cache.read({ ...READ, load: counter.load })).resolves.toBe(
+      "b",
+    );
+    expect(cache.peek("env-1", "k")).toEqual({ stale: false, value: "b" });
+  });
+
+  it("caches available and unavailable results with a different TTL", async () => {
+    const clock = createClock();
+    const cache = new StaleWhileRevalidateReadCache<{ outcome: string }>({
+      now: clock.now,
+      ttlMs: (value) => (value.outcome === "available" ? 3_000 : 1_000),
+    });
+    const counter = createCounter([
+      { outcome: "unavailable" },
+      { outcome: "available" },
+    ]);
+
+    await cache.read({ ...READ, load: counter.load });
+    clock.advance(1_000);
+    expect(cache.peek("env-1", "k")?.stale).toBe(true);
+
+    await expect(cache.read({ ...READ, load: counter.load })).resolves.toEqual({
+      outcome: "available",
+    });
+    clock.advance(1_000);
+    expect(cache.peek("env-1", "k")?.stale).toBe(false);
+    clock.advance(2_000);
+    expect(cache.peek("env-1", "k")?.stale).toBe(true);
+    expect(counter.loads).toHaveLength(2);
+  });
 });
 
 describe("WorkspaceReadCaches", () => {
@@ -317,5 +384,96 @@ describe("diff-file in-flight reads", () => {
     expect(counter.loads).toHaveLength(3);
     counter.loads[2]?.resolve(result);
     await Promise.all([afterEdit, stillPending]);
+  });
+
+  it("invalidates only taskDiff for the thread's environment on status-changed", async () => {
+    const hub = createFakeHub();
+    const caches = new WorkspaceReadCaches({ hub, now: () => 0 });
+    const status = createCounter(["status-a", "status-b"]);
+    await caches.status.read({ ...READ, load: status.load });
+    const taskDiffA = {
+      outcome: "available" as const,
+      stats: { changedFiles: 1, insertions: 1, deletions: 0 },
+    };
+    const taskDiffB = {
+      outcome: "available" as const,
+      stats: { changedFiles: 2, insertions: 2, deletions: 0 },
+    };
+    const taskDiff = createCounter([taskDiffA, taskDiffB]);
+    await caches.taskDiff.read({ ...READ, load: taskDiff.load });
+
+    hub.emit({
+      type: "changed",
+      entity: "thread",
+      id: "thr-1",
+      changes: ["title-changed"],
+      metadata: { environmentId: "env-1" },
+    });
+    await expect(
+      caches.taskDiff.read({ ...READ, load: taskDiff.load }),
+    ).resolves.toBe(taskDiffA);
+    await caches.status.read({ ...READ, load: status.load });
+    expect(status.loads).toHaveLength(1);
+
+    hub.emit({
+      type: "changed",
+      entity: "thread",
+      id: "thr-1",
+      changes: ["status-changed"],
+      metadata: { environmentId: "env-1" },
+    });
+    await expect(
+      caches.taskDiff.read({ ...READ, load: taskDiff.load }),
+    ).resolves.toBe(taskDiffB);
+    await caches.status.read({ ...READ, load: status.load });
+    expect(status.loads).toHaveLength(1);
+  });
+
+  it("does not invalidate when the status-changed message carries no environmentId", async () => {
+    const hub = createFakeHub();
+    const caches = new WorkspaceReadCaches({ hub, now: () => 0 });
+    const taskDiffA = {
+      outcome: "available" as const,
+      stats: { changedFiles: 1, insertions: 1, deletions: 0 },
+    };
+    const taskDiffB = {
+      outcome: "available" as const,
+      stats: { changedFiles: 2, insertions: 2, deletions: 0 },
+    };
+    const taskDiff = createCounter([taskDiffA, taskDiffB]);
+    await caches.taskDiff.read({ ...READ, load: taskDiff.load });
+
+    hub.emit({
+      type: "changed",
+      entity: "thread",
+      id: "thr-1",
+      changes: ["status-changed"],
+    });
+    await expect(
+      caches.taskDiff.read({ ...READ, load: taskDiff.load }),
+    ).resolves.toBe(taskDiffA);
+  });
+
+  it("does not invalidate on a thread task-diff-changed message", async () => {
+    const hub = createFakeHub();
+    const caches = new WorkspaceReadCaches({ hub, now: () => 0 });
+    const taskDiffA = {
+      outcome: "available" as const,
+      stats: { changedFiles: 1, insertions: 1, deletions: 0 },
+    };
+    const taskDiff = createCounter([taskDiffA]);
+    await caches.taskDiff.read({ ...READ, load: taskDiff.load });
+
+    hub.emit({
+      type: "changed",
+      entity: "thread",
+      id: "thr-1",
+      changes: ["task-diff-changed"],
+      metadata: { environmentId: "env-1" },
+    });
+    await expect(
+      caches.taskDiff.read({ ...READ, load: taskDiff.load }),
+    ).resolves.toBe(taskDiffA);
+    expect(taskDiff.loads).toHaveLength(1);
   });
 });

@@ -1463,7 +1463,9 @@ function recordEnvironmentProvisioningFailureInTransaction(
       threadId: thread.id,
     });
     if (outcome.applied) {
-      deps.hub.notifyThread(thread.id, ["status-changed"]);
+      deps.hub.notifyThread(thread.id, ["status-changed"], {
+        environmentId: environment.id,
+      });
       failedThreadIds.push(thread.id);
     }
   }

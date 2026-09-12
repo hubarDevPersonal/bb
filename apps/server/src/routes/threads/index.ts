@@ -5,6 +5,7 @@ import { registerThreadBaseRoutes } from "./base.js";
 import { registerThreadDataRoutes } from "./data.js";
 import { registerThreadInteractionRoutes } from "./interactions.js";
 import { registerThreadTabRoutes } from "./tabs.js";
+import { registerThreadTaskDiffRoutes } from "./task-diff.js";
 
 export function registerThreadRoutes(app: Hono, deps: AppDeps): void {
   registerThreadBaseRoutes(app, deps);
@@ -12,4 +13,5 @@ export function registerThreadRoutes(app: Hono, deps: AppDeps): void {
   registerThreadDataRoutes(app, deps);
   registerThreadInteractionRoutes(app, deps);
   registerThreadTabRoutes(app, deps);
+  registerThreadTaskDiffRoutes(app, deps);
 }

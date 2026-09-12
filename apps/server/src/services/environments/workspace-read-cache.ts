@@ -5,6 +5,7 @@ import {
 import type { EnvironmentChangeKind } from "@bb/domain";
 import type { HostDaemonOnlineRpcResult } from "@bb/host-daemon-contract";
 import type { ServerChangedMessage } from "../../ws/hub.js";
+import type { TaskDiffStatsResult } from "./task-diff-stats.js";
 
 const IGNORED_ENVIRONMENT_CHANGES: ReadonlySet<EnvironmentChangeKind> = new Set(
   ["metadata-changed", "thread-storage-changed", "diff-viewed-changed"],
@@ -20,6 +21,11 @@ interface EnvironmentReadCacheReadArgs<TValue> {
 interface EnvironmentReadCacheOptions {
   now: () => number;
   ttlMs: number;
+}
+
+export interface EnvironmentReadCachePeekResult<TValue> {
+  stale: boolean;
+  value: TValue;
 }
 
 interface EnvironmentReadCacheInvalidation {
@@ -52,7 +58,128 @@ export class EnvironmentReadCache<
   }
 }
 
+interface StaleWhileRevalidateEntry<TValue> {
+  expiresAt: number;
+  hostId: string;
+  stale: boolean;
+  value: TValue;
+}
+
+interface StaleWhileRevalidateInFlight<TValue> {
+  hostId: string;
+  promise: Promise<TValue>;
+}
+
+interface StaleWhileRevalidateReadCacheOptions<TValue> {
+  now: () => number;
+  ttlMs: number | ((value: TValue) => number);
+}
+
+/**
+ * Environment-scoped cache that keeps the last value peekable after it
+ * expires or is invalidated. Invalidation marks entries stale instead of
+ * dropping them, so synchronous readers (the thread list) can keep showing the
+ * previous value while a background reload runs.
+ */
+export class StaleWhileRevalidateReadCache<
+  TValue,
+> implements EnvironmentReadCacheInvalidation {
+  private readonly entries = new Map<
+    string,
+    StaleWhileRevalidateEntry<TValue>
+  >();
+  private readonly inFlight = new Map<
+    string,
+    StaleWhileRevalidateInFlight<TValue>
+  >();
+
+  constructor(
+    private readonly options: StaleWhileRevalidateReadCacheOptions<TValue>,
+  ) {}
+
+  read(args: EnvironmentReadCacheReadArgs<TValue>): Promise<TValue> {
+    const cacheKey = `${args.environmentId} ${args.key}`;
+    const cached = this.entries.get(cacheKey);
+    if (cached && !this.isStale(cached)) {
+      return Promise.resolve(cached.value);
+    }
+
+    const pending = this.inFlight.get(cacheKey);
+    if (pending) {
+      return pending.promise;
+    }
+
+    const promise = args.load().then(
+      (value) => {
+        if (this.inFlight.get(cacheKey)?.promise === promise) {
+          this.inFlight.delete(cacheKey);
+          const ttlMs =
+            typeof this.options.ttlMs === "function"
+              ? this.options.ttlMs(value)
+              : this.options.ttlMs;
+          this.entries.set(cacheKey, {
+            expiresAt: this.options.now() + ttlMs,
+            hostId: args.hostId,
+            stale: false,
+            value,
+          });
+        }
+        return value;
+      },
+      (error: unknown) => {
+        if (this.inFlight.get(cacheKey)?.promise === promise) {
+          this.inFlight.delete(cacheKey);
+        }
+        throw error;
+      },
+    );
+    this.inFlight.set(cacheKey, { hostId: args.hostId, promise });
+    return promise;
+  }
+
+  peek(
+    environmentId: string,
+    key: string,
+  ): EnvironmentReadCachePeekResult<TValue> | undefined {
+    const cached = this.entries.get(`${environmentId} ${key}`);
+    if (!cached) {
+      return undefined;
+    }
+    return { stale: this.isStale(cached), value: cached.value };
+  }
+
+  invalidateEnvironment(environmentId: string): void {
+    const prefix = `${environmentId} `;
+    this.markStaleWhere((cacheKey) => cacheKey.startsWith(prefix));
+  }
+
+  invalidateHost(hostId: string): void {
+    this.markStaleWhere((_cacheKey, entryHostId) => entryHostId === hostId);
+  }
+
+  private isStale(entry: StaleWhileRevalidateEntry<TValue>): boolean {
+    return entry.stale || entry.expiresAt <= this.options.now();
+  }
+
+  private markStaleWhere(
+    predicate: (cacheKey: string, hostId: string) => boolean,
+  ): void {
+    for (const [cacheKey, entry] of this.entries) {
+      if (predicate(cacheKey, entry.hostId)) {
+        entry.stale = true;
+      }
+    }
+    for (const [cacheKey, entry] of this.inFlight) {
+      if (predicate(cacheKey, entry.hostId)) {
+        this.inFlight.delete(cacheKey);
+      }
+    }
+  }
+}
+
 const WORKSPACE_STATUS_CACHE_TTL_MS = 3_000;
+const WORKSPACE_TASK_DIFF_AVAILABLE_TTL_MS = 5 * 60_000;
+const WORKSPACE_TASK_DIFF_UNAVAILABLE_TTL_MS = 10_000;
 
 interface WorkspaceReadCachesDeps {
   hub: {
@@ -70,6 +197,7 @@ export class WorkspaceReadCaches {
   readonly status: EnvironmentReadCache<
     HostDaemonOnlineRpcResult<"workspace.status">
   >;
+  readonly taskDiff: StaleWhileRevalidateReadCache<TaskDiffStatsResult>;
 
   constructor(deps: WorkspaceReadCachesDeps) {
     const now = deps.now ?? Date.now;
@@ -78,13 +206,20 @@ export class WorkspaceReadCaches {
       now,
       ttlMs: WORKSPACE_STATUS_CACHE_TTL_MS,
     });
+    this.taskDiff = new StaleWhileRevalidateReadCache<TaskDiffStatsResult>({
+      now,
+      ttlMs: (result) =>
+        result.outcome === "available"
+          ? WORKSPACE_TASK_DIFF_AVAILABLE_TTL_MS
+          : WORKSPACE_TASK_DIFF_UNAVAILABLE_TTL_MS,
+    });
     deps.hub.onChangedMessage((message) => {
       this.handleChangedMessage(message);
     });
   }
 
   private get caches(): EnvironmentReadCacheInvalidation[] {
-    return [this.status, this.diffFiles];
+    return [this.status, this.diffFiles, this.taskDiff];
   }
 
   invalidateEnvironment(environmentId: string): void {
@@ -107,8 +242,7 @@ export class WorkspaceReadCaches {
       if (relevantChanges.length === 0) {
         return;
       }
-      this.diffFiles.invalidateEnvironment(message.id);
-      this.status.invalidateEnvironment(message.id);
+      this.invalidateEnvironment(message.id);
       return;
     }
     if (
@@ -119,6 +253,16 @@ export class WorkspaceReadCaches {
       )
     ) {
       this.invalidateHost(message.id);
+      return;
+    }
+    if (message.entity === "thread") {
+      if (!message.changes.includes("status-changed")) {
+        return;
+      }
+      const environmentId = message.metadata?.environmentId;
+      if (environmentId) {
+        this.taskDiff.invalidateEnvironment(environmentId);
+      }
     }
   }
 }

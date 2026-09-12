@@ -113,6 +113,7 @@ function makeThread(overrides: Partial<ThreadListEntry> = {}): ThreadListEntry {
     runtime: {
       displayStatus: "active",
     },
+    taskDiffStats: null,
     ...overrides,
   });
 }
