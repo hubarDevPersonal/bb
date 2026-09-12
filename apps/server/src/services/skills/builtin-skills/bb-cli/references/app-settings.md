@@ -64,6 +64,14 @@ every window and client sees the same value.
   provider default, and the next send records that default. Select the custom
   model again after you turn streamer mode off.
 
+## Sidebar grouping
+
+- `sidebarGroupByState` defaults to false. Set it with
+  `bb settings general sidebarGroupByState <true|false|on|off>`.
+- When enabled, the sidebar's "By state" organize option groups threads into
+  Action needed, Running, and Done instead of by project, machine, or manual
+  order. Threads matching none of those buckets are omitted.
+
 ## Provider order and default
 
 - `providerOrder` defaults to `[]`. Set it to a JSON array of provider IDs.

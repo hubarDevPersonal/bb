@@ -15,6 +15,7 @@ import type {
   ThreadSectionResponse,
 } from "@bb/server-contract";
 import {
+  defaultAppSettings,
   findLocalPathProjectSourceForHost,
   PERSONAL_PROJECT_ID,
   type ThreadListEntry,
@@ -38,6 +39,8 @@ import {
   useHostPathExistence,
 } from "@/hooks/queries/host-path-queries";
 import { useHosts, usePrimaryHost } from "@/hooks/queries/host-queries";
+import { useSystemConfig } from "@/hooks/queries/system-queries";
+import { useUpdateGeneralSettings } from "@/hooks/mutations/settings-mutations";
 import { useDialogState } from "@/hooks/useDialogState";
 import { usePromptDraftInputThreadIds } from "@/hooks/usePromptDraftStorage";
 import { getCollapsedChildActivity } from "@bb/client-core";
@@ -109,6 +112,7 @@ import {
   sidebarChronologicalSortAtom,
   sidebarCollapsedThreadSectionsAtom,
   sidebarCollapsedMachinesAtom,
+  sidebarCollapsedStateGroupsAtom,
   sidebarOrganizationModeAtom,
   type SidebarChronologicalSort,
   type CollapsibleSidebarSectionId,
@@ -131,6 +135,7 @@ import {
   SIDEBAR_STANDARD_ROW_PADDING_CLASS,
 } from "./sidebarRowClasses";
 export { TopLevelSidebarSection } from "./TopLevelSidebarSection";
+import { TopLevelSidebarSection } from "./TopLevelSidebarSection";
 import {
   useAppCommandRunner,
   useAppCommandShortcut,
@@ -150,6 +155,11 @@ import {
   resolveThreadTitleDisplayText,
   type ThreadTitleMentionResources,
 } from "@/components/thread/ThreadTitleMentions";
+import {
+  buildStateThreadGroups,
+  resolveStateThreadGroupKey,
+  type StateThreadGroupKey,
+} from "./stateThreadGroups";
 
 interface ProjectListProps {
   onNewProject?: () => void;
@@ -238,6 +248,7 @@ interface ToggleCollapsedIdListArgs {
 
 interface SelectedThreadSidebarExpansionArgs {
   organizationMode: SidebarOrganizationMode;
+  groupByState?: boolean;
   isPinned: boolean;
   selectedThread: ThreadListEntry;
   sidebarProjectId: string;
@@ -248,6 +259,7 @@ interface SelectedThreadSidebarExpansion {
   machineKey?: string;
   projectId?: string;
   sidebarSectionId?: CollapsibleSidebarSectionId;
+  stateGroupKey?: StateThreadGroupKey;
 }
 
 type ToggleCollapsedId = (id: string) => void;
@@ -279,12 +291,18 @@ function removeCollapsedIds<T extends string>(
 
 export function getSelectedThreadSidebarExpansion({
   organizationMode,
+  groupByState = false,
   isPinned,
   selectedThread,
   sidebarProjectId,
 }: SelectedThreadSidebarExpansionArgs): SelectedThreadSidebarExpansion {
   if (isPinned) {
     return { sidebarSectionId: "pinned" };
+  }
+
+  if (groupByState) {
+    const stateGroupKey = resolveStateThreadGroupKey(selectedThread);
+    return stateGroupKey ? { stateGroupKey } : {};
   }
 
   if (organizationMode === "machine") {
@@ -637,6 +655,14 @@ export function SidebarDisplayOptionsMenu({
   );
   const selectedSort: SidebarChronologicalSort =
     chronologicalSort === "none" ? "updated" : chronologicalSort;
+  const systemConfigQuery = useSystemConfig();
+  const generalSettings =
+    systemConfigQuery.data?.generalSettings ?? defaultAppSettings;
+  const updateGeneralSettingsMutation = useUpdateGeneralSettings();
+  const groupByState = generalSettings.sidebarGroupByState;
+  const groupByStateDisabled =
+    systemConfigQuery.data === undefined ||
+    updateGeneralSettingsMutation.isPending;
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
@@ -653,15 +679,34 @@ export function SidebarDisplayOptionsMenu({
           {SIDEBAR_ORGANIZE_OPTIONS.map((option) => (
             <DropdownMenuCheckboxItem
               key={option.mode}
-              checked={organizationMode === option.mode}
+              checked={!groupByState && organizationMode === option.mode}
               onCheckedChange={() => {
                 onOpenChange?.(false);
                 setOrganizationMode(option.mode);
+                if (groupByState) {
+                  updateGeneralSettingsMutation.mutate({
+                    ...generalSettings,
+                    sidebarGroupByState: false,
+                  });
+                }
               }}
             >
               {option.label}
             </DropdownMenuCheckboxItem>
           ))}
+          <DropdownMenuCheckboxItem
+            checked={groupByState}
+            disabled={groupByStateDisabled}
+            onCheckedChange={() => {
+              onOpenChange?.(false);
+              updateGeneralSettingsMutation.mutate({
+                ...generalSettings,
+                sidebarGroupByState: true,
+              });
+            }}
+          >
+            By state
+          </DropdownMenuCheckboxItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className={CHROME_SECTION_LABEL_CLASS}>
@@ -1378,6 +1423,137 @@ export function MachineModeSections({
   );
 }
 
+interface StateModeSectionsProps extends BuiltInSectionRenderState {
+  collapsedEnvironmentIds: Set<string>;
+  collapsedThreadIds: Set<string>;
+  compareThreads: ThreadComparator;
+  draftThreadIds: ReadonlySet<string>;
+  effectivePinnedThreadIds: ReadonlySet<string>;
+  onProjectSelect?: () => void;
+  onToggleEnvironmentCollapsed: ToggleCollapsedId;
+  onToggleThreadCollapsed: ToggleCollapsedId;
+  pinnedSection: BuiltInSidebarSectionOptions;
+  selectedThreadId?: string;
+  threads: ThreadListEntry[];
+  threadsSection: Omit<BuiltInSidebarSectionOptions, "content">;
+}
+
+export function StateModeSections({
+  collapsedEnvironmentIds,
+  collapsedSectionIds,
+  collapsedThreadIds,
+  compareThreads,
+  draftThreadIds,
+  effectivePinnedThreadIds,
+  onProjectSelect,
+  onToggleCollapsed,
+  onToggleEnvironmentCollapsed,
+  onToggleThreadCollapsed,
+  pinnedSection,
+  selectedThreadId,
+  showPinnedSection,
+  threads,
+  threadsSection,
+}: StateModeSectionsProps) {
+  const [collapsedGroupKeyList, setCollapsedGroupKeyList] = useAtom(
+    sidebarCollapsedStateGroupsAtom,
+  );
+  const collapsedGroupKeys = useMemo(
+    () => new Set(collapsedGroupKeyList),
+    [collapsedGroupKeyList],
+  );
+  const toggleGroupCollapsed = useCallback(
+    (key: StateThreadGroupKey) => {
+      setCollapsedGroupKeyList((current) =>
+        toggleCollapsedIdList({ current, id: key }),
+      );
+    },
+    [setCollapsedGroupKeyList],
+  );
+  const nonPinnedThreads = useMemo(
+    () =>
+      threads.filter(
+        (thread) =>
+          !effectivePinnedThreadIds.has(thread.id) &&
+          isSidebarProjectThread(thread),
+      ),
+    [effectivePinnedThreadIds, threads],
+  );
+  const stateGroups = useMemo(
+    () => buildStateThreadGroups(nonPinnedThreads),
+    [nonPinnedThreads],
+  );
+  const builtInSections: BuiltInSidebarSectionOptionsById = {
+    pinned: pinnedSection,
+    threads: {
+      ...threadsSection,
+      content:
+        stateGroups.length === 0 ? (
+          <ProjectThreadTree
+            threadListState={{ status: "ready", threads: [] }}
+            compareThreads={compareThreads}
+            variant="section"
+            selectedThreadId={selectedThreadId}
+            collapsedThreadIds={collapsedThreadIds}
+            collapsedEnvironmentIds={collapsedEnvironmentIds}
+            onProjectSelect={onProjectSelect}
+            onToggleThreadCollapsed={onToggleThreadCollapsed}
+            onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
+          />
+        ) : null,
+    },
+  };
+
+  return (
+    <>
+      {renderBuiltInSidebarSection({
+        sectionId: "pinned",
+        sections: builtInSections,
+        disabled: true,
+        collapsedSectionIds,
+        onToggleCollapsed,
+        showPinnedSection,
+      })}
+      {renderBuiltInSidebarSection({
+        sectionId: "threads",
+        sections: builtInSections,
+        disabled: true,
+        collapsedSectionIds,
+        onToggleCollapsed,
+        showPinnedSection,
+      })}
+      {stateGroups.map((group) => (
+        <TopLevelSidebarSection
+          key={group.key}
+          label={group.label}
+          collapsedActivity={getCollapsedChildActivity(
+            group.threads,
+            draftThreadIds,
+          )}
+          collapsedThreads={group.threads}
+          collapseControl={{
+            isCollapsed: collapsedGroupKeys.has(group.key),
+            onToggleCollapsed: () => toggleGroupCollapsed(group.key),
+          }}
+        >
+          <ProjectThreadTree
+            threadListState={{ status: "ready", threads: group.threads }}
+            compareThreads={compareThreads}
+            variant="section"
+            selectedThreadId={selectedThreadId}
+            collapsedThreadIds={collapsedThreadIds}
+            collapsedEnvironmentIds={collapsedEnvironmentIds}
+            onProjectSelect={onProjectSelect}
+            onToggleThreadCollapsed={onToggleThreadCollapsed}
+            onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
+            showTaskDiffStats
+          />
+        </TopLevelSidebarSection>
+      ))}
+    </>
+  );
+}
+
 function ProjectListComponent({
   onNewProject,
   onProjectSelect,
@@ -1589,6 +1765,9 @@ function ProjectListComponent({
     collapsedEnvironmentIdsAtom,
   );
   const setCollapsedMachineKeyList = useSetAtom(sidebarCollapsedMachinesAtom);
+  const setCollapsedStateGroupKeyList = useSetAtom(
+    sidebarCollapsedStateGroupsAtom,
+  );
   const [collapsedSidebarSectionIdList, setCollapsedSidebarSectionIdList] =
     useAtom(collapsedSidebarSectionIdsAtom);
   const [openSidebarMenu, setOpenSidebarMenu] = useState<OpenSidebarMenu>(null);
@@ -1618,6 +1797,10 @@ function ProjectListComponent({
   const isSectionDisplayOptionsOpen = (sectionId: SidebarSectionId) =>
     openSidebarMenu === `displayOptions:${sectionId}`;
   const organizationMode = useAtomValue(sidebarOrganizationModeAtom);
+  const systemConfigQuery = useSystemConfig();
+  const groupByState = (
+    systemConfigQuery.data?.generalSettings ?? defaultAppSettings
+  ).sidebarGroupByState;
   const [chronologicalSort, setChronologicalSort] = useAtom(
     sidebarChronologicalSortAtom,
   );
@@ -1719,6 +1902,7 @@ function ProjectListComponent({
       pinnedSidebarState.effectivePinnedThreadIds.has(selectedThreadId);
     const expansion = getSelectedThreadSidebarExpansion({
       organizationMode,
+      groupByState,
       isPinned,
       selectedThread,
       sidebarProjectId: resolveSidebarProjectId(selectedThread, threadById),
@@ -1747,7 +1931,14 @@ function ProjectListComponent({
         removeCollapsedIds(current, new Set([sidebarSectionId])),
       );
     }
+    if (expansion.stateGroupKey) {
+      const stateGroupKey = expansion.stateGroupKey;
+      setCollapsedStateGroupKeyList((current) =>
+        removeCollapsedIds(current, new Set([stateGroupKey])),
+      );
+    }
   }, [
+    groupByState,
     organizationMode,
     pinnedSidebarState.effectivePinnedThreadIds,
     selectedThreadId,
@@ -1756,6 +1947,7 @@ function ProjectListComponent({
     setCollapsedMachineKeyList,
     setCollapsedProjectIdList,
     setCollapsedSidebarSectionIdList,
+    setCollapsedStateGroupKeyList,
     setCollapsedThreadIdList,
     threadById,
   ]);
@@ -1873,6 +2065,30 @@ function ProjectListComponent({
     return (
       <ProjectListShell>
         <ProjectListNavigationLoadingState />
+      </ProjectListShell>
+    );
+  }
+
+  if (groupByState) {
+    return (
+      <ProjectListShell>
+        <StateModeSections
+          threads={threads}
+          draftThreadIds={draftThreadIds}
+          effectivePinnedThreadIds={pinnedSidebarState.effectivePinnedThreadIds}
+          showPinnedSection={hasPinnedSection}
+          pinnedSection={pinnedSection}
+          selectedThreadId={selectedThreadId}
+          collapsedSectionIds={collapsedSidebarSectionIds}
+          collapsedThreadIds={collapsedThreadIds}
+          collapsedEnvironmentIds={collapsedEnvironmentIds}
+          compareThreads={sidebarThreadComparator}
+          onProjectSelect={onProjectSelect}
+          onToggleCollapsed={toggleSidebarSectionCollapsed}
+          onToggleThreadCollapsed={toggleThreadCollapsed}
+          onToggleEnvironmentCollapsed={toggleEnvironmentCollapsed}
+          threadsSection={{ ...threadsSection, label: "Threads" }}
+        />
       </ProjectListShell>
     );
   }

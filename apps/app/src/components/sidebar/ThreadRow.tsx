@@ -84,6 +84,8 @@ import {
 } from "@/components/thread/ThreadTitleMentions";
 import { pluginIconName } from "@/components/plugin/PluginIcon";
 import { usePluginThreadRowStatus } from "@/lib/plugin-thread-row-status";
+import { useThreadRowTaskDiffStatsVisible } from "./threadRowTaskDiffContext";
+import { formatDiffCount } from "@bb/thread-view";
 
 const SIDEBAR_TITLE_DOUBLE_CLICK_MS = 400;
 
@@ -515,6 +517,7 @@ function ThreadRowComponent({
   );
   const shortcut = useSidebarThreadShortcut(thread.id);
   const pluginThreadRowStatus = usePluginThreadRowStatus(thread.id);
+  const showTaskDiffStats = useThreadRowTaskDiffStatsVisible();
   const showActive = isActive;
   const hasPendingInteraction = thread.hasPendingInteraction;
   const threadRuntimeBusy = isRuntimeBusyThread(thread);
@@ -746,6 +749,18 @@ function ThreadRowComponent({
         ) : null}
       </span>
       <span className="flex shrink-0 items-center gap-0.5">
+        {showTaskDiffStats &&
+        thread.taskDiffStats &&
+        thread.taskDiffStats.changedFiles > 0 ? (
+          <span className="shrink-0 whitespace-nowrap text-2xs tabular-nums">
+            <span className="text-diff-added">
+              +{formatDiffCount(thread.taskDiffStats.insertions)}
+            </span>{" "}
+            <span className="text-diff-removed">
+              −{formatDiffCount(thread.taskDiffStats.deletions)}
+            </span>
+          </span>
+        ) : null}
         {shortcut ? (
           <AppCommandShortcutPill shortcut={shortcut} />
         ) : (

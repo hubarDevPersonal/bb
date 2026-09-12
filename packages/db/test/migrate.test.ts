@@ -1537,6 +1537,7 @@ describe("migrate", () => {
         providerOrder: [],
         defaultProviderId: null,
         streamerMode: false,
+        sidebarGroupByState: false,
       });
       expect(
         db.$client

@@ -93,6 +93,11 @@ it on to hide every `customModels` entry from `~/.bb/config.json` in all model
 lists (pickers, `bb provider models`, and the SDK) during a screen share. The
 entries stay in the config file.
 
+The sidebar's Organize menu also offers "By state", backed by the
+`sidebarGroupByState` setting (defaults to false). When on, the sidebar groups
+threads into Action needed, Running, and Done instead of by project, machine,
+or manual order.
+
   bb settings show
   bb settings ai-services
   bb settings general <key> <value>

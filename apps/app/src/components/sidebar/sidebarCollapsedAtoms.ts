@@ -23,6 +23,7 @@ const COLLAPSED_THREAD_SECTIONS_STORAGE_KEY =
   "bb.sidebar.collapsedThreadSections";
 const LEGACY_COLLAPSED_FOLDERS_STORAGE_KEY = "bb.sidebar.collapsedFolders";
 const COLLAPSED_MACHINES_STORAGE_KEY = "bb.sidebar.collapsedMachines";
+const COLLAPSED_STATE_GROUPS_STORAGE_KEY = "bb.sidebar.collapsedStateGroups";
 
 export type {
   CollapsibleSidebarSectionId,
@@ -176,6 +177,13 @@ export const sidebarCollapsedThreadSectionsAtom = atomWithStorage<string[]>(
 
 export const sidebarCollapsedMachinesAtom = atomWithStorage<string[]>(
   COLLAPSED_MACHINES_STORAGE_KEY,
+  [],
+  createJsonLocalStorage<string[]>(),
+  { getOnInit: true },
+);
+
+export const sidebarCollapsedStateGroupsAtom = atomWithStorage<string[]>(
+  COLLAPSED_STATE_GROUPS_STORAGE_KEY,
   [],
   createJsonLocalStorage<string[]>(),
   { getOnInit: true },

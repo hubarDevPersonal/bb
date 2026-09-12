@@ -8,6 +8,7 @@ export const appSettingsSchema = z
     providerOrder: z.array(z.string().min(1)),
     defaultProviderId: z.string().min(1).nullable(),
     streamerMode: z.boolean(),
+    sidebarGroupByState: z.boolean(),
   })
   .strict();
 export type AppSettings = z.infer<typeof appSettingsSchema>;
@@ -19,4 +20,5 @@ export const defaultAppSettings: AppSettings = {
   providerOrder: [],
   defaultProviderId: null,
   streamerMode: false,
+  sidebarGroupByState: false,
 };

@@ -204,6 +204,11 @@ and falls back to the provider default; the next send records that default, so
 select the custom model again after you turn streamer mode off. Set it with
 `bb settings general streamerMode <true|false>`.
 
+The "By state" option in the sidebar's Organize menu groups threads into
+Action needed, Running, and Done instead of by project, machine, or manual
+order. It is backed by the `sidebarGroupByState` setting, which defaults to
+off. Set it with `bb settings general sidebarGroupByState <true|false>`.
+
 Settings → Providers lists every registered agent provider in picker order.
 Move a provider up or down to change the order and choose the default for new
 threads. Both are persisted preferences: `providerOrder` is the list of ids
