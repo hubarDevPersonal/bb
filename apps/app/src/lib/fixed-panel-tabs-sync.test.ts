@@ -9,6 +9,8 @@ import {
   createEmptyFixedPanelTabsState,
   createNewTabFixedPanelTab,
   createTerminalFixedPanelTab,
+  createGitDiffFixedPanelTab,
+  createTaskDiffFixedPanelTab,
   createThreadInfoFixedPanelTab,
   FIXED_PANEL_TABS_IDLE_EXPIRY_MS,
   getFixedPanelTabsStateStorageKey,
@@ -23,6 +25,7 @@ import {
   useSetFixedSecondaryPanelTab,
   useSetFixedRightTerminalActiveTerminal,
   useRemoveFixedRightTerminalTab,
+  useReconciledFixedPanelTabsState,
   useUpdateFixedPanelTabsState,
 } from "./fixed-panel-tabs";
 import { BbHttpError } from "./sdk";
@@ -32,6 +35,9 @@ import { scheduleThreadTabsPersistence } from "./thread-tabs-sync";
 const apiMocks = vi.hoisted(() => ({
   getThreadTabs: vi.fn(),
   updateThreadTabs: vi.fn(),
+}));
+const toastMocks = vi.hoisted(() => ({
+  error: vi.fn(),
 }));
 
 vi.mock("./sdk", async (importOriginal) => {
@@ -48,6 +54,10 @@ vi.mock("./sdk", async (importOriginal) => {
     },
   };
 });
+
+vi.mock("@/components/ui/app-toast", () => ({
+  appToast: { error: toastMocks.error, info: vi.fn(), success: vi.fn() },
+}));
 
 function createQueryWrapper(queryClient: QueryClient) {
   return function QueryWrapper({ children }: { children: ReactNode }) {
@@ -70,6 +80,7 @@ afterEach(() => {
   apiMocks.getThreadTabs.mockReset();
   apiMocks.updateThreadTabs.mockReset();
   vi.restoreAllMocks();
+  toastMocks.error.mockReset();
   window.localStorage.clear();
 });
 
@@ -449,6 +460,68 @@ describe("fixed panel tab server sync", () => {
       ]);
     });
     expect(apiMocks.updateThreadTabs).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the task-diff fixed tab local, never sends it to the server, and does not error-toast", async () => {
+    const threadId = "sync-task-diff-local-only";
+    const threadInfoTab = createThreadInfoFixedPanelTab();
+    const gitDiffTab = createGitDiffFixedPanelTab();
+    const taskDiffTab = createTaskDiffFixedPanelTab();
+    const browserTab = createBrowserFixedPanelTab({
+      environmentId: null,
+      url: "https://example.com",
+    });
+    apiMocks.getThreadTabs.mockResolvedValue({
+      revision: 1,
+      tabs: [threadInfoTab, gitDiffTab],
+    });
+    apiMocks.updateThreadTabs.mockImplementation(
+      async (args: { tabs: unknown[] }) => ({
+        revision: 2,
+        tabs: args.tabs,
+      }),
+    );
+    const queryClient = createTestQueryClient();
+    const fixedTabs = [threadInfoTab, gitDiffTab, taskDiffTab];
+    const { result } = renderHook(
+      () => ({
+        reconciled: useReconciledFixedPanelTabsState({
+          fixedTabs,
+          panelStateId: threadId,
+          syncThreadId: threadId,
+        }),
+        update: useUpdateFixedPanelTabsState(threadId, threadId),
+      }),
+      { wrapper: createQueryWrapper(queryClient) },
+    );
+
+    await waitFor(() => expect(apiMocks.getThreadTabs).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(
+        result.current.reconciled.secondary.tabs.map((tab) => tab.kind),
+      ).toEqual(["thread-info", "git-diff", "task-diff"]);
+    });
+    expect(toastMocks.error).not.toHaveBeenCalled();
+    expect(apiMocks.updateThreadTabs).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.update((current) => ({
+        ...current,
+        secondary: {
+          ...current.secondary,
+          tabs: [...current.secondary.tabs, browserTab],
+        },
+      }));
+    });
+
+    await waitFor(() => {
+      expect(apiMocks.updateThreadTabs).toHaveBeenCalledWith({
+        expectedRevision: 1,
+        tabs: [threadInfoTab, gitDiffTab, browserTab],
+        threadId,
+      });
+    });
+    expect(toastMocks.error).not.toHaveBeenCalled();
   });
 });
 

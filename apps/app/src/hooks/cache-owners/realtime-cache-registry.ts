@@ -66,6 +66,7 @@ import {
   threadQueryKey,
   threadTabsQueryKey,
   threadSearchQueryKeyPrefix,
+  threadTaskDiffQueryKey,
   terminalsQueryKey,
   threadsQueryKey,
   threadStorageFilePreviewQueryKeyPrefix,
@@ -378,7 +379,11 @@ export const REALTIME_THREAD_CHANGE_REGISTRY = {
   },
   "status-changed": {
     flush: "immediate",
-    dirty: [patchThreadListStatusState, dirtyThreadDetailQueries],
+    dirty: [
+      patchThreadListStatusState,
+      dirtyThreadDetailQueries,
+      dirtyThreadTaskDiffQueries,
+    ],
   },
   "title-changed": {
     flush: "debounced",
@@ -438,7 +443,7 @@ export const REALTIME_THREAD_CHANGE_REGISTRY = {
   },
   "task-diff-changed": {
     flush: "debounced",
-    dirty: [dirtyThreadListQueries],
+    dirty: [dirtyThreadListQueries, dirtyThreadTaskDiffQueries],
   },
 } satisfies ThreadChangeRegistry;
 
@@ -842,6 +847,12 @@ function dirtyThreadDefaultExecutionOptionsQueries({
   threadId,
 }: ThreadRealtimeDirtyContext): QueryKey[] {
   return threadId ? [threadDefaultExecutionOptionsQueryKey(threadId)] : [];
+}
+
+function dirtyThreadTaskDiffQueries({
+  threadId,
+}: ThreadRealtimeDirtyContext): QueryKey[] {
+  return threadId ? [threadTaskDiffQueryKey(threadId)] : [];
 }
 
 function dirtyThreadTabsQueries({

@@ -61,6 +61,11 @@ const ThreadStorageFileTreeChunk = lazy(() =>
     default: ThreadStorageFileTree,
   })),
 );
+const TaskDiffPanelContentChunk = lazy(() =>
+  import("./git-diff/TaskDiffPanelContent").then(
+    ({ TaskDiffPanelContent }) => ({ default: TaskDiffPanelContent }),
+  ),
+);
 const WorkspaceFilePreviewTabContentChunk = lazy(() =>
   import("./ThreadSecondaryPanelTabContent").then(
     ({ WorkspaceFilePreviewTabContent }) => ({
@@ -246,5 +251,10 @@ export const LazyProjectFilePreviewTabContent = withSuspense(
 
 export const LazyThreadStorageFilePreviewTabContent = withSuspense(
   ThreadStorageFilePreviewTabContentChunk,
+  <SecondaryPanelContentSkeleton />,
+);
+
+export const LazyTaskDiffPanelContent = withSuspense(
+  TaskDiffPanelContentChunk,
   <SecondaryPanelContentSkeleton />,
 );

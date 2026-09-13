@@ -38,7 +38,7 @@ const attemptedLocalMigrations = new WeakMap<QueryClient, Set<string>>();
 
 type PersistedThreadFixedPanelTab = Exclude<
   FixedPanelTab,
-  { kind: "plugin-page-fixed" }
+  { kind: "plugin-page-fixed" } | { kind: "task-diff" }
 >;
 
 function persistedThreadTabs(
@@ -46,7 +46,9 @@ function persistedThreadTabs(
 ): readonly PersistedThreadFixedPanelTab[] {
   return tabs.filter(
     (tab): tab is PersistedThreadFixedPanelTab =>
-      tab.kind !== "side-chat" && tab.kind !== "plugin-page-fixed",
+      tab.kind !== "side-chat" &&
+      tab.kind !== "plugin-page-fixed" &&
+      tab.kind !== "task-diff",
   );
 }
 
