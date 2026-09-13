@@ -20,6 +20,7 @@ import {
 import {
   EMPTY_FIXED_PANEL_TABS_STATE,
   createGitDiffFixedPanelTab,
+  createTaskDiffFixedPanelTab,
   createTerminalFixedPanelTab,
   createThreadInfoFixedPanelTab,
   ensureOpenFixedPanelHasActiveTab,
@@ -110,6 +111,7 @@ function getFixedPanelTabsStateAtom(threadId: string | null | undefined) {
 
 function buildSecondaryPanelTab(panel: ThreadSecondaryPanel): FixedPanelTab {
   if (panel === "git-diff") return createGitDiffFixedPanelTab();
+  if (panel === "task-diff") return createTaskDiffFixedPanelTab();
   return createThreadInfoFixedPanelTab();
 }
 

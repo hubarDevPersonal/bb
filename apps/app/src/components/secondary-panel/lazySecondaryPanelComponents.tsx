@@ -18,6 +18,8 @@ type BrowserTabDeckModule = typeof import("./BrowserTabDeck");
 type NewTabPageModule = typeof import("./NewTabPage");
 type FilePreviewModule = typeof import("./FilePreview");
 type ThreadStorageFileTreeModule = typeof import("./ThreadStorageFileTree");
+type TaskDiffPanelContentModule =
+  typeof import("./git-diff/TaskDiffPanelContent");
 
 const ThreadSecondaryPanelChunk = lazy(() =>
   import("./ThreadSecondaryPanel").then(({ ThreadSecondaryPanel }) => ({
@@ -46,6 +48,11 @@ const ThreadStorageFileTreeChunk = lazy(() =>
   import("./ThreadStorageFileTree").then(({ ThreadStorageFileTree }) => ({
     default: ThreadStorageFileTree,
   })),
+);
+const TaskDiffPanelContentChunk = lazy(() =>
+  import("./git-diff/TaskDiffPanelContent").then(
+    ({ TaskDiffPanelContent }) => ({ default: TaskDiffPanelContent }),
+  ),
 );
 const WorkspaceFilePreviewTabContentChunk = lazy(() =>
   import("./ThreadSecondaryPanelTabContent").then(
@@ -275,6 +282,16 @@ export function LazyThreadStorageFilePreviewTabContent(
   return (
     <Suspense fallback={<SecondaryPanelContentSkeleton />}>
       <ThreadStorageFilePreviewTabContentChunk {...props} />
+    </Suspense>
+  );
+}
+
+export function LazyTaskDiffPanelContent(
+  props: ComponentProps<TaskDiffPanelContentModule["TaskDiffPanelContent"]>,
+) {
+  return (
+    <Suspense fallback={<SecondaryPanelContentSkeleton />}>
+      <TaskDiffPanelContentChunk {...props} />
     </Suspense>
   );
 }

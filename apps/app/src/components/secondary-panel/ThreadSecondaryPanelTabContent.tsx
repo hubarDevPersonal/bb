@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { DiffPresentation } from "@/components/code/code-rendering";
 import type { WorkspaceDiffTarget } from "@bb/domain";
+import type { DiffFileEntry } from "@bb/server-contract";
 import type { MarkdownLinkRouting } from "@/components/ui/markdown-link-routing.js";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
@@ -44,6 +45,7 @@ interface GitDiffTabContentProps {
   isPanelOpen: boolean;
   gitDiffPresentation: DiffPresentation;
   onClearPendingGitDiffIntent?: () => void;
+  onFilesChange?: (files: readonly DiffFileEntry[]) => void;
   onOpenFileInEditor?: (path: string) => void;
   onOpenFilePreview?: (path: string) => void;
   onSelectionAddToChat?: (text: string) => void;
@@ -144,6 +146,7 @@ export function GitDiffTabContent({
   isPanelOpen,
   gitDiffPresentation,
   onClearPendingGitDiffIntent,
+  onFilesChange,
   onOpenFileInEditor,
   onOpenFilePreview,
   onSelectionAddToChat,
@@ -184,6 +187,12 @@ export function GitDiffTabContent({
   useEffect(() => {
     clearDiffFileCardStates(diffIdentity);
   }, [diffIdentity]);
+
+  useEffect(() => {
+    if (diffFilesResponse?.outcome === "available") {
+      onFilesChange?.(diffFilesResponse.files);
+    }
+  }, [diffFilesResponse, onFilesChange]);
 
   const isPreparing =
     isQueryEnabled &&

@@ -140,6 +140,10 @@ import {
   createThreadInfoFixedTabDestination,
   THREAD_INFO_FIXED_TAB_REFERENCE,
 } from "@/components/secondary-panel/thread-info-fixed-tab-navigation";
+import {
+  createTaskDiffFixedTabDestination,
+  TASK_DIFF_FIXED_TAB_REFERENCE,
+} from "@/components/secondary-panel/git-diff/task-diff-fixed-tab-navigation";
 import { ThreadDetailHeader } from "./ThreadDetailHeader";
 import {
   ThreadDetailPromptArea,
@@ -171,6 +175,7 @@ import {
   LazyBrowserTabDeck,
   LazyHostFilePreviewTabContent,
   LazyNewTabPage,
+  LazyTaskDiffPanelContent,
   LazyThreadStorageFilePreviewTabContent,
   LazyThreadTerminalPanel,
   LazyWorkspaceFilePreviewTabContent,
@@ -272,6 +277,7 @@ import {
 import {
   createGitDiffFixedPanelTab,
   createNewTabFixedPanelTab,
+  createTaskDiffFixedPanelTab,
   createThreadInfoFixedPanelTab,
   type SecondaryFileFixedPanelTab,
 } from "@/lib/fixed-panel-tabs-state";
@@ -547,7 +553,7 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
       createThreadInfoFixedPanelTab(),
       ...(gitDiffTabStatus === "ineligible"
         ? []
-        : [createGitDiffFixedPanelTab()]),
+        : [createGitDiffFixedPanelTab(), createTaskDiffFixedPanelTab()]),
     ],
     [gitDiffTabStatus],
   );
@@ -1265,6 +1271,10 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
         openFile: openGitDiffFileDestination,
         openOrdinary: openGitDiffDestination,
       }),
+      createTaskDiffFixedTabDestination({
+        eligible: canUseGitUi,
+        open: () => openFixedViewDestination("task-diff"),
+      }),
     ],
     [
       canUseGitUi,
@@ -1286,7 +1296,9 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
         tab:
           panel === "git-diff"
             ? GIT_DIFF_FIXED_TAB_REFERENCE
-            : THREAD_INFO_FIXED_TAB_REFERENCE,
+            : panel === "task-diff"
+              ? TASK_DIFF_FIXED_TAB_REFERENCE
+              : THREAD_INFO_FIXED_TAB_REFERENCE,
       }),
     [openFixedTab],
   );
@@ -1478,29 +1490,6 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
       openSecondaryPanel(panel);
     },
     [clearActiveFileTabs, openSecondaryPanel],
-  );
-  const secondaryPanelFixedTabs = useMemo<readonly SecondaryPanelFixedTab[]>(
-    () =>
-      threadFixedViewTabs.map((tab) =>
-        tab.kind === "thread-info"
-          ? {
-              ariaLabel: "Show thread info panel",
-              label: "Info",
-              leadingVisual: <Icon name="Info" />,
-              onSelect: () => handleSecondaryPanelChange("thread-info"),
-              tab,
-              title: "Thread info",
-            }
-          : {
-              ariaLabel: "Show diff panel",
-              label: "Diff",
-              leadingVisual: <Icon name="FileDiff" />,
-              onSelect: () => handleSecondaryPanelChange("git-diff"),
-              tab,
-              title: "Diff",
-            },
-      ),
-    [handleSecondaryPanelChange, threadFixedViewTabs],
   );
   const resolveMentionLink = useCallback<PromptMentionLinkResolver>(
     (resource) => {
@@ -2317,6 +2306,60 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
       });
     },
     [handleOpenLiveFilePreview, thread?.environmentId],
+  );
+  const secondaryPanelFixedTabs = useMemo<readonly SecondaryPanelFixedTab[]>(
+    () =>
+      threadFixedViewTabs.map((tab) => {
+        if (tab.kind === "thread-info") {
+          return {
+            ariaLabel: "Show thread info panel",
+            label: "Info",
+            leadingVisual: <Icon name="Info" />,
+            onSelect: () => handleSecondaryPanelChange("thread-info"),
+            tab,
+            title: "Thread info",
+          };
+        }
+        if (tab.kind === "task-diff") {
+          return {
+            ariaLabel: "Show task diff panel",
+            contentFillsRegion: true,
+            label: "Task diff",
+            leadingVisual: <Icon name="GitBranch" />,
+            onSelect: () => handleSecondaryPanelChange("task-diff"),
+            renderContent: () => (
+              <LazyTaskDiffPanelContent
+                threadId={threadId}
+                isPanelOpen={isSecondaryPanelOpen}
+                workspaceRootPath={environment?.path}
+                onOpenFileInEditor={handleOpenFileInEditor}
+                onOpenFilePreview={handleOpenFilePreview}
+                onSelectionAddToChat={handleSelectionAddToChat}
+              />
+            ),
+            tab,
+            title: "Task diff",
+          };
+        }
+        return {
+          ariaLabel: "Show diff panel",
+          label: "Diff",
+          leadingVisual: <Icon name="FileDiff" />,
+          onSelect: () => handleSecondaryPanelChange("git-diff"),
+          tab,
+          title: "Diff",
+        };
+      }),
+    [
+      environment?.path,
+      handleOpenFileInEditor,
+      handleOpenFilePreview,
+      handleSecondaryPanelChange,
+      handleSelectionAddToChat,
+      isSecondaryPanelOpen,
+      threadFixedViewTabs,
+      threadId,
+    ],
   );
 
   if (threadQueryState.status === "loading") {

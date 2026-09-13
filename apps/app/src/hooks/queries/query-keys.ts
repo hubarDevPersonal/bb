@@ -33,6 +33,7 @@ const THREAD_DEFAULT_EXECUTION_OPTIONS_QUERY_KEY =
 const THREAD_QUEUED_MESSAGES_QUERY_KEY = "threadQueuedMessages";
 const THREAD_PROMPT_HISTORY_QUERY_KEY = "threadPromptHistory";
 const THREAD_PENDING_INTERACTIONS_QUERY_KEY = "threadPendingInteractions";
+const THREAD_TASK_DIFF_QUERY_KEY = "threadTaskDiff";
 const TERMINALS_QUERY_KEY = "terminals";
 const PROJECT_COMMANDS_QUERY_KEY = "projectCommands";
 const THREAD_STORAGE_FILES_QUERY_KEY = "threadStorageFiles";
@@ -220,6 +221,10 @@ type ThreadPendingInteractionsQueryKeyPrefix = readonly [
 ];
 type ThreadPendingInteractionsQueryKey = readonly [
   typeof THREAD_PENDING_INTERACTIONS_QUERY_KEY,
+  string,
+];
+type ThreadTaskDiffQueryKey = readonly [
+  typeof THREAD_TASK_DIFF_QUERY_KEY,
   string,
 ];
 export type TerminalQueryScope =
@@ -726,6 +731,12 @@ export function threadPendingInteractionsQueryKey(
 
 export function allThreadPendingInteractionsQueryKeyPrefix(): ThreadPendingInteractionsQueryKeyPrefix {
   return [THREAD_PENDING_INTERACTIONS_QUERY_KEY];
+}
+
+export function threadTaskDiffQueryKey(
+  threadId: string,
+): ThreadTaskDiffQueryKey {
+  return [THREAD_TASK_DIFF_QUERY_KEY, threadId];
 }
 
 export function terminalsQueryKey(
