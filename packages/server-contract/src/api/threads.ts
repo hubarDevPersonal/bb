@@ -1161,6 +1161,7 @@ export const threadTaskDiffResponseSchema = z.discriminatedUnion("outcome", [
       baseBranch: z.string().nullable(),
       branchName: z.string().nullable(),
       stats: taskDiffStatsSchema,
+      canApplyLocally: z.boolean(),
     })
     .strict(),
   z
@@ -1178,4 +1179,27 @@ export const threadTaskDiffResponseSchema = z.discriminatedUnion("outcome", [
 ]);
 export type ThreadTaskDiffResponse = z.infer<
   typeof threadTaskDiffResponseSchema
+>;
+
+export const threadApplyLocallyOutcomeSchema = z.enum([
+  "up_to_date",
+  "fast_forwarded",
+  "merged",
+  "conflict",
+]);
+export type ThreadApplyLocallyOutcome = z.infer<
+  typeof threadApplyLocallyOutcomeSchema
+>;
+
+export const threadApplyLocallyResponseSchema = z
+  .object({
+    outcome: threadApplyLocallyOutcomeSchema,
+    commitSha: z.string().nullable(),
+    conflictedFiles: z.array(z.string()),
+    targetEnvironmentId: z.string(),
+    targetBranch: z.string(),
+  })
+  .strict();
+export type ThreadApplyLocallyResponse = z.infer<
+  typeof threadApplyLocallyResponseSchema
 >;

@@ -1021,6 +1021,13 @@ const workspaceCommitCommandSchema = hostDaemonWorkspaceTargetSchema
   })
   .strict();
 
+const workspaceApplyBranchCommandSchema = hostDaemonWorkspaceTargetSchema
+  .extend({
+    type: z.literal("workspace.apply_branch"),
+    sourceBranch: gitBranchNameSchema,
+  })
+  .strict();
+
 const fileReadResultSchema = z.object({
   path: z.string(),
   content: z.string(),
@@ -1266,6 +1273,13 @@ const workspaceCommitResultSchema = z.object({
   commitSha: z.string().min(1),
   commitSubject: z.string().min(1),
 });
+const workspaceApplyBranchResultSchema = z
+  .object({
+    outcome: z.enum(["up_to_date", "fast_forwarded", "merged", "conflict"]),
+    commitSha: z.string().min(1).nullable(),
+    conflictedFiles: z.array(z.string()),
+  })
+  .strict();
 const workspacePullRequestActionResultSchema = z.object({}).strict();
 
 export { providerUsageWindowSchema };
@@ -1584,6 +1598,15 @@ export const hostDaemonCommandRegistry = {
     type: "workspace.commit",
     schema: workspaceCommitCommandSchema,
     resultSchema: workspaceCommitResultSchema,
+    transport: "settled",
+    retryable: false,
+    flushEventsBeforeResult: false,
+    envLane: "write",
+  }),
+  "workspace.apply_branch": defineHostDaemonCommandDescriptor({
+    type: "workspace.apply_branch",
+    schema: workspaceApplyBranchCommandSchema,
+    resultSchema: workspaceApplyBranchResultSchema,
     transport: "settled",
     retryable: false,
     flushEventsBeforeResult: false,

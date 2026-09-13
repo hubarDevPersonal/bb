@@ -46,6 +46,7 @@ import type {
   ThreadStorageFileListResponse,
   ThreadStorageLocationResponse,
   ThreadStoragePathListResponse,
+  ThreadApplyLocallyResponse,
   ThreadTabsResponse,
   ThreadTaskDiffResponse,
   ThreadTimelineResponse,
@@ -215,6 +216,8 @@ export type ThreadChildSummaryResult = ThreadChildSummaryResponse;
 export type ThreadDefaultExecutionOptionsResult = ResolvedThreadExecutionOptions | null;
 export type ThreadConversationOutlineResult = ThreadConversationOutlineResponse;
 export type ThreadTaskDiffResult = ThreadTaskDiffResponse;
+export type ThreadReviewResult = ThreadResponse;
+export type ThreadApplyLocallyResult = ThreadApplyLocallyResponse;
 export type ThreadTimelineTurnSummaryDetailsResult =
   TimelineTurnSummaryDetailsResponse;
 
@@ -554,6 +557,7 @@ export interface ThreadQueueArea {
 }
 
 export interface ThreadsArea {
+  applyLocally(args: ThreadActionArgs): Promise<ThreadApplyLocallyResult>;
   archive(args: ThreadActionArgs): Promise<ThreadArchiveResult>;
   archiveAll(args: ThreadActionArgs): Promise<ThreadArchiveAllResult>;
   childSummary(args: ThreadStatusArgs): Promise<ThreadChildSummaryResult>;
@@ -613,6 +617,7 @@ export interface ThreadsArea {
     args: ThreadActionArgs,
   ): Promise<ThreadRestoreEnvironmentResult>;
   retry(args: ThreadRetryArgs): Promise<ThreadRetryResult>;
+  review(args: ThreadActionArgs): Promise<ThreadReviewResult>;
   search(args: ThreadSearchArgs): Promise<ThreadSearchResult>;
   send(args: ThreadSendArgs): Promise<ThreadSendResult>;
   spawn(args: ThreadSpawnArgs): Promise<ThreadSpawnResult>;
@@ -1111,6 +1116,13 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
     },
   };
   return {
+    async applyLocally(input) {
+      return transport.readJson(
+        transport.api.v1.threads[":id"]["apply-locally"].$post({
+          param: { id: input.threadId },
+        }),
+      );
+    },
     archive: archiveAll,
     archiveAll,
     async childSummary(input) {
@@ -1303,6 +1315,13 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
           { json: { threadIds: input.threadIds } },
           ...signalRequestArgs(input.signal),
         ),
+      );
+    },
+    async review(input) {
+      return transport.readJson(
+        transport.api.v1.threads[":id"].review.$post({
+          param: { id: input.threadId },
+        }),
       );
     },
     async search(input) {

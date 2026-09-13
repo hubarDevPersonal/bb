@@ -180,6 +180,8 @@ move and downloads the new server's bb-app package for its service.
 - `bb thread reorder-pinned`
 - `bb thread count`
 - `bb thread diff`
+- `bb thread review`
+- `bb thread apply`
 - `bb thread queue`
 - `bb thread queue list`
 - `bb thread queue create`

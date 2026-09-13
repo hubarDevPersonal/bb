@@ -115,6 +115,12 @@ hostId, providerId, projectId, parentThreadId, groupBy })`.
 - Use `bb thread show <thread-id> --git-diff` to review file changes.
 - Use `bb thread diff <thread-id>` for the task's summary diff stats (changed
   files, insertions, deletions) against its base branch or working tree.
+- Use `bb thread review <thread-id>` to spawn a review child thread with a
+  `/review` prompt against the task's diff.
+- Use `bb thread apply <thread-id>` to apply a worktree thread's branch into
+  the project's main checkout. It fails with a conflict list if the merge
+  cannot be applied cleanly, and refuses (409) if the main checkout is not
+  currently on the task's base branch.
 - Use `bb thread log <thread-id>` to inspect the conversation. The default
   shows only the newest 20 user-message turns and ends with a notice when older
   history was omitted. For timeline text, `--limit <n>` accepts at most 100.
