@@ -866,6 +866,7 @@ describe("server-contract canonical schemas", () => {
           environmentName: null,
           environmentBranchName: "bb/test",
           environmentWorkspaceDisplayKind: "managed-worktree",
+          taskDiffStats: null,
         },
       ]),
     ).toMatchObject([
