@@ -35,6 +35,7 @@ import {
 import { LazyQueuedMessagesList } from "@/components/promptbox/banner/LazyQueuedMessagesList";
 import { getPromptDraftAccessor } from "@/hooks/usePromptDraftStorage";
 import { ThreadDetailPromptArea } from "./ThreadDetailPromptArea";
+import type { ThreadTaskActionsState } from "./useThreadTaskActions";
 
 const shellProbeRenders = vi.fn();
 
@@ -46,6 +47,22 @@ function makeThread(id: string): ThreadWithRuntime {
     id,
     projectId: PROJECT_ID,
   });
+}
+
+function makeThreadTaskActions(): ThreadTaskActionsState {
+  return {
+    apply: vi.fn(),
+    canApply: false,
+    canReview: false,
+    conflictDialog: {
+      conflictedFiles: [],
+      onOpenChange: vi.fn(),
+      open: false,
+    },
+    pending: false,
+    review: vi.fn(),
+    stats: null,
+  };
 }
 
 function makeQueuedMessage(): ThreadQueuedMessage {
@@ -138,6 +155,7 @@ function buildPromptArea({
         goal={null}
         providerCommands={null}
         sessionOptions={null}
+        hasCompletedTurn={false}
         modelFallback={null}
         onChangedFileClick={vi.fn()}
         parentThreadSection={null}
@@ -152,6 +170,7 @@ function buildPromptArea({
           mutateAsync: mocks.sendMessageMutateAsync,
         }}
         steerActiveThreadOnEnter={false}
+        taskActions={makeThreadTaskActions()}
         thread={thread}
         workspaceChangedFilesSection={null}
         workspaceStatusPending={false}

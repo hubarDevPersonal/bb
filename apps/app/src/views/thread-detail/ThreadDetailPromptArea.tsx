@@ -51,6 +51,8 @@ import {
   type CommittedComposerState,
 } from "@/components/promptbox/composer-selection-settle";
 import { ThreadPendingInteractionBanners } from "@/components/thread/pending-interactions/ThreadPendingInteractionBanner";
+import { ThreadTaskReadyBanner } from "./ThreadTaskReadyBanner";
+import type { ThreadTaskActionsState } from "./useThreadTaskActions";
 import {
   type PluginComposerHost,
   useComposerHostDraftNotifier,
@@ -226,6 +228,8 @@ interface ThreadDetailPromptAreaProps {
   sentMessageEdit?: ThreadDetailSentMessageEdit;
   steerActiveThreadOnEnter: boolean;
   composerFocusRequestNonce: number;
+  hasCompletedTurn: boolean;
+  taskActions: ThreadTaskActionsState;
   thread: ThreadWithRuntime;
 }
 
@@ -436,6 +440,8 @@ export function ThreadDetailPromptArea({
   sentMessageEdit,
   steerActiveThreadOnEnter,
   composerFocusRequestNonce,
+  hasCompletedTurn,
+  taskActions,
   thread,
 }: ThreadDetailPromptAreaProps) {
   const navigate = useImmediateRouteNavigate();
@@ -2051,6 +2057,10 @@ export function ThreadDetailPromptArea({
   const promptStack = useMemo(
     () => (
       <>
+        <ThreadTaskReadyBanner
+          hasCompletedTurn={hasCompletedTurn}
+          taskActions={taskActions}
+        />
         <ThreadWorkflowStack
           workflows={activeWorkflows}
           isStackExpanded={isWorkflowStackExpanded}
@@ -2201,6 +2211,7 @@ export function ThreadDetailPromptArea({
       handleRestoreCurrentEnvironment,
       canRestoreEnvironment,
       environmentGoneStatus,
+      hasCompletedTurn,
       isFollowUpSubmitting,
       isRestoreCurrentEnvironmentPending,
       isUnarchiveCurrentThreadPending,
@@ -2228,6 +2239,7 @@ export function ThreadDetailPromptArea({
       shouldSteerWhenReady,
       shouldHideComposer,
       submitMode.kind,
+      taskActions,
       thread.archivedAt,
       thread.id,
       workspaceChangedFilesSection,

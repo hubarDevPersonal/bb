@@ -55,6 +55,7 @@ import {
   type ThreadDetailSentMessageEdit,
 } from "./ThreadDetailPromptArea";
 import { makePluginRegistrationSet } from "@/test/fixtures/plugins";
+import type { ThreadTaskActionsState } from "./useThreadTaskActions";
 
 vi.mock("@/hooks/usePromptDraftStorage", () => ({
   usePromptDraftStorage: () => mocks.promptDraft,
@@ -83,6 +84,25 @@ function makeThread(
     projectId: "proj_1",
     ...overrides,
   });
+}
+
+function makeThreadTaskActions(
+  overrides: Partial<ThreadTaskActionsState> = {},
+): ThreadTaskActionsState {
+  return {
+    apply: vi.fn(),
+    canApply: false,
+    canReview: false,
+    conflictDialog: {
+      conflictedFiles: [],
+      onOpenChange: vi.fn(),
+      open: false,
+    },
+    pending: false,
+    review: vi.fn(),
+    stats: null,
+    ...overrides,
+  };
 }
 
 const activePlan = {
@@ -141,6 +161,7 @@ interface RenderPromptAreaOptions {
     typeof ThreadDetailPromptArea
   >["childThreadsSection"];
   goal?: ThreadTimelineGoal | null;
+  hasCompletedTurn?: boolean;
   modelFallback?: ThreadTimelineModelFallback | null;
   pendingInteractions?: readonly PendingInteraction[];
   environmentGoneStatus?: ComponentProps<
@@ -149,6 +170,7 @@ interface RenderPromptAreaOptions {
   queuedMessageCount?: number;
   sentMessageEdit?: ThreadDetailSentMessageEdit;
   sessionOptions?: readonly ThreadTimelineSessionOption[] | null;
+  taskActions?: ThreadTaskActionsState;
   thread?: ThreadWithRuntime;
 }
 
@@ -159,12 +181,14 @@ function buildPromptAreaElement({
   activeWorkflows = [],
   childThreadsSection = null,
   goal = null,
+  hasCompletedTurn = false,
   modelFallback = null,
   pendingInteractions = [],
   environmentGoneStatus = null,
   queuedMessageCount = 0,
   sentMessageEdit,
   sessionOptions = null,
+  taskActions = makeThreadTaskActions(),
   thread = makeThread(),
 }: RenderPromptAreaOptions = {}) {
   return (
@@ -183,6 +207,7 @@ function buildPromptAreaElement({
         goal={goal}
         providerCommands={null}
         sessionOptions={sessionOptions}
+        hasCompletedTurn={hasCompletedTurn}
         modelFallback={modelFallback}
         onChangedFileClick={vi.fn()}
         parentThreadSection={null}
@@ -198,6 +223,7 @@ function buildPromptAreaElement({
         }}
         sentMessageEdit={sentMessageEdit}
         steerActiveThreadOnEnter={false}
+        taskActions={taskActions}
         thread={thread}
         workspaceChangedFilesSection={null}
         workspaceStatusPending={false}

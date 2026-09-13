@@ -87,6 +87,7 @@ import { isTransientReadError } from "@/hooks/queries/query-helpers";
 import { getPromptDraftAccessor } from "@/hooks/usePromptDraftStorage";
 import { subscribeComposerFocusRequests } from "@/lib/composer-focus-requests";
 import { ThreadGitActionDialog } from "@/components/dialogs/ThreadGitActionDialog";
+import { ThreadApplyConflictDialog } from "@/components/dialogs/ThreadApplyConflictDialog";
 import { PageShell } from "@/components/ui/page-shell.js";
 import { RouteLoadingSkeleton } from "@/components/ui/route-loading-skeleton";
 import { ThreadTimelineLoadingSkeleton } from "@/components/thread/timeline/ThreadTimelineLoadingSkeleton";
@@ -233,6 +234,8 @@ import type {
 } from "@/components/secondary-panel/ThreadSecondaryPanel";
 import { useEnvironmentMergeBase } from "@/components/secondary-panel/git-diff/useEnvironmentMergeBase";
 import { useThreadGitActions } from "./useThreadGitActions";
+import { useThreadTaskActions } from "./useThreadTaskActions";
+import { buildThreadTaskResponsiveActions } from "./threadTaskResponsiveActions";
 import { useThreadReadTracking } from "@/hooks/useThreadReadTracking";
 import { useThreadUnreadDividerState } from "./useThreadUnreadDividerState";
 import {
@@ -768,6 +771,13 @@ function ThreadDetailViewInternal(
     threadId,
     enabled: timelineEnabled,
   });
+  const hasCompletedTurn = useMemo(
+    () =>
+      timelineRows.some(
+        (row) => row.kind === "turn" && row.completedAt !== null,
+      ),
+    [timelineRows],
+  );
   const sendMessage = useSendThreadMessage();
   const editMessage = useEditThreadMessage();
   const requestEnvironmentAction = useRequestEnvironmentAction();
@@ -1131,6 +1141,19 @@ function ThreadDetailViewInternal(
     mergeBaseBranchOptionsEnabled: hasRequestedMergeBaseOptions,
     setThreadSecondaryPanel,
     threadId,
+  });
+  const handleReviewCreated = useCallback(
+    (reviewedThread: ThreadResponse) => {
+      navigateInPane({
+        projectId: reviewedThread.projectId,
+        threadId: reviewedThread.id,
+      });
+    },
+    [navigateInPane],
+  );
+  const taskActions = useThreadTaskActions(threadId, {
+    mergeBaseBranch: requestedMergeBaseBranch,
+    onReviewCreated: handleReviewCreated,
   });
   const {
     closePanel: closeWorkspacePanel,
@@ -2243,9 +2266,14 @@ function ThreadDetailViewInternal(
       ? { id: thread.environmentId, path: environment.path }
       : null,
   );
+  const responsiveTaskActions = buildThreadTaskResponsiveActions(
+    taskActions,
+    THREAD_HEADER_ACTIONS_GROUP,
+  );
   const responsiveHeaderActions = [
     ...responsiveWorkspaceActions,
     ...responsiveGitActions,
+    ...responsiveTaskActions,
   ];
   const workspaceOpenButton =
     workspaceOpenPath && preferredDirectoryTarget ? (
@@ -2316,6 +2344,7 @@ function ThreadDetailViewInternal(
           projectId={thread.projectId}
         />
       }
+      taskActions={taskActions}
       threadHeaderGitActions={threadHeaderGitActions}
       threadId={thread.id}
       threadTitle={threadTitle}
@@ -2388,6 +2417,8 @@ function ThreadDetailViewInternal(
       parentThreadSection={parentThreadSection}
       childThreadsSection={childThreadsBannerSection}
       contextEnvironmentId={showGitChanges ? threadEnvironmentId : null}
+      hasCompletedTurn={hasCompletedTurn}
+      taskActions={taskActions}
       thread={thread}
     />
   );
@@ -2838,6 +2869,11 @@ function ThreadDetailViewInternal(
               onCommit={gitActions.handleCommitThread}
             />
           ) : null}
+          <ThreadApplyConflictDialog
+            conflictedFiles={taskActions.conflictDialog.conflictedFiles}
+            onOpenChange={taskActions.conflictDialog.onOpenChange}
+            open={taskActions.conflictDialog.open}
+          />
         </AppNavigationHostProvider>
       </UrlOpenRoutingProvider>
     </MarkdownLocalFileContextMenuContext.Provider>
