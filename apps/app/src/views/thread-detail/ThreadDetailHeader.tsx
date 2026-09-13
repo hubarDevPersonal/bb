@@ -43,6 +43,7 @@ import {
 import { usePaneContext } from "./PaneContext";
 import { PaneMaximizeButton } from "./PaneMaximizeButton";
 import type { ThreadHeaderGitAction } from "./useThreadGitActions";
+import type { ThreadTaskActionsState } from "./useThreadTaskActions";
 
 const THREAD_HEADER_ACTION_BUTTON_CLASS = cn(
   COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS,
@@ -58,6 +59,7 @@ interface ThreadDetailHeaderProps {
   onOpenThreadGitAction: (target: ThreadGitActionDialogTarget) => void;
   onToggleSecondaryPanel: () => void;
   pluginActions?: ReactNode;
+  taskActions: ThreadTaskActionsState;
   threadHeaderGitActions: ThreadHeaderGitAction[];
   threadId: string;
   threadTitle: string;
@@ -72,6 +74,7 @@ export function ThreadDetailHeader({
   onOpenThreadGitAction,
   onToggleSecondaryPanel,
   pluginActions,
+  taskActions,
   threadHeaderGitActions,
   threadId,
   threadTitle,
@@ -238,6 +241,34 @@ export function ThreadDetailHeader({
                 {primaryAction.label}
               </Button>
             )}
+          </span>
+        ) : null}
+        {!usesResponsiveActionOverflow && taskActions.canReview ? (
+          <span className="inline-flex" data-thread-header-responsive-action="">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={THREAD_HEADER_ACTION_BUTTON_CLASS}
+              disabled={taskActions.pending}
+              onClick={taskActions.review}
+            >
+              Review
+            </Button>
+          </span>
+        ) : null}
+        {!usesResponsiveActionOverflow && taskActions.canApply ? (
+          <span className="inline-flex" data-thread-header-responsive-action="">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={THREAD_HEADER_ACTION_BUTTON_CLASS}
+              disabled={taskActions.pending}
+              onClick={taskActions.apply}
+            >
+              Apply changes locally
+            </Button>
           </span>
         ) : null}
       </div>

@@ -36,6 +36,7 @@ import {
 import type {
   PullRequestMergeMethod,
   TerminalSession,
+  ThreadResponse,
   TimelineRow,
 } from "@bb/server-contract";
 import type { WorkspaceOpenTarget } from "@bb/host-daemon-contract";
@@ -84,6 +85,7 @@ import { isTransientReadError } from "@/hooks/queries/query-helpers";
 import { getPromptDraftAccessor } from "@/hooks/usePromptDraftStorage";
 import { subscribeComposerFocusRequests } from "@/lib/composer-focus-requests";
 import { ThreadGitActionDialog } from "@/components/dialogs/ThreadGitActionDialog";
+import { ThreadApplyConflictDialog } from "@/components/dialogs/ThreadApplyConflictDialog";
 import { PageShell } from "@/components/ui/page-shell.js";
 import { RouteLoadingSkeleton } from "@/components/ui/route-loading-skeleton";
 import { HEADER_ICON_BUTTON_CLASS } from "@/components/layout/AppPageHeader";
@@ -259,6 +261,8 @@ import type {
 import { useEnvironmentMergeBase } from "@/components/secondary-panel/git-diff/useEnvironmentMergeBase";
 import { useThreadGitActions } from "./useThreadGitActions";
 import { useSendSideChatMessageToMain } from "./useSendSideChatMessageToMain";
+import { useThreadTaskActions } from "./useThreadTaskActions";
+import { buildThreadTaskResponsiveActions } from "./threadTaskResponsiveActions";
 import { useThreadReadTracking } from "@/hooks/useThreadReadTracking";
 import { useThreadUnreadDividerState } from "./useThreadUnreadDividerState";
 import {
@@ -889,6 +893,13 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
   } = useThreadTimelineController({
     threadId,
   });
+  const hasCompletedTurn = useMemo(
+    () =>
+      timelineRows.some(
+        (row) => row.kind === "turn" && row.completedAt !== null,
+      ),
+    [timelineRows],
+  );
   const sendMessage = useSendThreadMessage();
   const editMessage = useEditThreadMessage();
   const createQueuedMessage = useCreateThreadQueuedMessage();
@@ -1258,6 +1269,19 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
     mergeBaseBranchOptionsEnabled: hasRequestedMergeBaseOptions,
     setThreadSecondaryPanel,
     threadId,
+  });
+  const handleReviewCreated = useCallback(
+    (reviewedThread: ThreadResponse) => {
+      navigateInPane({
+        projectId: reviewedThread.projectId,
+        threadId: reviewedThread.id,
+      });
+    },
+    [navigateInPane],
+  );
+  const taskActions = useThreadTaskActions(threadId, {
+    mergeBaseBranch: requestedMergeBaseBranch,
+    onReviewCreated: handleReviewCreated,
   });
   const {
     closePanel: closeWorkspacePanel,
@@ -2527,9 +2551,11 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
       gitActions.threadGitActionDialog.onOpen(action.target);
     },
   }));
+  const responsiveTaskActions = buildThreadTaskResponsiveActions(taskActions);
   const responsiveHeaderActions = [
     ...responsiveWorkspaceActions,
     ...responsiveGitActions,
+    ...responsiveTaskActions,
   ];
   const workspaceOpenButton =
     workspaceOpenPath && preferredDirectoryTarget ? (
@@ -2576,6 +2602,7 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
           projectId={thread.projectId}
         />
       }
+      taskActions={taskActions}
       threadHeaderGitActions={
         executionUnavailable ? [] : gitActions.threadHeaderGitActions
       }
@@ -2655,6 +2682,8 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
       childPendingInteractions={childPendingInteractions}
       childThreadsSection={childThreadsSection}
       pullRequest={pullRequest}
+      hasCompletedTurn={hasCompletedTurn}
+      taskActions={taskActions}
       thread={thread}
     />
   );
@@ -3084,6 +3113,11 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
               onCommit={gitActions.handleCommitThread}
             />
           ) : null}
+          <ThreadApplyConflictDialog
+            conflictedFiles={taskActions.conflictDialog.conflictedFiles}
+            onOpenChange={taskActions.conflictDialog.onOpenChange}
+            open={taskActions.conflictDialog.open}
+          />
         </AppNavigationHostProvider>
       </UrlOpenRoutingProvider>
     </MarkdownLocalFileContextMenuContext.Provider>

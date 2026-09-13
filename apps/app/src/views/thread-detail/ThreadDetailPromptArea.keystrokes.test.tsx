@@ -26,6 +26,7 @@ import {
 } from "@/components/plugin/plugin-composer-host";
 import { getPromptDraftAccessor } from "@/hooks/usePromptDraftStorage";
 import { ThreadDetailPromptArea } from "./ThreadDetailPromptArea";
+import type { ThreadTaskActionsState } from "./useThreadTaskActions";
 
 const mocks = vi.hoisted(() => ({
   sendMessageMutateAsync: vi.fn(),
@@ -287,6 +288,22 @@ function makeThread(id: string): ThreadWithRuntime {
   });
 }
 
+function makeThreadTaskActions(): ThreadTaskActionsState {
+  return {
+    apply: vi.fn(),
+    canApply: false,
+    canReview: false,
+    conflictDialog: {
+      conflictedFiles: [],
+      onOpenChange: vi.fn(),
+      open: false,
+    },
+    pending: false,
+    review: vi.fn(),
+    stats: null,
+  };
+}
+
 function makeQueuedMessage(): ThreadQueuedMessage {
   return makeThreadQueuedMessage({
     id: "qmsg_1",
@@ -377,6 +394,7 @@ function buildPromptArea({
         canRestoreEnvironment={false}
         environmentGoneStatus={null}
         goal={null}
+        hasCompletedTurn={false}
         modelFallback={null}
         isEnvironmentActionPending={false}
         onChangedFileClick={vi.fn()}
@@ -394,6 +412,7 @@ function buildPromptArea({
           mutateAsync: mocks.sendMessageMutateAsync,
         }}
         steerActiveThreadOnEnter={false}
+        taskActions={makeThreadTaskActions()}
         thread={thread}
         workspaceChangedFilesSection={null}
         workspaceStatusPending={false}
