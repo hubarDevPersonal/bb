@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { registerActionsCommands } from "./actions.js";
+import { registerApplyCommand } from "./apply.js";
 import { registerDiffCommand } from "./diff.js";
 import { registerInteractionCommands } from "./interactions.js";
 import { registerListCommand } from "./list.js";
@@ -9,6 +10,7 @@ import { registerOrganizationCommands } from "./organization.js";
 import { registerShowCommand } from "./show.js";
 import { registerSpawnCommand } from "./spawn.js";
 import { registerForkCommand } from "./fork.js";
+import { registerReviewCommand } from "./review.js";
 import { registerWaitCommand } from "./wait.js";
 
 export function registerThreadCommands(
@@ -22,6 +24,8 @@ export function registerThreadCommands(
   registerListCommand(thread, getUrl);
   registerShowCommand(thread, getUrl);
   registerDiffCommand(thread, getUrl);
+  registerReviewCommand(thread, getUrl);
+  registerApplyCommand(thread, getUrl);
   registerOpenCommand(thread, getUrl);
   registerPaneCommand(thread, getUrl);
   registerOrganizationCommands(thread, getUrl);

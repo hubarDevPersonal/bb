@@ -66,7 +66,7 @@ import {
   submitTurn,
 } from "./command-handlers/thread.js";
 import { WorkspaceError } from "@bb/host-workspace";
-import { squashMerge } from "./command-handlers/workspace.js";
+import { applyBranch, squashMerge } from "./command-handlers/workspace.js";
 import {
   cloneProject,
   inspectProjectPath,
@@ -513,6 +513,7 @@ const commandHandlers: CommandHandlerMap = {
     });
   },
   "workspace.squash_merge": squashMerge,
+  "workspace.apply_branch": applyBranch,
   "workspace.pull_request_action": async (command, options) => {
     const entry = await requireResolvedWorkspaceForCommand({
       dataDir: options.dataDir,

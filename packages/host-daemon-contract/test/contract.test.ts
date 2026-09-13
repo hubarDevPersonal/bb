@@ -498,6 +498,11 @@ const SETTLED_RESPONSE_RESULT_FIXTURES: SettledResponseResultFixtures = {
     commitSubject: "Merge feature",
     merged: true,
   },
+  "workspace.apply_branch": {
+    outcome: "merged",
+    commitSha: "abcdef123456",
+    conflictedFiles: [],
+  },
   "workspace.pull_request_action": {},
 };
 
@@ -943,7 +948,7 @@ const ACP_BRIDGE_LAUNCH = {
 
 describe("host-daemon command schemas", () => {
   it("uses the current host-daemon protocol version", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(173);
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(174);
     expect(HOST_ARTIFACT_MAX_BYTES).toBe(256 * 1024 * 1024);
   });
 
@@ -2654,6 +2659,18 @@ describe("host-daemon command schemas", () => {
         },
         targetBranch: "main lock",
         commitMessage: "Merge branch",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      hostDaemonCommandSchema.safeParse({
+        type: "workspace.apply_branch",
+        environmentId: "env_123",
+        workspaceContext: {
+          workspacePath: "/tmp/workspace",
+          workspaceProvisionType: "unmanaged",
+        },
+        sourceBranch: "feature lock",
       }).success,
     ).toBe(false);
   });

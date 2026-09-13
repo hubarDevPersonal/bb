@@ -350,6 +350,7 @@ type ExpectedThemeKey = "catalog" | "get" | "set";
 type ExpectedThreadSectionsKey = "create" | "delete" | "list" | "update";
 
 type ExpectedThreadsKey =
+  | "applyLocally"
   | "archive"
   | "archiveAll"
   | "cancelPlan"
@@ -375,6 +376,7 @@ type ExpectedThreadsKey =
   | "queuedMessages"
   | "reorderPinned"
   | "resolveMentions"
+  | "review"
   | "search"
   | "send"
   | "spawn"

@@ -283,6 +283,11 @@ function createFakeWorkspace(path: string): HostWorkspace {
       merged: true,
       targetBranch: "main",
     })),
+    applyBranch: vi.fn(async () => ({
+      outcome: "merged" as const,
+      commitSha: "commit-1",
+      conflictedFiles: [],
+    })),
     runPullRequestAction: vi.fn(async () => undefined),
     destroy: vi.fn(async () => undefined),
   };

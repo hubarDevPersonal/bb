@@ -91,6 +91,7 @@ describe("public thread task diff", () => {
         baseBranch: "main",
         branchName: "bb/test",
         stats: { changedFiles: 2, insertions: 8, deletions: 1 },
+        canApplyLocally: false,
       });
     });
   });
@@ -117,6 +118,44 @@ describe("public thread task diff", () => {
         baseBranch: null,
         branchName: "bb/test",
         stats: { changedFiles: 2, insertions: 8, deletions: 1 },
+        canApplyLocally: false,
+      });
+    });
+  });
+
+  it("returns canApplyLocally true when the project's main checkout is resolvable", async () => {
+    await withTestHarness(async (harness) => {
+      const { host } = seedHostSession(harness.deps);
+      const { project, source } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+      });
+      seedEnvironment(harness.deps, {
+        hostId: host.id,
+        projectId: project.id,
+        path: source.path,
+        isWorktree: false,
+      });
+      const environment = seedEnvironment(harness.deps, {
+        hostId: host.id,
+        projectId: project.id,
+        workspaceProvisionType: "managed-worktree",
+      });
+      const thread = seedThread(harness.deps, {
+        environmentId: environment.id,
+        projectId: project.id,
+      });
+
+      const responsePromise = harness.app.request(
+        `/api/v1/threads/${thread.id}/task-diff`,
+      );
+      await answerDiffFiles(harness, environment.id);
+
+      const response = await responsePromise;
+      expect(response.status).toBe(200);
+      await expect(readJson(response)).resolves.toMatchObject({
+        outcome: "available",
+        kind: "branch",
+        canApplyLocally: true,
       });
     });
   });

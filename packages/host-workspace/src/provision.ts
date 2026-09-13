@@ -14,6 +14,8 @@ import type {
   StatusOptions,
   SquashMergeOptions,
   SquashMergeResult,
+  ApplyBranchOptions,
+  ApplyBranchResult,
 } from "./workspace.js";
 import { Workspace } from "./workspace.js";
 import type {
@@ -142,6 +144,7 @@ export interface HostWorkspace {
   commit(options: CommitOptions): Promise<CommitResult>;
   reset(): Promise<void>;
   squashMerge(options: SquashMergeOptions): Promise<SquashMergeResult>;
+  applyBranch(options: ApplyBranchOptions): Promise<ApplyBranchResult>;
 
   destroy(args: DestroyWorkspaceArgs): Promise<void>;
 }
@@ -271,6 +274,10 @@ class ProvisionedHostWorkspace implements HostWorkspace {
 
   squashMerge(options: SquashMergeOptions): Promise<SquashMergeResult> {
     return this.ws.squashMergeInto(options);
+  }
+
+  applyBranch(options: ApplyBranchOptions): Promise<ApplyBranchResult> {
+    return this.ws.applyBranch(options);
   }
 
   destroy(args: DestroyWorkspaceArgs): Promise<void> {

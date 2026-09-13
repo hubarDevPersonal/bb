@@ -156,6 +156,18 @@ Inspecting:
     --self                                 Target current thread
     --json                                 Print machine-readable JSON output
 
+  bb thread review [id]                    Create a review thread for the thread's task diff
+    --self                                 Target current thread
+    --json                                 Print machine-readable JSON output
+
+  bb thread apply [id]                     Apply the thread's branch locally into the project's main checkout
+    --self                                 Target current thread
+    --json                                 Print machine-readable JSON output
+
+  Fails with a conflict list (and a non-zero exit code) when the branch cannot
+  be merged cleanly, and refuses when the main checkout is not on the task's
+  base branch.
+
   bb thread wait <id>                      Wait for a thread status or event (defaults to --status idle)
     --status <status>                      Wait for this status
     --event <type>                         Wait for this event type

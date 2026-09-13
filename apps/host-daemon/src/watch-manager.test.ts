@@ -84,6 +84,11 @@ function createFakeWorkspace(path: string, isGitRepo = true) {
       commitSubject: "commit",
       targetBranch: "main",
     })),
+    applyBranch: vi.fn(async () => ({
+      outcome: "merged" as const,
+      commitSha: "commit-1",
+      conflictedFiles: [],
+    })),
     setLocalStateFingerprint(value: GetLocalStateFingerprintResult) {
       localStateFingerprint = value;
     },

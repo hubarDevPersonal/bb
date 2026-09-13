@@ -78,6 +78,18 @@ describe("workspace command dispatch", () => {
       },
       harness.dispatchOptions(),
     );
+    const applyBranchResult = await dispatchCommand(
+      {
+        type: "workspace.apply_branch",
+        environmentId: "env-1",
+        workspaceContext: {
+          workspacePath: "/tmp/env-1",
+          workspaceProvisionType: "unmanaged",
+        },
+        sourceBranch: "bb/feature-123",
+      },
+      harness.dispatchOptions(),
+    );
     expect(statusResult.outcome).toBe("available");
     expect(diffResult.outcome).toBe("available");
     if (statusResult.outcome !== "available") {
@@ -97,6 +109,14 @@ describe("workspace command dispatch", () => {
       commitSha: "merge-main",
       commitSubject: "feat: squash merge",
     });
+    expect(applyBranchResult).toEqual({
+      outcome: "merged",
+      commitSha: "merge-bb/feature-123",
+      conflictedFiles: [],
+    });
+    expect(harness.workspaceState.lastApplyBranchSourceBranch).toBe(
+      "bb/feature-123",
+    );
     expect(harness.workspaceState.statusReads).toBe(1);
     expect(harness.workspaceState.lastCommitMessage).toBe("Commit message");
   });

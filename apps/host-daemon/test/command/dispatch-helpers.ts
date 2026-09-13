@@ -82,6 +82,7 @@ type FakeWorkspaceDiffTarget =
 
 interface FakeWorkspaceState {
   destroyed: boolean;
+  lastApplyBranchSourceBranch: string | undefined;
   lastCommitMessage: string | undefined;
   lastDiffTarget: FakeWorkspaceDiffTarget | undefined;
   lastPullRequestAction: PullRequestActionOptions | undefined;
@@ -141,6 +142,7 @@ type FakeHostWorkspace = {
 export function createFakeWorkspace(pathname: string) {
   const state: FakeWorkspaceState = {
     statusReads: 0,
+    lastApplyBranchSourceBranch: undefined,
     lastDiffTarget: undefined,
     lastCommitMessage: undefined,
     destroyed: false,
@@ -260,6 +262,14 @@ export function createFakeWorkspace(pathname: string) {
         commitSha: `merge-${options.targetBranch}`,
         commitSubject: options.commitMessage,
         targetBranch: options.targetBranch,
+      };
+    },
+    async applyBranch(options: { sourceBranch: string }) {
+      state.lastApplyBranchSourceBranch = options.sourceBranch;
+      return {
+        outcome: "merged" as const,
+        commitSha: `merge-${options.sourceBranch}`,
+        conflictedFiles: [],
       };
     },
     async destroy() {

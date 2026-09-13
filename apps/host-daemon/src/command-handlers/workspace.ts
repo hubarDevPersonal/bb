@@ -27,3 +27,17 @@ export async function squashMerge(
     commitSubject: result.commitSubject,
   };
 }
+
+export async function applyBranch(
+  command: CommandOf<"workspace.apply_branch">,
+  options: CommandDispatchOptions,
+): Promise<HostDaemonCommandResult<"workspace.apply_branch">> {
+  const entry = await requireResolvedWorkspaceForCommand({
+    dataDir: options.dataDir,
+    environmentId: command.environmentId,
+    requireGit: true,
+    runtimeManager: options.runtimeManager,
+    workspaceContext: command.workspaceContext,
+  });
+  return entry.workspace.applyBranch({ sourceBranch: command.sourceBranch });
+}

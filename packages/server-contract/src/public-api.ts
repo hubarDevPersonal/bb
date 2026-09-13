@@ -192,6 +192,7 @@ import type {
   ThreadStorageLocationResponse,
   ThreadStoragePathListResponse,
   ThreadStoragePathsQuery,
+  ThreadApplyLocallyResponse,
   ThreadTaskDiffResponse,
   ThreadTimelineQuery,
   ThreadTimelineResponse,
@@ -1202,6 +1203,18 @@ export const publicApiRoutes = {
       method: "get",
       request: noRequest<PathId>(),
       response: jsonResponse<ThreadTaskDiffResponse>(),
+    }),
+    review: defineRoute({
+      path: "/threads/:id/review",
+      method: "post",
+      request: noRequest<PathId>(),
+      response: jsonResponse<ThreadResponse>({ status: 201 }),
+    }),
+    applyLocally: defineRoute({
+      path: "/threads/:id/apply-locally",
+      method: "post",
+      request: noRequest<PathId>(),
+      response: jsonResponse<ThreadApplyLocallyResponse>(),
     }),
     timelineTurnSummaryDetails: defineRoute({
       path: "/threads/:id/timeline/turn-summary-details",
