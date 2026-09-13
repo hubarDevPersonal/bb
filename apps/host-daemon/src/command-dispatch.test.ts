@@ -122,6 +122,7 @@ function createWorkspace(workspacePath = WORKSPACE_PATH): HostWorkspace {
     diffFiles: unexpectedWorkspaceCall,
     diffPatch: unexpectedWorkspaceCall,
     commit: unexpectedWorkspaceCall,
+    applyBranch: unexpectedWorkspaceCall,
   };
 }
 

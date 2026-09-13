@@ -2,6 +2,7 @@ import { registerContextCommand } from "./context.js";
 import { registerSessionStateCommands } from "./session-state.js";
 import { Command } from "commander";
 import { registerActionsCommands } from "./actions.js";
+import { registerApplyCommand } from "./apply.js";
 import { registerCountCommand } from "./count.js";
 import { registerDiffCommand } from "./diff.js";
 import { registerInteractionCommands } from "./interactions.js";
@@ -12,6 +13,7 @@ import { registerOrganizationCommands } from "./organization.js";
 import { registerShowCommand } from "./show.js";
 import { registerSpawnCommand } from "./spawn.js";
 import { registerForkCommand } from "./fork.js";
+import { registerReviewCommand } from "./review.js";
 import { registerWaitCommand } from "./wait.js";
 
 export function registerThreadCommands(
@@ -28,6 +30,8 @@ export function registerThreadCommands(
   registerSessionStateCommands(thread, getUrl);
   registerShowCommand(thread, getUrl);
   registerDiffCommand(thread, getUrl);
+  registerReviewCommand(thread, getUrl);
+  registerApplyCommand(thread, getUrl);
   registerOpenCommand(thread, getUrl);
   registerPaneCommand(thread, getUrl);
   registerOrganizationCommands(thread, getUrl);

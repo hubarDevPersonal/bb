@@ -11,6 +11,8 @@ import type {
   DiffPatchArgs,
   DiffPatchEntry,
   StatusOptions,
+  ApplyBranchOptions,
+  ApplyBranchResult,
 } from "./workspace.js";
 import { Workspace } from "./workspace.js";
 import {
@@ -69,6 +71,7 @@ export interface HostWorkspace {
   diffPatch(args: DiffPatchArgs): Promise<DiffPatchEntry[]>;
 
   commit(options: CommitOptions): Promise<CommitResult>;
+  applyBranch(options: ApplyBranchOptions): Promise<ApplyBranchResult>;
 }
 
 class ProvisionedHostWorkspace implements HostWorkspace {
@@ -150,6 +153,10 @@ class ProvisionedHostWorkspace implements HostWorkspace {
 
   commit(options: CommitOptions): Promise<CommitResult> {
     return this.ws.commit(options);
+  }
+
+  applyBranch(options: ApplyBranchOptions): Promise<ApplyBranchResult> {
+    return this.ws.applyBranch(options);
   }
 }
 

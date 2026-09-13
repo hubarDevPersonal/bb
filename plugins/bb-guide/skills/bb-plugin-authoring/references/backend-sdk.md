@@ -24,7 +24,8 @@ signatures (see "Looking up the exact API" in distribution.md).
   `pin` `unpin` `reorderPinned` `markRead` `markUnread` `childSummary`
   `paneAction` `timelineTurnSummaryDetails` `storageFiles` `storageLocation`
   `storagePaths` `cancelPlan` `clearGoal` `defaultExecutionOptions`
-  `restoreEnvironment` `getPluginMetadata` `updatePluginMetadata`
+  `restoreEnvironment` `taskDiff` `review` `applyLocally`
+  `getPluginMetadata` `updatePluginMetadata`
   `experimental_listPluginMetadata` `experimental_listAncestors`
   `experimental_listDescendants`; sub-areas `events` (`list` `wait`),
   `interactions` (`get` `list` `cancel` `resolve` `respond`), `queue`

@@ -37,6 +37,7 @@ type GetSharedGitRefsFingerprintResult = Awaited<
   ReturnType<HostWorkspace["getSharedGitRefsSnapshot"]>
 >["fingerprint"];
 type CommitArgs = Parameters<HostWorkspace["commit"]>;
+type ApplyBranchArgs = Parameters<HostWorkspace["applyBranch"]>;
 type ProvisionWorkspaceMockArgs = Parameters<
   (options: ProvisionWorkspaceArgs) => Promise<HostWorkspace>
 >;
@@ -163,6 +164,11 @@ function createFakeWorkspace(path: string, isGitRepo = true) {
     commit: vi.fn(async (..._args: CommitArgs) => ({
       commitSha: "commit-1",
       commitSubject: "commit",
+    })),
+    applyBranch: vi.fn(async (..._args: ApplyBranchArgs) => ({
+      outcome: "merged" as const,
+      commitSha: "commit-1",
+      conflictedFiles: [],
     })),
     setLocalStateFingerprint(value: GetLocalStateFingerprintResult) {
       localStateFingerprint = value;

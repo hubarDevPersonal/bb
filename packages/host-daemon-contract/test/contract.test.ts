@@ -594,6 +594,11 @@ const SETTLED_RESPONSE_RESULT_FIXTURES: SettledResponseResultFixtures = {
     commitSha: "abcdef123456",
     commitSubject: "Checkpoint work",
   },
+  "workspace.apply_branch": {
+    outcome: "merged",
+    commitSha: "abcdef123456",
+    conflictedFiles: [],
+  },
 };
 
 const WORKSPACE_DIFF_FILES_AVAILABLE_RESULT: JsonObject = {
@@ -1234,7 +1239,7 @@ describe("host-daemon command schemas", () => {
   });
 
   it("uses the current host-daemon protocol version", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(252);
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(253);
     expect(HOST_ARTIFACT_MAX_BYTES).toBe(256 * 1024 * 1024);
   });
 
@@ -2784,6 +2789,18 @@ describe("host-daemon command schemas", () => {
       hostDaemonOnlineRpcCommandSchema.safeParse({
         ...workspaceStatus,
         mergeBaseBranch: "origin/main lock",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      hostDaemonCommandSchema.safeParse({
+        type: "workspace.apply_branch",
+        environmentId: "env_123",
+        workspaceContext: {
+          workspacePath: "/tmp/workspace",
+          workspaceProvisionType: "unmanaged",
+        },
+        sourceBranch: "feature lock",
       }).success,
     ).toBe(false);
   });

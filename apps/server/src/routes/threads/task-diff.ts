@@ -16,6 +16,7 @@ import {
   loadTaskDiffStatsResult,
   taskDiffStatsCacheKey,
 } from "../../services/environments/task-diff-stats.js";
+import { canApplyTaskDiffLocally } from "../../services/environments/main-checkout.js";
 
 export function registerThreadTaskDiffRoutes(app: Hono, deps: AppDeps): void {
   const { get } = typedRoutes<PublicApiSchema>(app, {
@@ -67,6 +68,10 @@ export function registerThreadTaskDiffRoutes(app: Hono, deps: AppDeps): void {
       baseBranch: targetInfo.baseBranch,
       branchName: targetInfo.branchName,
       stats: result.stats,
+      canApplyLocally: canApplyTaskDiffLocally(deps, {
+        environment,
+        targetInfo,
+      }),
     });
   });
 }

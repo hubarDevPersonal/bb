@@ -588,6 +588,15 @@ const commandHandlers: CommandHandlerMap = {
       noVerify: true,
     });
   },
+  "workspace.apply_branch": async (command, options) => {
+    const entry = await requireResolvedWorkspaceForCommand({
+      environmentId: command.environmentId,
+      requireGit: true,
+      runtimeManager: options.runtimeManager,
+      workspaceContext: command.workspaceContext,
+    });
+    return entry.workspace.applyBranch({ sourceBranch: command.sourceBranch });
+  },
 };
 
 const onlineRpcHandlers: OnlineRpcHandlerMap = {
