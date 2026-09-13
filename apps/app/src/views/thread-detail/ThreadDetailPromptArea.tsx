@@ -34,6 +34,8 @@ import type {
 } from "@bb/server-contract";
 import type { ChildThreadPendingAttention } from "@/hooks/queries/child-thread-pending-interactions";
 import { ThreadPendingInteractionBanner } from "@/components/thread/pending-interactions/ThreadPendingInteractionBanner";
+import { ThreadTaskReadyBanner } from "./ThreadTaskReadyBanner";
+import type { ThreadTaskActionsState } from "./useThreadTaskActions";
 import {
   type PluginComposerHost,
   useComposerHostDraftNotifier,
@@ -181,6 +183,8 @@ interface ThreadDetailPromptAreaProps {
   sentMessageEdit?: ThreadDetailSentMessageEdit;
   steerActiveThreadOnEnter: boolean;
   composerFocusRequestNonce: number;
+  hasCompletedTurn: boolean;
+  taskActions: ThreadTaskActionsState;
   thread: ThreadWithRuntime;
 }
 
@@ -372,6 +376,8 @@ export function ThreadDetailPromptArea({
   sentMessageEdit,
   steerActiveThreadOnEnter,
   composerFocusRequestNonce,
+  hasCompletedTurn,
+  taskActions,
   thread,
 }: ThreadDetailPromptAreaProps) {
   const navigate = useNavigate();
@@ -1464,6 +1470,10 @@ export function ThreadDetailPromptArea({
     () => (
       <>
         {childPendingInteractionBanners}
+        <ThreadTaskReadyBanner
+          hasCompletedTurn={hasCompletedTurn}
+          taskActions={taskActions}
+        />
         {activeWorkflows.map((workflow) => (
           <ThreadWorkflowCard
             key={workflow.id}
@@ -1567,6 +1577,7 @@ export function ThreadDetailPromptArea({
       handleToggleBannerSection,
       handleUnarchiveCurrentThread,
       environmentGoneStatus,
+      hasCompletedTurn,
       isFollowUpSubmitting,
       isUnarchiveCurrentThreadPending,
       isQueueMutationPending,
@@ -1590,6 +1601,7 @@ export function ThreadDetailPromptArea({
       runtimeDisplayStatus,
       shouldHideComposer,
       submitMode.kind,
+      taskActions,
       thread.archivedAt,
       thread.id,
       workspaceChangedFilesSection,

@@ -11,6 +11,7 @@ import type { ReactNode, Ref } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ThreadDetailHeader } from "./ThreadDetailHeader";
 import { PaneContext, type PaneContextValue } from "./PaneContext";
+import type { ThreadTaskActionsState } from "./useThreadTaskActions";
 import { ThreadTitleMentionResourcesProvider } from "@/components/thread/ThreadTitleMentions";
 import { makeThreadListEntry } from "@/test/fixtures/thread-list-entries";
 import { sdk } from "@/lib/sdk";
@@ -24,6 +25,25 @@ vi.mock("@/components/thread/ThreadActionsProvider", () => ({
     renameThread: mocks.renameThread,
   }),
 }));
+
+function makeThreadTaskActions(
+  overrides: Partial<ThreadTaskActionsState> = {},
+): ThreadTaskActionsState {
+  return {
+    apply: vi.fn(),
+    canApply: false,
+    canReview: false,
+    conflictDialog: {
+      conflictedFiles: [],
+      onOpenChange: vi.fn(),
+      open: false,
+    },
+    pending: false,
+    review: vi.fn(),
+    stats: null,
+    ...overrides,
+  };
+}
 
 vi.mock("@/components/layout/AppPageHeader", () => ({
   HEADER_ICON_BUTTON_CLASS: "header-icon-button",
@@ -87,6 +107,7 @@ describe("ThreadDetailHeader", () => {
           isSecondaryPanelOpen
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[]}
           threadId={THREAD_ID}
           threadTitle="Panel state"
@@ -110,6 +131,7 @@ describe("ThreadDetailHeader", () => {
           isSecondaryPanelOpen
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[]}
           threadId={THREAD_ID}
           threadTitle="Panel state"
@@ -138,6 +160,7 @@ describe("ThreadDetailHeader", () => {
             isSecondaryPanelOpen={false}
             onOpenThreadGitAction={vi.fn()}
             onToggleSecondaryPanel={vi.fn()}
+            taskActions={makeThreadTaskActions()}
             threadHeaderGitActions={[]}
             threadId={THREAD_ID}
             threadTitle="Panel state"
@@ -170,6 +193,7 @@ describe("ThreadDetailHeader", () => {
           isSecondaryPanelOpen
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[]}
           threadId={THREAD_ID}
           threadTitle="Split panel state"
@@ -220,6 +244,7 @@ describe("ThreadDetailHeader", () => {
           onClosePane={vi.fn()}
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[
             { label: "Commit", target: { kind: "commit" } },
           ]}
@@ -279,6 +304,7 @@ describe("ThreadDetailHeader", () => {
           onClosePane={vi.fn()}
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[
             { label: "Commit", target: { kind: "commit" } },
           ]}
@@ -304,6 +330,7 @@ describe("ThreadDetailHeader", () => {
           isSecondaryPanelOpen={false}
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[]}
           threadId={THREAD_ID}
           threadTitle="Review @docs/foo.test.ts with @thread:thr_worker"
@@ -340,6 +367,7 @@ describe("ThreadDetailHeader", () => {
             isSecondaryPanelOpen={false}
             onOpenThreadGitAction={vi.fn()}
             onToggleSecondaryPanel={vi.fn()}
+            taskActions={makeThreadTaskActions()}
             threadHeaderGitActions={[]}
             threadId={THREAD_ID}
             threadTitle="Continue from thr_dcwivn5n8w docs/foo.ts"
@@ -381,6 +409,7 @@ describe("ThreadDetailHeader", () => {
               isSecondaryPanelOpen={false}
               onOpenThreadGitAction={vi.fn()}
               onToggleSecondaryPanel={vi.fn()}
+              taskActions={makeThreadTaskActions()}
               threadHeaderGitActions={[]}
               threadId={THREAD_ID}
               threadTitle={title}
@@ -429,6 +458,7 @@ describe("ThreadDetailHeader", () => {
             isSecondaryPanelOpen={false}
             onOpenThreadGitAction={vi.fn()}
             onToggleSecondaryPanel={vi.fn()}
+            taskActions={makeThreadTaskActions()}
             threadHeaderGitActions={[]}
             threadId={THREAD_ID}
             threadTitle={title}
@@ -459,6 +489,7 @@ describe("ThreadDetailHeader", () => {
             isSecondaryPanelOpen={false}
             onOpenThreadGitAction={vi.fn()}
             onToggleSecondaryPanel={vi.fn()}
+            taskActions={makeThreadTaskActions()}
             threadHeaderGitActions={[]}
             threadId={THREAD_ID}
             threadTitle="Unknown thr_2222222222"
@@ -481,6 +512,7 @@ describe("ThreadDetailHeader", () => {
           isSecondaryPanelOpen={false}
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[]}
           threadId={THREAD_ID}
           threadTitle="Focused thread"
@@ -512,6 +544,7 @@ describe("ThreadDetailHeader", () => {
           isSecondaryPanelOpen={false}
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[]}
           threadId={THREAD_ID}
           threadTitle="Focused thread"
@@ -545,6 +578,7 @@ describe("ThreadDetailHeader", () => {
           isSecondaryPanelOpen={false}
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[]}
           threadId={THREAD_ID}
           threadTitle="Focused thread"
@@ -557,5 +591,68 @@ describe("ThreadDetailHeader", () => {
     fireEvent.pointerDown(input, { button: 0 });
 
     expect(beginPaneDrag).not.toHaveBeenCalled();
+  });
+
+  it("renders Review and Apply changes locally when the task actions allow it", () => {
+    const review = vi.fn();
+    const apply = vi.fn();
+
+    render(
+      <PaneContext.Provider value={PANE_CONTEXT}>
+        <ThreadDetailHeader
+          actionsMenu={null}
+          childPillLabel={null}
+          isSecondaryPanelOpen={false}
+          onOpenThreadGitAction={vi.fn()}
+          onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions({
+            apply,
+            canApply: true,
+            canReview: true,
+            review,
+          })}
+          threadHeaderGitActions={[]}
+          threadId={THREAD_ID}
+          threadTitle="Task ready"
+        />
+      </PaneContext.Provider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    expect(review).toHaveBeenCalledTimes(1);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply changes locally" }),
+    );
+    expect(apply).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables Review and Apply changes locally while the shared task actions are pending", () => {
+    render(
+      <PaneContext.Provider value={PANE_CONTEXT}>
+        <ThreadDetailHeader
+          actionsMenu={null}
+          childPillLabel={null}
+          isSecondaryPanelOpen={false}
+          onOpenThreadGitAction={vi.fn()}
+          onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions({
+            canApply: true,
+            canReview: true,
+            pending: true,
+          })}
+          threadHeaderGitActions={[]}
+          threadId={THREAD_ID}
+          threadTitle="Task pending"
+        />
+      </PaneContext.Provider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Review" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(
+      screen.getByRole("button", { name: "Apply changes locally" }),
+    ).toHaveProperty("disabled", true);
   });
 });

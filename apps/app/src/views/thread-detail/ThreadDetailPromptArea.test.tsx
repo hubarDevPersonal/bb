@@ -36,6 +36,7 @@ import {
   ThreadDetailPromptArea,
   type ThreadDetailSentMessageEdit,
 } from "./ThreadDetailPromptArea";
+import type { ThreadTaskActionsState } from "./useThreadTaskActions";
 
 const mocks = vi.hoisted(() => ({
   cancelThreadPlanMutate: vi.fn(),
@@ -591,6 +592,25 @@ function makeThread(
   } as ThreadWithRuntime;
 }
 
+function makeThreadTaskActions(
+  overrides: Partial<ThreadTaskActionsState> = {},
+): ThreadTaskActionsState {
+  return {
+    apply: vi.fn(),
+    canApply: false,
+    canReview: false,
+    conflictDialog: {
+      conflictedFiles: [],
+      onOpenChange: vi.fn(),
+      open: false,
+    },
+    pending: false,
+    review: vi.fn(),
+    stats: null,
+    ...overrides,
+  };
+}
+
 const activePlan = {
   mode: "plan",
   providerId: "codex",
@@ -667,11 +687,13 @@ interface RenderPromptAreaOptions {
   activePromptMode?: ThreadTimelineActivePromptMode | null;
   activeWorkflows?: TimelineWorkflowWorkRow[];
   goal?: ThreadTimelineGoal | null;
+  hasCompletedTurn?: boolean;
   modelFallback?: ThreadTimelineModelFallback | null;
   pendingInteractions?: readonly PendingInteraction[];
   childPendingInteractions?: readonly ChildThreadPendingAttention[];
   pendingInteractionsInitialLoading?: boolean;
   sentMessageEdit?: ThreadDetailSentMessageEdit;
+  taskActions?: ThreadTaskActionsState;
   thread?: ThreadWithRuntime;
 }
 
@@ -679,11 +701,13 @@ function buildPromptAreaElement({
   activePromptMode = null,
   activeWorkflows = [],
   goal = null,
+  hasCompletedTurn = false,
   modelFallback = null,
   pendingInteractions = [],
   childPendingInteractions = [],
   pendingInteractionsInitialLoading = false,
   sentMessageEdit,
+  taskActions = makeThreadTaskActions(),
   thread = makeThread(),
 }: RenderPromptAreaOptions = {}) {
   return (
@@ -699,6 +723,7 @@ function buildPromptAreaElement({
       contextBannerMergeBase={null}
       environmentGoneStatus={null}
       goal={goal}
+      hasCompletedTurn={hasCompletedTurn}
       modelFallback={modelFallback}
       isEnvironmentActionPending={false}
       onChangedFileClick={vi.fn()}
@@ -716,6 +741,7 @@ function buildPromptAreaElement({
       }}
       sentMessageEdit={sentMessageEdit}
       steerActiveThreadOnEnter={false}
+      taskActions={taskActions}
       thread={thread}
       workspaceChangedFilesSection={null}
       workspaceStatusPending={false}
