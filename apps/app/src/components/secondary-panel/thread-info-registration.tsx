@@ -1,5 +1,6 @@
 import {
   ThreadDiffFixedTabContent,
+  ThreadTaskDiffFixedTabContent,
   useThreadDiffVisible,
 } from "./git-diff/thread-diff-registration";
 import { createContext, useContext, type ReactNode } from "react";
@@ -34,6 +35,16 @@ export const coreTabs = collectPluginAppRegistrations(
       icon: "FileDiff",
       layout: "flush",
       component: ThreadDiffFixedTabContent,
+      useVisible: useThreadDiffVisible,
+    });
+    app.slots.experimental_tab({
+      context: { kind: "thread" },
+      availability: "fixed",
+      id: "task-diff",
+      title: "Task diff",
+      icon: "GitBranch",
+      layout: "flush",
+      component: ThreadTaskDiffFixedTabContent,
       useVisible: useThreadDiffVisible,
     });
   }),

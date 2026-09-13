@@ -1,4 +1,8 @@
-import { ThreadDiffContentContext } from "./git-diff/thread-diff-registration";
+import {
+  ThreadDiffContentContext,
+  ThreadTaskDiffContentContext,
+} from "./git-diff/thread-diff-registration";
+import { TaskDiffPanelContent } from "./git-diff/TaskDiffPanelContent";
 import { useThreadDiffContent } from "./git-diff/useThreadDiffContent";
 import { isGitDiffFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
 import { ThreadInfoContentContext } from "@/components/secondary-panel/thread-info-registration";
@@ -381,6 +385,25 @@ function ThreadSecondaryPanelContent({
     gitDiffDisplayMode,
     handleGitDiffDisplayModeChange,
   });
+  const renderTaskDiffContent = useCallback(
+    (threadId: string) => (
+      <TaskDiffPanelContent
+        threadId={threadId}
+        isPanelOpen={isLayoutOpen}
+        workspaceRootPath={workspaceRootPath}
+        onOpenFileInEditor={onOpenFileInEditor}
+        onOpenFilePreview={onOpenFilePreview}
+        onSelectionAddToChat={onSelectionAddToChat}
+      />
+    ),
+    [
+      isLayoutOpen,
+      onOpenFileInEditor,
+      onOpenFilePreview,
+      onSelectionAddToChat,
+      workspaceRootPath,
+    ],
+  );
   const isSecondaryPanelResizing = useAtomValue(
     threadSecondaryPanelResizingAtom,
   );
@@ -861,7 +884,11 @@ function ThreadSecondaryPanelContent({
               }
             >
               <ThreadDiffContentContext.Provider value={diffContent}>
-                {fixedSurfaceContent}
+                <ThreadTaskDiffContentContext.Provider
+                  value={renderTaskDiffContent}
+                >
+                  {fixedSurfaceContent}
+                </ThreadTaskDiffContentContext.Provider>
               </ThreadDiffContentContext.Provider>
             </div>
           ) : isLayoutOpen ? (

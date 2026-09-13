@@ -15,6 +15,7 @@ import type {
   ThreadResponse,
   ThreadSearchResponse,
   ThreadWithIncludesResponse,
+  ThreadTaskDiffResponse,
   ThreadTimelineResponse,
 } from "@bb/server-contract";
 import { useDebouncedValue } from "../useDebouncedValue";
@@ -56,6 +57,7 @@ import {
   threadPendingInteractionsQueryKey,
   threadQueryKey,
   threadSearchQueryKey,
+  threadTaskDiffQueryKey,
   threadTimelineQueryKey,
   threadsQueryKey,
 } from "./query-keys";
@@ -824,6 +826,25 @@ export function threadPendingInteractionsQueryOptions(
     ...(options?.staleTime === undefined
       ? {}
       : { staleTime: options.staleTime }),
+  });
+}
+
+export function useThreadTaskDiff(id: string, options?: QueryOptions) {
+  const enabled = (options?.enabled ?? true) && Boolean(id);
+  useThreadDetailRealtimeSubscription(id, { enabled });
+
+  return useQuery<ThreadTaskDiffResponse>({
+    queryKey: threadTaskDiffQueryKey(id),
+    queryFn: ({ signal }) =>
+      sdk.threads.taskDiff({
+        threadId: requireThreadId(id, "useThreadTaskDiff"),
+        signal,
+      }),
+    enabled,
+    staleTime: THREAD_DETAIL_STALE_TIME_MS,
+    refetchOnMount: options?.refetchOnMount ?? true,
+    retry: shouldRetryTransientReadQuery,
+    retryDelay: TRANSIENT_READ_RETRY_DELAY_MS,
   });
 }
 
