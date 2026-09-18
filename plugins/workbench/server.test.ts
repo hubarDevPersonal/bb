@@ -292,3 +292,111 @@ describe("workbench specs listing", () => {
     await host.harness.dispose();
   });
 });
+
+describe("workbench thread subagents", () => {
+  it("maps hidden child threads to subagent rows sorted by recency", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          list: async () => [
+            {
+              id: "thr_a",
+              title: "Investigate flaky test",
+              titleFallback: null,
+              updatedAt: 1000,
+              runtime: { displayStatus: "active" },
+            },
+            {
+              id: "thr_b",
+              title: null,
+              titleFallback: null,
+              updatedAt: 2000,
+              runtime: { displayStatus: "idle" },
+            },
+          ],
+        },
+      },
+    });
+    await plugin(host.bb);
+    const result = await host.harness.callRpc("threadSubagents", {
+      threadId: "thr_parent",
+    });
+    expect(result).toEqual({
+      subagents: [
+        {
+          id: "thr_b",
+          title: "Subagent thr_b",
+          status: "done",
+          updatedAt: new Date(2000).toISOString(),
+        },
+        {
+          id: "thr_a",
+          title: "Investigate flaky test",
+          status: "active",
+          updatedAt: new Date(1000).toISOString(),
+        },
+      ],
+    });
+    const listCalls = host.harness.sdk.callsTo("threads.list");
+    expect(listCalls[0]![0]).toMatchObject({
+      parentThreadId: "thr_parent",
+      includeHidden: true,
+    });
+    await host.harness.dispose();
+  });
+});
+
+describe("workbench thread outputs", () => {
+  it("returns created files, walking turn children and dropping merely-updated ones", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          get: async () => ({ environmentId: "env_1" }),
+          timeline: async () => ({
+            rows: [
+              {
+                kind: "turn",
+                children: [
+                  {
+                    kind: "work",
+                    workKind: "file-change",
+                    change: { path: "src/a.ts", kind: "add" },
+                  },
+                ],
+              },
+              {
+                kind: "work",
+                workKind: "file-change",
+                change: { path: "src/b.ts", kind: "update" },
+              },
+            ],
+            timelinePage: { hasOlderRows: false, olderCursor: null },
+          }),
+        },
+      },
+    });
+    await plugin(host.bb);
+    const result = await host.harness.callRpc("threadOutputs", {
+      threadId: "thr_1",
+    });
+    expect(result).toEqual({
+      outputs: [{ path: "src/a.ts", environmentId: "env_1" }],
+    });
+    await host.harness.dispose();
+  });
+
+  it("returns no outputs when the thread has no environment", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: { threads: { get: async () => ({ environmentId: null }) } },
+    });
+    await plugin(host.bb);
+    const result = await host.harness.callRpc("threadOutputs", {
+      threadId: "thr_1",
+    });
+    expect(result).toEqual({ outputs: [] });
+    await host.harness.dispose();
+  });
+});
