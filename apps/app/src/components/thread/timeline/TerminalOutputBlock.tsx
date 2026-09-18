@@ -111,7 +111,7 @@ export function TerminalOutputBlock({
   });
 
   return (
-    <div className="overflow-hidden rounded-lg bg-surface-raised-solid">
+    <div className="overflow-hidden rounded-lg border border-border-seam bg-surface-raised-solid">
       <div className="px-4 py-3 font-mono text-xs leading-tight text-foreground opacity-70">
         {commandLine ? (
           <div

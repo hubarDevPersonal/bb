@@ -157,6 +157,17 @@ semantic** tokens; the rest derive.
 | `--diff-added`, `--diff-removed`                        | added/removed line colors in diffs                                                       |
 | `--pr-merged`                                           | merged-PR purple (the universal merged color)                                            |
 
+**Identity — six fixed hues for avatars/labels (`bg-palette-*`, `text-palette-*`); set only if you want distinct hues, otherwise built-in palettes alias them to existing semantic tokens:**
+
+| token | drives | default alias |
+|---|---|---|
+| `--palette-blue` | identity color (avatars, labels) | `= --ansi-4` |
+| `--palette-green` | identity color (avatars, labels) | `= --success` |
+| `--palette-orange` | identity color (avatars, labels) | `= --warning` |
+| `--palette-purple` | identity color (avatars, labels) | `= --pr-merged` |
+| `--palette-yellow` | identity color (avatars, labels) | `= --attention` |
+| `--palette-pink` | identity color (avatars, labels) | `= --ansi-13` |
+
 **Terminal — set only if remapping:** `--ansi-0` … `--ansi-15` (the 16 ANSI
 colors) and `--ansi-bg-fg-0` … `--ansi-bg-fg-15` (the readable text drawn on each
 ANSI color when used as a background).

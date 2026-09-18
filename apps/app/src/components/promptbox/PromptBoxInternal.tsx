@@ -3149,7 +3149,7 @@ export function PromptBoxInternal({
         emitAttachmentFiles(Array.from(event.dataTransfer.files));
       }}
       className={cn(
-        "group/promptbox relative w-full rounded-xl bg-surface-raised-solid shadow-lift",
+        "group/promptbox relative w-full rounded-xl border border-border-seam bg-surface-raised-solid shadow-lift",
         showCompactLayout && "overflow-hidden",
       )}
     >
