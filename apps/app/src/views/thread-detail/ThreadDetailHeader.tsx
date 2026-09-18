@@ -47,7 +47,7 @@ import type { ThreadTaskActionsState } from "./useThreadTaskActions";
 
 const THREAD_HEADER_ACTION_BUTTON_CLASS = cn(
   COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS,
-  "border-border/70 bg-transparent font-normal hover:bg-state-hover",
+  "border-transparent bg-transparent font-normal hover:bg-state-hover",
 );
 const NARROW_SPLIT_HEADER_MAX_WIDTH = 560;
 
@@ -261,9 +261,12 @@ export function ThreadDetailHeader({
           <span className="inline-flex" data-thread-header-responsive-action="">
             <Button
               type="button"
-              variant="outline"
+              variant="default"
               size="sm"
-              className={THREAD_HEADER_ACTION_BUTTON_CLASS}
+              className={cn(
+                COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS,
+                "border-transparent bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
+              )}
               disabled={taskActions.pending}
               onClick={taskActions.apply}
             >

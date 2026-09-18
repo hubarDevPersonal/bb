@@ -326,7 +326,7 @@ function MobileRecentThreadRow({
       className={cn(
         "flex items-center gap-2.5 rounded-md pr-2",
         MOBILE_RECENT_ROW_HEIGHT_CLASS,
-        highlighted && "bg-surface-selected",
+        highlighted && "bg-state-active",
       )}
     >
       {hasChildren ? (

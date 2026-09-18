@@ -727,7 +727,6 @@ const Sidebar = React.forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
             "fixed inset-y-0 z-10 flex h-(--bb-shell-height) w-(--sidebar-width) select-none flex-col bg-sidebar text-sidebar-foreground [transition:left_200ms_linear,right_200ms_linear,width_200ms_linear,visibility_0s_linear_0s]",
             "group-data-[collapsible=offcanvas]:invisible group-data-[collapsible=offcanvas]:[transition:left_200ms_linear,right_200ms_linear,width_200ms_linear,visibility_0s_linear_200ms]",
             "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]",
-            "border-border-seam group-data-[side=left]:border-r",
             className,
           )}
           style={{ ...widthStyle, ...style }}

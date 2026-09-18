@@ -80,7 +80,7 @@ function TaskDiffMessage({
           className={
             tone === "destructive"
               ? "rounded-lg border border-surface-destructive-border bg-surface-destructive px-3 py-2 text-xs text-destructive"
-              : "rounded-lg border border-border bg-surface-raised px-3 py-2 text-xs text-muted-foreground"
+              : "rounded-lg bg-surface-raised px-3 py-2 text-xs text-muted-foreground"
           }
         >
           <p>{children}</p>
