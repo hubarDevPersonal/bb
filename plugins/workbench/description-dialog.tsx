@@ -65,6 +65,7 @@ export function DescriptionDialogView({
             type="button"
             size="sm"
             disabled={!canSubmit}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={onSubmit}
           >
             {submitting ? "Sending…" : submitLabel}
