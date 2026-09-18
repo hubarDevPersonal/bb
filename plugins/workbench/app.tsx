@@ -10,6 +10,7 @@ import {
   definePluginApp,
   useBbNavigate,
   useComposerView,
+  useRealtime,
   useRealtimeConnectionState,
   useRpc,
   type PluginNavPanelProps,
@@ -29,6 +30,10 @@ import {
   type DescriptionDialogViewProps,
 } from "./description-dialog.js";
 import { GOAL_MAX_TASKS_DEFAULT, GoalDialogView } from "./goal-dialog.js";
+import {
+  WORKBENCH_SUBAGENTS_REALTIME_CHANNEL,
+  workbenchSubagentsSignalParentThreadId,
+} from "./realtime-channel.js";
 import {
   ModelRoutingSectionView,
   type ModelOption,
@@ -700,6 +705,12 @@ function useSubagentsList(threadId: string): {
     };
   }, [refresh]);
 
+  useRealtime(WORKBENCH_SUBAGENTS_REALTIME_CHANNEL, (payload) => {
+    if (workbenchSubagentsSignalParentThreadId(payload) === threadId) {
+      void refresh();
+    }
+  });
+
   const shouldPoll =
     state.status === "error" ||
     (state.status === "ready" &&
@@ -754,6 +765,12 @@ function useSubagentsPanelData(threadId: string): {
     };
   }, [refresh]);
 
+  useRealtime(WORKBENCH_SUBAGENTS_REALTIME_CHANNEL, (payload) => {
+    if (workbenchSubagentsSignalParentThreadId(payload) === threadId) {
+      void refresh();
+    }
+  });
+
   const shouldPoll =
     state.status === "error" ||
     (state.status === "ready" &&
@@ -785,11 +802,7 @@ function SubagentsThreadPanel({ threadId }: PluginThreadPanelProps) {
       onSelectSubagent={(id) => navigate.toThread(id)}
       onSelectOutput={(output) =>
         navigate.experimental_openFilePreview({
-          target: {
-            kind: "workspace",
-            environmentId: output.environmentId,
-            path: output.path,
-          },
+          target: output,
           location: null,
         })
       }

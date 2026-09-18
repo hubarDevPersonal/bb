@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   extractCreatedFilePaths,
+  flattenFileChangeRows,
+  isAbsoluteOutputPath,
   subagentStatus,
   subagentTitle,
+  type TimelineRow,
 } from "./subagents-data.js";
 
 describe("subagentStatus", () => {
@@ -82,5 +85,36 @@ describe("extractCreatedFilePaths", () => {
         { path: "f.ts", kind: "add" },
       ]),
     ).toEqual(["e.ts", "f.ts"]);
+  });
+});
+
+describe("flattenFileChangeRows", () => {
+  it("recurses into a delegation row's childRows for nested file changes", () => {
+    const rows = [
+      {
+        kind: "work",
+        workKind: "delegation",
+        childRows: [
+          {
+            kind: "work",
+            workKind: "file-change",
+            change: { path: "nested.ts", kind: "add" },
+          },
+        ],
+      },
+    ] as unknown as TimelineRow[];
+    expect(flattenFileChangeRows(rows)).toEqual([
+      { path: "nested.ts", kind: "add" },
+    ]);
+  });
+});
+
+describe("isAbsoluteOutputPath", () => {
+  it("treats a leading slash as an absolute host path", () => {
+    expect(isAbsoluteOutputPath("/tmp/out.txt")).toBe(true);
+  });
+
+  it("treats a plain path as workspace-relative", () => {
+    expect(isAbsoluteOutputPath("src/a.ts")).toBe(false);
   });
 });
