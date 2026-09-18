@@ -230,6 +230,11 @@ export const BUILTIN_PLUGINS = [
     pluginId: "bb--composer",
     defaultEnabled: true,
   },
+  {
+    name: "workbench",
+    pluginId: "workbench",
+    defaultEnabled: true,
+  },
 ].map((plugin): BundledPluginDefinition => ({
   ...plugin,
   autoInstall: true,
