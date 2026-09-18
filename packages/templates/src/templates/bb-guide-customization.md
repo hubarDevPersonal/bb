@@ -24,12 +24,12 @@ bb theme list Built-in and custom themes; shows the active one
 bb theme dir Print the custom-theme directory (where to author)
 bb theme set <id> [--favicon-color <color>]
 Activate a theme (built-ins: default, nord,
-dracula, solarized, gruvbox, catppuccin, codex),
+dracula, solarized, gruvbox, catppuccin, codex-desktop),
 preserving the favicon color unless the flag
 supplies the complete selection
 bb theme show [id] [--css] Print the active palette, or resolve <id> without
 activating it; --css dumps the CSS
-bb theme reset Back to the default theme (codex); preserve favicon color
+bb theme reset Back to the default theme (codex-desktop); preserve favicon color
 bb theme favicon set <color> Set favicon color; preserve the active theme
 bb theme favicon reset Reset favicon color; preserve the active theme
 
