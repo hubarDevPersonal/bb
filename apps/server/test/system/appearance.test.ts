@@ -113,10 +113,9 @@ describe("appearance settings", () => {
       const config = systemConfigResponseSchema.parse(
         await readJson(await harness.app.request("/api/v1/system/config")),
       );
-      expect(config.appearance).toEqual({
-        ...defaultAppTheme,
-        faviconColor: "teal",
-      });
+      expect(config.appearance).toEqual(
+        appearanceForPalette("default", { faviconColor: "teal" }),
+      );
     });
   });
 

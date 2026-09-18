@@ -853,6 +853,7 @@ const Sidebar = React.forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
             data-sidebar="desktop-content"
             className={cn(
               "flex h-full min-w-(--sidebar-width) w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
+              "border-border-seam group-data-[side=left]:border-r group-data-[side=right]:border-l",
               className,
             )}
             style={{ ...widthStyle, opacity: initialDesktopProgress }}
