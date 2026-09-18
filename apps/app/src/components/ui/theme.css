@@ -58,6 +58,12 @@
    * dots, matching the universal merged-PR color language. */
   --color-pr-merged: var(--pr-merged);
   --color-diff-removed: var(--diff-removed);
+  --color-palette-blue: var(--palette-blue);
+  --color-palette-green: var(--palette-green);
+  --color-palette-orange: var(--palette-orange);
+  --color-palette-purple: var(--palette-purple);
+  --color-palette-yellow: var(--palette-yellow);
+  --color-palette-pink: var(--palette-pink);
   --color-border: var(--border);
   --color-border-hairline: var(--border-hairline);
   --color-border-seam: var(--border-seam);
@@ -495,6 +501,12 @@
   --diff-added: oklch(0.4 0.13 163);
   --pr-merged: oklch(0.53 0.2 295);
   --diff-removed: oklch(0.4 0.17 28);
+  --palette-blue: var(--ansi-4);
+  --palette-green: var(--success);
+  --palette-orange: var(--warning);
+  --palette-purple: var(--pr-merged);
+  --palette-yellow: var(--attention);
+  --palette-pink: var(--ansi-13);
   --border: color-mix(in oklch, var(--ink) 14%, var(--canvas));
   --border-hairline: color-mix(in oklch, var(--ink) 14.7%, var(--canvas));
   /* One app-shell seam for top nav, sidebar, split, and panel boundaries. */
@@ -741,6 +753,12 @@
   --diff-added: oklch(0.77 0.17 163);
   --diff-removed: oklch(0.72 0.19 22);
   --pr-merged: oklch(0.68 0.18 295);
+  --palette-blue: var(--ansi-4);
+  --palette-green: var(--success);
+  --palette-orange: var(--warning);
+  --palette-purple: var(--pr-merged);
+  --palette-yellow: var(--attention);
+  --palette-pink: var(--ansi-13);
   --border: color-mix(in oklch, var(--ink) 19.4%, var(--canvas));
   --border-hairline: color-mix(in oklch, var(--ink) 21%, var(--canvas));
   /* One app-shell seam for top nav, sidebar, split, and panel boundaries. */
