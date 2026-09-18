@@ -72,6 +72,10 @@ export function flattenFileChangeRows(
     }
     if (row.kind === "work" && row.workKind === "file-change") {
       changes.push({ path: row.change.path, kind: row.change.kind });
+      continue;
+    }
+    if (row.kind === "work" && row.workKind === "delegation") {
+      changes.push(...flattenFileChangeRows(row.childRows));
     }
   }
   return changes;
@@ -94,4 +98,8 @@ export function extractCreatedFilePaths(
     }
   }
   return created;
+}
+
+export function isAbsoluteOutputPath(path: string): boolean {
+  return path.startsWith("/");
 }

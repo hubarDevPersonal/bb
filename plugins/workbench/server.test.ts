@@ -1,5 +1,9 @@
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import {
+  createFakePluginHost,
+  makeThreadResponse,
+} from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
+import { WORKBENCH_SUBAGENTS_REALTIME_CHANNEL } from "./realtime-channel.js";
 import plugin from "./server.js";
 
 function threadRecord(environmentId: string | null) {
@@ -478,7 +482,9 @@ describe("workbench thread outputs", () => {
       threadId: "thr_1",
     });
     expect(result).toEqual({
-      outputs: [{ path: "src/a.ts", environmentId: "env_1" }],
+      outputs: [
+        { kind: "workspace", path: "src/a.ts", environmentId: "env_1" },
+      ],
     });
     await host.harness.dispose();
   });
@@ -493,6 +499,161 @@ describe("workbench thread outputs", () => {
       threadId: "thr_1",
     });
     expect(result).toEqual({ outputs: [] });
+    await host.harness.dispose();
+  });
+
+  it("descends into a delegation row's childRows to find a subagent's created file", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          get: async () => ({ environmentId: "env_1" }),
+          timeline: async () => ({
+            rows: [
+              {
+                kind: "work",
+                workKind: "delegation",
+                childRows: [
+                  {
+                    kind: "work",
+                    workKind: "file-change",
+                    change: { path: "src/nested.ts", kind: "add" },
+                  },
+                ],
+              },
+            ],
+            timelinePage: { hasOlderRows: false, olderCursor: null },
+          }),
+        },
+      },
+    });
+    await plugin(host.bb);
+    const result = await host.harness.callRpc("threadOutputs", {
+      threadId: "thr_1",
+    });
+    expect(result).toEqual({
+      outputs: [
+        { kind: "workspace", path: "src/nested.ts", environmentId: "env_1" },
+      ],
+    });
+    await host.harness.dispose();
+  });
+
+  it("targets a host file for a path outside the workspace", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          get: async () => ({ environmentId: "env_1" }),
+          timeline: async () => ({
+            rows: [
+              {
+                kind: "work",
+                workKind: "file-change",
+                change: { path: "/tmp/out.txt", kind: "add" },
+              },
+            ],
+            timelinePage: { hasOlderRows: false, olderCursor: null },
+          }),
+        },
+        environments: {
+          get: async () => ({ hostId: "host_1" }),
+        },
+      },
+    });
+    await plugin(host.bb);
+    const result = await host.harness.callRpc("threadOutputs", {
+      threadId: "thr_1",
+    });
+    expect(result).toEqual({
+      outputs: [{ kind: "host", path: "/tmp/out.txt", hostId: "host_1" }],
+    });
+    await host.harness.dispose();
+  });
+
+  it("pages through the timeline newest-first, dropping a delete on a newer page against an add on an older page", async () => {
+    const timelineCalls: unknown[] = [];
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          get: async () => ({ environmentId: "env_1" }),
+          timeline: async (args: unknown) => {
+            timelineCalls.push(args);
+            const { beforeAnchorSeq } = args as {
+              beforeAnchorSeq?: string;
+            };
+            if (beforeAnchorSeq === undefined) {
+              return {
+                rows: [
+                  {
+                    kind: "work",
+                    workKind: "file-change",
+                    change: { path: "src/same.ts", kind: "delete" },
+                  },
+                ],
+                timelinePage: {
+                  hasOlderRows: true,
+                  olderCursor: { anchorSeq: 2, anchorId: "row_2" },
+                },
+              };
+            }
+            if (beforeAnchorSeq === "2") {
+              return {
+                rows: [
+                  {
+                    kind: "work",
+                    workKind: "file-change",
+                    change: { path: "src/same.ts", kind: "add" },
+                  },
+                  {
+                    kind: "work",
+                    workKind: "file-change",
+                    change: { path: "src/keep.ts", kind: "add" },
+                  },
+                ],
+                timelinePage: {
+                  hasOlderRows: true,
+                  olderCursor: { anchorSeq: 1, anchorId: "row_1" },
+                },
+              };
+            }
+            return {
+              rows: [
+                {
+                  kind: "work",
+                  workKind: "file-change",
+                  change: { path: "src/late.ts", kind: "add" },
+                },
+              ],
+              timelinePage: {
+                hasOlderRows: true,
+                olderCursor: { anchorSeq: 0, anchorId: "row_0" },
+              },
+            };
+          },
+        },
+      },
+    });
+    await plugin(host.bb);
+    const result = await host.harness.callRpc("threadOutputs", {
+      threadId: "thr_1",
+    });
+    expect(result).toEqual({
+      outputs: [
+        { kind: "workspace", path: "src/keep.ts", environmentId: "env_1" },
+        { kind: "workspace", path: "src/late.ts", environmentId: "env_1" },
+      ],
+    });
+    expect(timelineCalls).toHaveLength(3);
+    expect(timelineCalls[1]).toMatchObject({
+      beforeAnchorSeq: "2",
+      beforeAnchorId: "row_2",
+    });
+    expect(timelineCalls[2]).toMatchObject({
+      beforeAnchorSeq: "1",
+      beforeAnchorId: "row_1",
+    });
     await host.harness.dispose();
   });
 });
@@ -597,6 +758,8 @@ describe("workbench CLI", () => {
     expect(cli.commands.map((command) => command.name)).toEqual([
       "routing",
       "orchestrated",
+      "subagents",
+      "outputs",
     ]);
     await host.harness.dispose();
   });
@@ -706,6 +869,137 @@ describe("workbench CLI", () => {
     if (cli === null) throw new Error("expected a cli registration");
     const result = await cli.run(["bogus"], {});
     expect(result.exitCode).toBe(1);
+    await host.harness.dispose();
+  });
+
+  it("subagents prints status, title, id, and updatedAt for each child thread", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          list: async () => [
+            {
+              id: "thr_a",
+              title: "Investigate flaky test",
+              titleFallback: null,
+              updatedAt: 1000,
+              runtime: { displayStatus: "active" },
+            },
+          ],
+        },
+      },
+    });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    await expect(cli.run(["subagents", "thr_parent"], {})).resolves.toEqual({
+      exitCode: 0,
+      stdout: `active\tInvestigate flaky test\tthr_a\t${new Date(1000).toISOString()}`,
+    });
+    await host.harness.dispose();
+  });
+
+  it("subagents requires a threadId argument", async () => {
+    const host = createFakePluginHost({ pluginId: "workbench" });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    const result = await cli.run(["subagents"], {});
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Usage: bb workbench subagents");
+    await host.harness.dispose();
+  });
+
+  it("outputs prints created file paths", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          get: async () => ({ environmentId: "env_1" }),
+          timeline: async () => ({
+            rows: [
+              {
+                kind: "work",
+                workKind: "file-change",
+                change: { path: "src/a.ts", kind: "add" },
+              },
+            ],
+            timelinePage: { hasOlderRows: false, olderCursor: null },
+          }),
+        },
+      },
+    });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    await expect(cli.run(["outputs", "thr_1"], {})).resolves.toEqual({
+      exitCode: 0,
+      stdout: "src/a.ts",
+    });
+    await host.harness.dispose();
+  });
+
+  it("outputs requires a threadId argument", async () => {
+    const host = createFakePluginHost({ pluginId: "workbench" });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    const result = await cli.run(["outputs"], {});
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Usage: bb workbench outputs");
+    await host.harness.dispose();
+  });
+});
+
+describe("workbench subagents realtime signal", () => {
+  it("publishes the parent thread id when a child thread changes lifecycle state", async () => {
+    const host = createFakePluginHost({ pluginId: "workbench" });
+    await plugin(host.bb);
+    await host.harness.emitThreadEvent("thread.created", {
+      thread: makeThreadResponse({
+        id: "thr_child",
+        parentThreadId: "thr_parent",
+      }),
+    });
+    expect(host.harness.realtimeSignals).toEqual([
+      {
+        channel: WORKBENCH_SUBAGENTS_REALTIME_CHANNEL,
+        payload: { parentThreadId: "thr_parent" },
+      },
+    ]);
+    await host.harness.dispose();
+  });
+
+  it("does not publish for a top-level thread's created/active/failed events", async () => {
+    const host = createFakePluginHost({ pluginId: "workbench" });
+    await plugin(host.bb);
+    await host.harness.emitThreadEvent("thread.created", {
+      thread: makeThreadResponse({ id: "thr_top", parentThreadId: null }),
+    });
+    await host.harness.emitThreadEvent("thread.active", {
+      thread: makeThreadResponse({ id: "thr_top", parentThreadId: null }),
+    });
+    await host.harness.emitThreadEvent("thread.failed", {
+      thread: makeThreadResponse({ id: "thr_top", parentThreadId: null }),
+      error: null,
+    });
+    expect(host.harness.realtimeSignals).toEqual([]);
+    await host.harness.dispose();
+  });
+
+  it("publishes its own id when a top-level thread goes idle, to refresh its Outputs", async () => {
+    const host = createFakePluginHost({ pluginId: "workbench" });
+    await plugin(host.bb);
+    await host.harness.emitThreadEvent("thread.idle", {
+      thread: makeThreadResponse({ id: "thr_top", parentThreadId: null }),
+      lastAssistantText: null,
+    });
+    expect(host.harness.realtimeSignals).toEqual([
+      {
+        channel: WORKBENCH_SUBAGENTS_REALTIME_CHANNEL,
+        payload: { parentThreadId: "thr_top" },
+      },
+    ]);
     await host.harness.dispose();
   });
 });

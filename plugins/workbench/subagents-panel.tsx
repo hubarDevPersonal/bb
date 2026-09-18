@@ -56,10 +56,9 @@ export interface SubagentRowView {
   updatedAt: string;
 }
 
-export interface SubagentOutputView {
-  path: string;
-  environmentId: string;
-}
+export type SubagentOutputView =
+  | { kind: "workspace"; path: string; environmentId: string }
+  | { kind: "host"; path: string; hostId: string };
 
 function SubagentAvatar({
   name,

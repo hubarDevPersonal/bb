@@ -64,10 +64,10 @@ export function GoalDialogView({
               className="min-h-24 resize-y bg-background text-sm"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label
               htmlFor="workbench-goal-max-tasks"
-              className="text-xs font-medium text-subtle-foreground"
+              className="block text-xs font-medium text-subtle-foreground"
             >
               Max tasks
             </label>
