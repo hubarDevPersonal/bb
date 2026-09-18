@@ -111,7 +111,7 @@ export function TerminalOutputBlock({
   });
 
   return (
-    <div className="overflow-hidden rounded-lg bg-surface-raised">
+    <div className="overflow-hidden rounded-lg bg-surface-raised-solid">
       <div className="px-4 py-3 font-mono text-xs leading-tight text-foreground opacity-70">
         {commandLine ? (
           <div
@@ -135,6 +135,7 @@ export function TerminalOutputBlock({
             contentKey={outputContentKey}
             className="mt-1.5"
             scrollClassName="whitespace-pre leading-tight text-muted-foreground"
+            fadeFromClassName="from-surface-raised-solid"
           >
             <div dangerouslySetInnerHTML={{ __html: renderedOutputHtml }} />
           </TimelineDetailScroll>

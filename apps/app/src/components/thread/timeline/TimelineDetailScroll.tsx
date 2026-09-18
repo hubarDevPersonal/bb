@@ -20,6 +20,7 @@ interface TimelineDetailScrollProps {
   className?: string;
   scrollClassName?: string;
   showAboveFade?: boolean;
+  fadeFromClassName: string;
   children: ReactNode;
 }
 
@@ -31,6 +32,7 @@ export function TimelineDetailScroll({
   className,
   scrollClassName,
   showAboveFade = true,
+  fadeFromClassName,
   children,
 }: TimelineDetailScrollProps) {
   const sticky = useStickyBottomScroll<HTMLDivElement>({
@@ -92,14 +94,20 @@ export function TimelineDetailScroll({
         <div
           aria-hidden
           data-detail-scroll-fade="above"
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-gradient-to-b from-background to-transparent"
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-gradient-to-b to-transparent",
+            fadeFromClassName,
+          )}
         />
       ) : null}
       {belowOverflow ? (
         <div
           aria-hidden
           data-detail-scroll-fade="below"
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6 bg-gradient-to-t from-background to-transparent"
+          className={cn(
+            "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6 bg-gradient-to-t to-transparent",
+            fadeFromClassName,
+          )}
         />
       ) : null}
     </div>

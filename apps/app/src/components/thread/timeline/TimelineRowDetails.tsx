@@ -242,6 +242,7 @@ export function WorkRowBody({
               size="base"
               contentKey={row.stderr}
               className="rounded-md"
+              fadeFromClassName="from-background"
             >
               <EventCodeBlock
                 tone="danger"
