@@ -113,7 +113,7 @@ function QuestionOptionRow({
       onClick={onSelect}
       className={cn(
         "flex w-full items-start gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors",
-        checked ? "bg-surface-selected" : "hover:bg-state-hover",
+        checked ? "bg-state-active" : "hover:bg-state-hover",
       )}
     >
       <span

@@ -1123,7 +1123,7 @@ function TimelineSystemDetailBlock({
       size="base"
       streaming={streaming}
       contentKey={detail}
-      className="overflow-hidden rounded-lg border border-border bg-card"
+      className="overflow-hidden rounded-lg bg-surface-raised"
     >
       <pre className="whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs leading-tight text-subtle-foreground opacity-70">
         {detail}

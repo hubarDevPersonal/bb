@@ -2942,7 +2942,7 @@ export function PromptBoxInternal({
         emitAttachmentFiles(Array.from(event.dataTransfer.files));
       }}
       className={cn(
-        "group/promptbox relative w-full rounded-xl border border-border bg-background shadow-lift",
+        "group/promptbox relative w-full rounded-xl bg-surface-raised-solid shadow-lift",
         showCompactLayout && "overflow-hidden",
         className,
       )}
@@ -3228,7 +3228,7 @@ export function PromptBoxInternal({
                                 "ml-1",
                                 COARSE_POINTER_PROMPT_ACTION_BUTTON_CLASS,
                               ],
-                          "transition-colors",
+                          "rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors",
                         )}
                         disabledReason={
                           !canSubmit ? submitDisabledReason : undefined

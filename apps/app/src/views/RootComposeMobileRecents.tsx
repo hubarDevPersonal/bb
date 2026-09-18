@@ -126,7 +126,7 @@ function MobileRecentThreadRow({
         aria-label={`Open ${threadTitle}${indicatorLabel ? ` — ${indicatorLabel}` : ""}`}
         className={cn(
           "flex h-8 items-center gap-2 rounded-md px-2 text-sm text-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-          highlighted && "bg-surface-selected",
+          highlighted && "bg-state-active",
         )}
       >
         <span className="flex min-w-0 flex-1 items-baseline gap-2">
