@@ -1067,6 +1067,24 @@ The builtin Workflows plugin is disabled on fresh installations
 The settings other than `maxActiveRuns` are snapshotted into each new run. See
 the `workflows` skill.
 
+### Workbench plugin
+
+The builtin Workbench plugin adds composer shortcuts (spec check, task,
+bugfix, goal) and a nav panel for model routing, orchestrated mode, and spec
+file shortcuts. Model routing reads and writes the `model:` frontmatter key in
+each role's `~/.claude/agents/<role>.md` on the connected host, from the
+catalog of the provider whose models include a role's current value, or the
+first available provider otherwise. The "Orchestrated mode" setting
+(`orchestratedMode`) asks agents to delegate reconnaissance, implementation,
+and review to the `scout`, `implementer`, and `reviewer` subagents on new
+sessions; it defaults to off. Configure it from the CLI:
+
+```bash
+bb workbench routing
+bb workbench routing set <role> <model>
+bb workbench orchestrated <on|off>
+```
+
 ### Thread list plugin
 
 The bundled Thread list plugin owns the sidebar thread list layout, synced to

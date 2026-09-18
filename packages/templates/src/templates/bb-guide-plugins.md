@@ -16,6 +16,20 @@ Official store plugins ship with the app and install on request; third-party
 plugins come from marketplaces, Git, npm, or a local path. Plugin state lives
 under `<bb-data-dir>/plugins/<id>/` (SQLite database, secrets, logs).
 
+The builtin Workbench plugin adds composer shortcuts (spec check, task,
+bugfix, goal) and a nav panel for model routing, orchestrated mode, and spec
+file shortcuts. Its "Orchestrated mode" setting asks agents to delegate
+reconnaissance, implementation, and review to the `scout`, `implementer`, and
+`reviewer` subagents on new sessions. Model routing reads and writes the
+`model:` frontmatter key in each role's `~/.claude/agents/<role>.md` on the
+host. The CLI equivalents are:
+
+```
+bb workbench routing
+bb workbench routing set <role> <model>
+bb workbench orchestrated <on|off>
+```
+
   bb plugin search <query>       Search the store: the bundled official
                                  plugins plus every registered marketplace.
                                  Matches id, name, description, category, or

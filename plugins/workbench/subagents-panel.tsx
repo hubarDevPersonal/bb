@@ -249,7 +249,7 @@ export function SubagentsDoneCardView({
             <span
               key={`${name}-${index}`}
               className={cn(
-                "rounded-full ring-2 ring-background",
+                "rounded-full ring-2 ring-surface-raised-solid",
                 index > 0 && "-ml-1.5",
               )}
             >

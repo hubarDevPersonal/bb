@@ -17,6 +17,11 @@ export interface ModelOption {
   displayName: string;
 }
 
+export interface ProviderOption {
+  id: string;
+  name: string;
+}
+
 export const ROUTING_ROLE_LABELS: Readonly<Record<RoutingRoleId, string>> = {
   scout: "Scout",
   implementer: "Implementer",
@@ -101,25 +106,53 @@ function ModelRoutingRow({
 export interface ModelRoutingSectionViewProps {
   rows: Readonly<Record<RoutingRoleId, RoutingRowView>>;
   models: readonly ModelOption[];
+  providers: readonly ProviderOption[];
+  providerId: string | null;
   providerName: string | null;
   savingRole: RoutingRoleId | null;
   hostAvailable: boolean;
   onSave: (role: RoutingRoleId, model: string) => void;
+  onProviderChange: (providerId: string) => void;
 }
 
 export function ModelRoutingSectionView({
   rows,
   models,
+  providers,
+  providerId,
   providerName,
   savingRole,
   hostAvailable,
   onSave,
+  onProviderChange,
 }: ModelRoutingSectionViewProps) {
   return (
     <div className="space-y-1">
-      <h3 className="px-2 text-xs font-medium text-subtle-foreground">
-        Model routing
-      </h3>
+      <div className="flex items-center justify-between gap-2 px-2">
+        <h3 className="text-xs font-medium text-subtle-foreground">
+          Model routing
+        </h3>
+        {providers.length > 1 ? (
+          <Select
+            value={providerId ?? undefined}
+            onValueChange={onProviderChange}
+          >
+            <SelectTrigger
+              aria-label="Provider"
+              className="h-6 w-auto min-w-0 gap-1 border-none bg-transparent px-1 text-xs text-subtle-foreground"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {providers.map((provider) => (
+                <SelectItem key={provider.id} value={provider.id}>
+                  {provider.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+      </div>
       <div className="rounded-md bg-surface-raised">
         {(Object.keys(rows) as RoutingRoleId[]).map((role) => (
           <ModelRoutingRow
