@@ -57,8 +57,8 @@ function CollapsibleHeader({ toolName, argEntries }: CollapsibleHeaderProps) {
         ))}
         {overflows && !expanded ? (
           <ConversationMessageInlineOverflowToggle
-            buttonBackgroundClassName="bg-card"
-            fadeFromClassName="from-card"
+            buttonBackgroundClassName="bg-surface-raised-solid"
+            fadeFromClassName="from-surface-raised-solid"
             label="Show more"
             onToggle={() => setExpanded(true)}
           />
@@ -90,12 +90,13 @@ export function ToolCallDetailBlock({
   const hasOutput = output.trim().length > 0;
 
   return (
-    <div className="overflow-hidden rounded-lg bg-surface-raised">
+    <div className="overflow-hidden rounded-lg bg-surface-raised-solid">
       <TimelineDetailScroll
         size="base"
         overflowX="hidden"
         streaming={streaming}
         scrollClassName="px-4 py-3 font-mono text-xs leading-tight text-foreground opacity-70"
+        fadeFromClassName="from-surface-raised-solid"
       >
         <CollapsibleHeader toolName={toolName} argEntries={argEntries} />
         {hasOutput ? (

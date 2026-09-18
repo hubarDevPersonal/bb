@@ -234,7 +234,11 @@ export function WorkRowBody({
       return (
         <div className="space-y-2">
           {row.stderr ? (
-            <TimelineDetailScroll size="base" className="rounded-md">
+            <TimelineDetailScroll
+              size="base"
+              className="rounded-md"
+              fadeFromClassName="from-background"
+            >
               <EventCodeBlock
                 tone="danger"
                 className="rounded-none border-0 px-2 py-1.5"

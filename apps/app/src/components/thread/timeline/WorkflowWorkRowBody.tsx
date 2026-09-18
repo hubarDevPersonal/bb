@@ -26,6 +26,7 @@ export function WorkflowWorkRowBody({
       size={size}
       streaming={collapsiblePhases ? false : row.status === "pending"}
       scrollClassName={collapsiblePhases ? "px-2.5 py-2" : undefined}
+      fadeFromClassName="from-background"
     >
       <WorkflowProgress
         progress={row.workflow}
