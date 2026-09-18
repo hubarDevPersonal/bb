@@ -191,6 +191,8 @@ host. The CLI equivalents are:
 bb workbench routing
 bb workbench routing set <role> <model>
 bb workbench orchestrated <on|off>
+bb workbench subagents <threadId>
+bb workbench outputs <threadId>
 ```
 
 The Memory plugin is an opt-in install, bundled with the app:
