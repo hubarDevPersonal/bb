@@ -57,7 +57,7 @@ import { PaneMaximizeButton } from "./PaneMaximizeButton";
 
 const THREAD_HEADER_ACTION_BUTTON_CLASS = cn(
   COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS,
-  "border-border/70 bg-transparent font-normal hover:bg-state-hover",
+  "border-transparent bg-transparent font-normal hover:bg-state-hover",
 );
 const NARROW_SPLIT_HEADER_MAX_WIDTH = 560;
 
