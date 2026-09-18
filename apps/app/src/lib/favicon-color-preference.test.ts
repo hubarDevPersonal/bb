@@ -57,7 +57,7 @@ describe("favicon color server sync", () => {
 
     await waitFor(() =>
       expect(mocks.updateAppearance).toHaveBeenCalledWith({
-        themeId: "default",
+        themeId: defaultAppTheme.themeId,
         faviconColor: "teal",
       }),
     );

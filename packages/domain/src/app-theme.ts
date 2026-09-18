@@ -11,6 +11,7 @@ const builtInThemeIdSchema = z.enum([
   "solarized",
   "gruvbox",
   "catppuccin",
+  "codex",
 ]);
 export type BuiltInThemeId = z.infer<typeof builtInThemeIdSchema>;
 
@@ -39,6 +40,7 @@ export const builtInThemes: readonly BuiltInThemeMeta[] = [
     name: "Catppuccin",
     description: "Soothing pastel — Latte light, Mocha dark",
   },
+  { id: "codex", name: "Codex", description: "Codex desktop dark palette" },
 ];
 
 export const BUILTIN_THEME_IDS = builtInThemeIdSchema.options;
@@ -114,7 +116,7 @@ export const appThemeSelectionSchema = z.object({
 export type AppThemeSelection = z.infer<typeof appThemeSelectionSchema>;
 
 export const defaultAppTheme: AppTheme = {
-  themeId: "default",
+  themeId: "codex",
   customCss: null,
   faviconColor: defaultFaviconColor,
   resolvedCodeTheme: defaultResolvedCodeTheme,
