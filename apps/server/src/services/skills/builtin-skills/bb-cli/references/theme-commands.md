@@ -17,13 +17,13 @@
     `<name>/theme.css`). Use this instead of guessing the path.
   - `bb theme set <id> [--favicon-color <color>]` — activate a built-in
     (`default`, `nord`, `dracula`, `solarized`, `gruvbox`, `catppuccin`,
-    `codex`), custom, or plugin-contributed theme. Without the flag it
+    `codex-desktop`), custom, or plugin-contributed theme. Without the flag it
     preserves the favicon color; with the flag it updates the complete
     appearance selection.
   - `bb theme show [--css]` — print the active palette. For a custom theme,
     `--css` prints its CSS. For a built-in theme, it reports that BB bundles
     the CSS.
-  - `bb theme reset` — back to the default built-in theme (`codex`) while
+  - `bb theme reset` — back to the default built-in theme (`codex-desktop`) while
     preserving the favicon color.
   - `bb theme favicon set <color>` — set the favicon color while preserving the
     active theme. Colors: `default`, `red`, `orange`, `yellow`, `green`, `teal`,

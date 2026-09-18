@@ -330,7 +330,7 @@ export const nativeThemes: Record<BuiltInThemeId, NativeThemeModes> = {
       warningText: "#f9e2af",
     },
   },
-  codex: {
+  "codex-desktop": {
     light: {
       accent: "#e9e9e9",
       accentForeground: "#0d0d0d",
