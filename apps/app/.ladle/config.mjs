@@ -42,6 +42,7 @@ export default {
   stories: [
     "src/**/*.stories.tsx",
     "../../plugins/provider-retry/**/*.stories.tsx",
+    "../../plugins/workbench/**/*.stories.tsx",
     "../../plugins/workflows/**/*.stories.tsx",
   ],
   defaultStory: "",

@@ -141,6 +141,12 @@ export const BUILTIN_PLUGINS = [
     defaultEnabled: false,
     category: "Workflow management",
   },
+  {
+    name: "workbench",
+    pluginId: "workbench",
+    defaultEnabled: true,
+    category: "Workflow management",
+  },
 ].map((plugin): BundledPluginDefinition => ({
   ...plugin,
   autoInstall: true,

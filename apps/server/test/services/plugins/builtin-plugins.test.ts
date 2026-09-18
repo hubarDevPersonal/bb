@@ -234,6 +234,7 @@ describe("builtin plugin reconciliation", () => {
       ["provider-retry", "ArrowReloadHorizontal"],
       ["secrets", "Lock"],
       ["side-chat", "SideChat"],
+      ["workbench", "Toolbox"],
       ["workflows", "Workflow"],
     ]);
 
