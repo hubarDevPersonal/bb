@@ -48,9 +48,17 @@ const MIXED_SUBAGENTS: readonly SubagentRowView[] = [
 ];
 
 const MIXED_OUTPUTS: readonly SubagentOutputView[] = [
-  { path: "apps/app/src/lib/relative-time.ts", environmentId: "env_1" },
-  { path: "plugins/workbench/subagents-panel.tsx", environmentId: "env_1" },
-  { path: "CHANGELOG.md", environmentId: "env_1" },
+  {
+    kind: "workspace",
+    path: "apps/app/src/lib/relative-time.ts",
+    environmentId: "env_1",
+  },
+  {
+    kind: "workspace",
+    path: "plugins/workbench/subagents-panel.tsx",
+    environmentId: "env_1",
+  },
+  { kind: "workspace", path: "CHANGELOG.md", environmentId: "env_1" },
 ];
 
 export function Panel() {

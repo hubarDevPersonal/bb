@@ -28,6 +28,8 @@ host. The CLI equivalents are:
 bb workbench routing
 bb workbench routing set <role> <model>
 bb workbench orchestrated <on|off>
+bb workbench subagents <threadId>
+bb workbench outputs <threadId>
 ```
 
   bb plugin search <query>       Search the store: the bundled official

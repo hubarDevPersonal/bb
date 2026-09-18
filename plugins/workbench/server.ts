@@ -8,9 +8,11 @@ import {
   type AgentRole,
 } from "./contract.js";
 import { projectSpecCandidates } from "./project-specs.js";
+import { WORKBENCH_SUBAGENTS_REALTIME_CHANNEL } from "./realtime-channel.js";
 import {
   extractCreatedFilePaths,
   flattenFileChangeRows,
+  isAbsoluteOutputPath,
   subagentRow,
   type TimelineFileChangeEntry,
 } from "./subagents-data.js";
@@ -90,9 +92,19 @@ const subagentRowSchema = z
   })
   .strict();
 
-const threadOutputRowSchema = z
-  .object({ path: z.string(), environmentId: z.string() })
-  .strict();
+const threadOutputRowSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("workspace"),
+      path: z.string(),
+      environmentId: z.string(),
+    })
+    .strict(),
+  z
+    .object({ kind: z.literal("host"), path: z.string(), hostId: z.string() })
+    .strict(),
+]);
+type ThreadOutputTarget = z.infer<typeof threadOutputRowSchema>;
 
 export const workbenchRpcContract = defineRpcContract({
   runSpecCheck: {
@@ -216,6 +228,28 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     orchestratedMode ? ORCHESTRATED_INSTRUCTIONS : null,
   );
 
+  function publishSubagentsChanged(parentThreadId: string): void {
+    bb.realtime.publish(WORKBENCH_SUBAGENTS_REALTIME_CHANNEL, {
+      parentThreadId,
+    });
+  }
+
+  for (const event of [
+    "thread.created",
+    "thread.active",
+    "thread.idle",
+    "thread.failed",
+  ] as const) {
+    bb.events.on(event, ({ thread }) => {
+      if (thread.parentThreadId !== null) {
+        publishSubagentsChanged(thread.parentThreadId);
+      }
+    });
+  }
+  bb.events.on("thread.idle", ({ thread }) => {
+    if (thread.parentThreadId === null) publishSubagentsChanged(thread.id);
+  });
+
   async function primaryHostId(): Promise<string | null> {
     const hosts = await bb.sdk.hosts.list();
     return (
@@ -271,6 +305,51 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       beforeAnchorId = olderCursor.anchorId;
     }
     return changes;
+  }
+
+  async function computeThreadSubagents(threadId: string) {
+    const children = await bb.sdk.threads.list({
+      parentThreadId: threadId,
+      includeHidden: true,
+      limit: SUBAGENT_LIST_LIMIT,
+    });
+    const subagents = children
+      .map(subagentRow)
+      .sort((left, right) =>
+        left.updatedAt < right.updatedAt
+          ? 1
+          : left.updatedAt > right.updatedAt
+            ? -1
+            : 0,
+      );
+    return { subagents };
+  }
+
+  async function computeThreadOutputs(
+    threadId: string,
+  ): Promise<{ outputs: ThreadOutputTarget[] }> {
+    const thread = await bb.sdk.threads.get({ threadId });
+    const environmentId = thread.environmentId;
+    if (environmentId === null) return { outputs: [] };
+    const changes = await collectFileChanges(threadId);
+    const created = extractCreatedFilePaths(changes);
+    let hostId: string | null = null;
+    if (created.some(isAbsoluteOutputPath)) {
+      try {
+        hostId = (await bb.sdk.environments.get({ environmentId })).hostId;
+      } catch {
+        hostId = null;
+      }
+    }
+    const outputs: ThreadOutputTarget[] = [];
+    for (const path of created) {
+      if (isAbsoluteOutputPath(path)) {
+        if (hostId !== null) outputs.push({ kind: "host", hostId, path });
+        continue;
+      }
+      outputs.push({ kind: "workspace", environmentId, path });
+    }
+    return { outputs };
   }
 
   async function sendUserMessage(
@@ -539,33 +618,11 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
 
       return { files, projects };
     },
-    async threadSubagents({ threadId }) {
-      const children = await bb.sdk.threads.list({
-        parentThreadId: threadId,
-        includeHidden: true,
-        limit: SUBAGENT_LIST_LIMIT,
-      });
-      const subagents = children
-        .map(subagentRow)
-        .sort((left, right) =>
-          left.updatedAt < right.updatedAt
-            ? 1
-            : left.updatedAt > right.updatedAt
-              ? -1
-              : 0,
-        );
-      return { subagents };
+    threadSubagents({ threadId }) {
+      return computeThreadSubagents(threadId);
     },
-    async threadOutputs({ threadId }) {
-      const thread = await bb.sdk.threads.get({ threadId });
-      const environmentId = thread.environmentId;
-      if (environmentId === null) return { outputs: [] };
-      const changes = await collectFileChanges(threadId);
-      const outputs = extractCreatedFilePaths(changes).map((path) => ({
-        path,
-        environmentId,
-      }));
-      return { outputs };
+    threadOutputs({ threadId }) {
+      return computeThreadOutputs(threadId);
     },
   });
 
@@ -590,6 +647,16 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
         name: "orchestrated",
         summary: "Show or set orchestrated mode",
         usage: "bb workbench orchestrated <on|off>",
+      },
+      {
+        name: "subagents",
+        summary: "List a thread's subagents",
+        usage: "bb workbench subagents <threadId>",
+      },
+      {
+        name: "outputs",
+        summary: "List files created by a thread's subagents",
+        usage: "bb workbench outputs <threadId>",
       },
     ],
     async run(argv) {
@@ -650,9 +717,45 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
           stdout: orchestratedMode ? "on" : "off",
         };
       }
+      if (command === "subagents") {
+        const threadId = rest[0];
+        if (threadId === undefined) {
+          return {
+            exitCode: 1,
+            stderr: "Usage: bb workbench subagents <threadId>",
+          };
+        }
+        const { subagents } = await computeThreadSubagents(threadId);
+        if (subagents.length === 0) {
+          return { exitCode: 0, stdout: "No subagents" };
+        }
+        const lines = subagents.map(
+          (subagent) =>
+            `${subagent.status}\t${subagent.title}\t${subagent.id}\t${subagent.updatedAt}`,
+        );
+        return { exitCode: 0, stdout: lines.join("\n") };
+      }
+      if (command === "outputs") {
+        const threadId = rest[0];
+        if (threadId === undefined) {
+          return {
+            exitCode: 1,
+            stderr: "Usage: bb workbench outputs <threadId>",
+          };
+        }
+        const { outputs } = await computeThreadOutputs(threadId);
+        if (outputs.length === 0) {
+          return { exitCode: 0, stdout: "No outputs" };
+        }
+        return {
+          exitCode: 0,
+          stdout: outputs.map((output) => output.path).join("\n"),
+        };
+      }
       return {
         exitCode: 1,
-        stderr: "Usage: bb workbench <routing|routing set|orchestrated> [args]",
+        stderr:
+          "Usage: bb workbench <routing|routing set|orchestrated|subagents|outputs> [args]",
       };
     },
   });
