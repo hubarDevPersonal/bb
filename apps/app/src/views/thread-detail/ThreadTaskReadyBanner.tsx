@@ -35,7 +35,7 @@ export function ThreadTaskReadyBanner({
   const { stats } = taskActions;
 
   return (
-    <div className="mb-2 min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-surface-recessed px-4 py-3 text-xs text-muted-foreground">
+    <div className="mb-2 min-w-0 max-w-full overflow-hidden rounded-lg bg-surface-recessed px-4 py-3 text-xs text-muted-foreground">
       <h3 className="min-w-0 text-sm font-semibold text-foreground">
         Task is ready for review
       </h3>
@@ -64,6 +64,7 @@ export function ThreadTaskReadyBanner({
           <Button
             type="button"
             size="sm"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={taskActions.pending}
             onClick={taskActions.apply}
           >

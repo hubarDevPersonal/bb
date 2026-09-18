@@ -815,7 +815,6 @@ const Sidebar = React.forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
             "group-data-[collapsible=offcanvas]:invisible group-data-[collapsible=offcanvas]:[transition:left_200ms_linear,right_200ms_linear,width_200ms_linear,visibility_0s_linear_200ms]",
             "left-(--bb-window-frame-leading-lip) group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]",
             "group-data-[collapsible=rail]:w-(--sidebar-rail-width)",
-            "border-border-seam group-data-[side=left]:border-r",
             SIDEBAR_FRAMED_PANEL_CLASS,
             className,
           )}
