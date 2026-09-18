@@ -11,6 +11,7 @@
 @source "../../../plugins/secrets";
 @source "../../../plugins/provider-codex";
 @source "../../../plugins/composer/src";
+@source "../../../plugins/workbench";
 
 .ladle-main {
   padding: 0;

@@ -6,6 +6,12 @@ import {
   type AgentRole,
 } from "./contract.js";
 import { projectSpecCandidates } from "./project-specs.js";
+import {
+  extractCreatedFilePaths,
+  flattenFileChangeRows,
+  subagentRow,
+  type TimelineFileChangeEntry,
+} from "./subagents-data.js";
 
 const ORCHESTRATED_INSTRUCTIONS =
   "Orchestrated mode: act as the orchestrator — intent, plan, acceptance, " +
@@ -62,6 +68,19 @@ const projectSpecFileSchema = z
     path: z.string(),
     hostId: z.string(),
   })
+  .strict();
+
+const subagentRowSchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    status: z.enum(["active", "done"]),
+    updatedAt: z.string(),
+  })
+  .strict();
+
+const threadOutputRowSchema = z
+  .object({ path: z.string(), environmentId: z.string() })
   .strict();
 
 export const workbenchRpcContract = defineRpcContract({
@@ -129,7 +148,19 @@ export const workbenchRpcContract = defineRpcContract({
       })
       .strict(),
   },
+  threadSubagents: {
+    input: z.object({ threadId: z.string().min(1) }).strict(),
+    output: z.object({ subagents: z.array(subagentRowSchema) }).strict(),
+  },
+  threadOutputs: {
+    input: z.object({ threadId: z.string().min(1) }).strict(),
+    output: z.object({ outputs: z.array(threadOutputRowSchema) }).strict(),
+  },
 });
+
+const SUBAGENT_LIST_LIMIT = 100;
+const OUTPUTS_TIMELINE_SEGMENT_LIMIT = "100";
+const OUTPUTS_TIMELINE_MAX_PAGES = 3;
 
 function shellSingleQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
@@ -205,6 +236,30 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       return `/spec-check ${base}..${environment.branchName}`;
     }
     return "/spec-check";
+  }
+
+  async function collectFileChanges(
+    threadId: string,
+  ): Promise<TimelineFileChangeEntry[]> {
+    const changes: TimelineFileChangeEntry[] = [];
+    let beforeAnchorSeq: string | undefined;
+    let beforeAnchorId: string | undefined;
+    for (let page = 0; page < OUTPUTS_TIMELINE_MAX_PAGES; page += 1) {
+      const timeline = await bb.sdk.threads.timeline({
+        threadId,
+        includeNestedRows: "true",
+        segmentLimit: OUTPUTS_TIMELINE_SEGMENT_LIMIT,
+        ...(beforeAnchorSeq !== undefined && beforeAnchorId !== undefined
+          ? { beforeAnchorSeq, beforeAnchorId }
+          : {}),
+      });
+      changes.push(...flattenFileChangeRows(timeline.rows).reverse());
+      const olderCursor = timeline.timelinePage.olderCursor;
+      if (!timeline.timelinePage.hasOlderRows || olderCursor === null) break;
+      beforeAnchorSeq = String(olderCursor.anchorSeq);
+      beforeAnchorId = olderCursor.anchorId;
+    }
+    return changes;
   }
 
   async function sendUserMessage(
@@ -399,6 +454,34 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       ).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
       return { files, projects };
+    },
+    async threadSubagents({ threadId }) {
+      const children = await bb.sdk.threads.list({
+        parentThreadId: threadId,
+        includeHidden: true,
+        limit: SUBAGENT_LIST_LIMIT,
+      });
+      const subagents = children
+        .map(subagentRow)
+        .sort((left, right) =>
+          left.updatedAt < right.updatedAt
+            ? 1
+            : left.updatedAt > right.updatedAt
+              ? -1
+              : 0,
+        );
+      return { subagents };
+    },
+    async threadOutputs({ threadId }) {
+      const thread = await bb.sdk.threads.get({ threadId });
+      const environmentId = thread.environmentId;
+      if (environmentId === null) return { outputs: [] };
+      const changes = await collectFileChanges(threadId);
+      const outputs = extractCreatedFilePaths(changes).map((path) => ({
+        path,
+        environmentId,
+      }));
+      return { outputs };
     },
   });
 
