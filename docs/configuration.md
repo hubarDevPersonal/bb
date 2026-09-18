@@ -136,7 +136,7 @@ signal it, so a stale file left by a crash cannot stop an unrelated process.
 | Key                     | Command                                            | When to set             | Used for                                                                                                                                                                                                                                                                                                                                                                                              |
 | ----------------------- | -------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BB_APP_URL`            | `bb-app config`                                    | Optional for remote use | Human-facing app URL used for generated links and allowed browser origins. Leave empty for local-only use.                                                                                                                                                                                                                                                                                            |
-| `BB_INFERENCE`          | `bb-app config`                                    | Optional                | Primary server-side helper model in `<service>/<model>` format, where `<service>` is an AI service a loaded plugin registers (`bb settings ai-services` lists them; `codex` comes with the codex plugin and uses the codex CLI's credentials with no reasoning) or a pi-ai provider the server calls directly with its API key. Defaults to `codex/gpt-5.6-luna`.                                  |
+| `BB_INFERENCE`          | `bb-app config`                                    | Optional                | Primary server-side helper model in `<service>/<model>` format, where `<service>` is an AI service a loaded plugin registers (`bb settings ai-services` lists them; `codex` comes with the codex plugin and uses the codex CLI's credentials with no reasoning) or a pi-ai provider the server calls directly with its API key. Defaults to `codex/gpt-5.6-luna`.                                     |
 | `BB_INFERENCE_FALLBACK` | `bb-app config`                                    | Optional                | Helper model used after a transient primary timeout, rate limit, or service-unavailable failure. Defaults to `codex/gpt-5.4-mini`.                                                                                                                                                                                                                                                                    |
 | `BB_TRANSCRIPTION`      | `bb-app config`                                    | Optional                | Voice transcription model in `<service>/<model>` format: a plugin-registered AI service (`codex` with the codex plugin; audio up to 5MB) or `openai/<model>` with `OPENAI_API_KEY`. Defaults to `codex/gpt-transcribe`.                                                                                                                                                                               |
 | `BB_MARKETPLACE_URL`    | `bb-app env`, or environment                       | Startup-only testing    | Manifest URL of the reserved `bb-community` plugin marketplace, which lists as BB Community. Defaults to `https://getbb.app/marketplace/v1/marketplace.json`; point it at a local file server to test catalog refreshes. It sets only the reserved `bb-community` marketplace; other marketplaces are added at runtime with `bb marketplace add`. A full launcher or desktop app restart is required. |
@@ -830,6 +830,24 @@ settings accept base-10 integer strings through Extensions → Plugins or
 
 The five settings other than `maxActiveRuns` are snapshotted into each new run.
 Settings changes do not require a plugin reload.
+
+### Workbench plugin
+
+The builtin Workbench plugin adds composer shortcuts (spec check, task,
+bugfix, goal) and a nav panel for model routing, orchestrated mode, and spec
+file shortcuts. Model routing reads and writes the `model:` frontmatter key in
+each role's `~/.claude/agents/<role>.md` on the connected host, from the
+catalog of the provider whose models include a role's current value, or the
+first available provider otherwise. The "Orchestrated mode" setting
+(`orchestratedMode`) asks agents to delegate reconnaissance, implementation,
+and review to the `scout`, `implementer`, and `reviewer` subagents on new
+sessions; it defaults to off. Configure it from the CLI:
+
+```bash
+bb workbench routing
+bb workbench routing set <role> <model>
+bb workbench orchestrated <on|off>
+```
 
 `bb plugin install npm:<package>[@<version|tag|range>]` requires `npm` on PATH
 (packages are installed with `--ignore-scripts`). Git plugins also use npm with

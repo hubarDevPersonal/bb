@@ -1,4 +1,13 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import {
+  chmod,
+  readdir,
+  readFile,
+  rename,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
@@ -28,15 +37,27 @@ function agentFilePath(role: AgentRole): string {
   return path.join(homedir(), AGENTS_DIR, `${role}.md`);
 }
 
+function tempFilePath(filePath: string): string {
+  return `${filePath}.tmp-${process.pid}-${randomBytes(6).toString("hex")}`;
+}
+
 export function createWorkbenchHostEntry(
   deps: {
     readFile: typeof readFile;
     writeFile: typeof writeFile;
     readdir: typeof readdir;
+    rename: typeof rename;
+    stat: typeof stat;
+    chmod: typeof chmod;
+    unlink: typeof unlink;
   } = {
     readFile,
     writeFile,
     readdir,
+    rename,
+    stat,
+    chmod,
+    unlink,
   },
 ) {
   return experimental_defineHostEntry({
@@ -57,8 +78,10 @@ export function createWorkbenchHostEntry(
       async writeAgentModel({ role, model }): Promise<AgentModelResult> {
         const filePath = agentFilePath(role);
         let content: string;
+        let mode: number;
         try {
           content = await deps.readFile(filePath, "utf8");
+          mode = (await deps.stat(filePath)).mode;
         } catch (error) {
           if (isEnoent(error)) {
             return { ok: false, error: "missing_file" };
@@ -67,7 +90,15 @@ export function createWorkbenchHostEntry(
         }
         const result = replaceFrontmatterModel(content, model);
         if (!result.ok) return result;
-        await deps.writeFile(filePath, result.content, "utf8");
+        const tempPath = tempFilePath(filePath);
+        try {
+          await deps.writeFile(tempPath, result.content, "utf8");
+          await deps.chmod(tempPath, mode);
+          await deps.rename(tempPath, filePath);
+        } catch (error) {
+          await deps.unlink(tempPath).catch(() => undefined);
+          throw error;
+        }
         return { ok: true, model };
       },
       async listSpecFiles() {
