@@ -6,6 +6,14 @@ export type AgentRole = (typeof AGENT_ROLES)[number];
 
 const agentRoleSchema = z.enum(AGENT_ROLES);
 
+export const AGENT_MODEL_PATTERN = /^[A-Za-z0-9._:/[\]-]+$/;
+export const AGENT_MODEL_MAX_LENGTH = 200;
+export const agentModelValueSchema = z
+  .string()
+  .min(1)
+  .max(AGENT_MODEL_MAX_LENGTH)
+  .regex(AGENT_MODEL_PATTERN);
+
 export type AgentModelError =
   | "missing_file"
   | "missing_frontmatter"
@@ -38,7 +46,7 @@ export const workbenchHostContract = defineRpcContract({
   },
   writeAgentModel: {
     input: z
-      .object({ role: agentRoleSchema, model: z.string().min(1) })
+      .object({ role: agentRoleSchema, model: agentModelValueSchema })
       .strict(),
     output: writeAgentModelResultSchema,
   },

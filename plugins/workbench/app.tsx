@@ -1,4 +1,5 @@
 import {
+  forwardRef,
   useCallback,
   useEffect,
   useRef,
@@ -18,6 +19,12 @@ import { Button } from "@bb/shared-ui/button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { Switch } from "@bb/shared-ui/switch";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@bb/shared-ui/tooltip";
+import {
   DescriptionDialogView,
   type DescriptionDialogViewProps,
 } from "./description-dialog.js";
@@ -25,6 +32,7 @@ import { GOAL_MAX_TASKS_DEFAULT, GoalDialogView } from "./goal-dialog.js";
 import {
   ModelRoutingSectionView,
   type ModelOption,
+  type ProviderOption,
   type RoutingRoleId,
   type RoutingRowView,
 } from "./model-routing.js";
@@ -44,19 +52,18 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function ComposerActionButton({
-  icon,
-  label,
-  disabled,
-  onClick,
-}: {
-  icon: IconName;
-  label: string;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
+const ComposerActionButton = forwardRef<
+  HTMLButtonElement,
+  {
+    icon: IconName;
+    label: string;
+    disabled?: boolean;
+    onClick: () => void;
+  }
+>(function ComposerActionButton({ icon, label, disabled, onClick }, ref) {
   return (
     <button
+      ref={ref}
       type="button"
       title={label}
       aria-label={label}
@@ -67,7 +74,7 @@ function ComposerActionButton({
       <Icon name={icon} className="size-4" aria-hidden />
     </button>
   );
-}
+});
 
 function useThreadId(): string | null {
   const view = useComposerView();
@@ -78,20 +85,33 @@ function SpecCheckAction() {
   const threadId = useThreadId();
   const rpc = useRpc<typeof workbenchRpcContract>();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (threadId === null) return null;
   return (
-    <ComposerActionButton
-      icon="CircleCheck"
-      label="Spec check"
-      disabled={busy}
-      onClick={() => {
-        setBusy(true);
-        void rpc
-          .call("runSpecCheck", { threadId })
-          .catch(() => undefined)
-          .finally(() => setBusy(false));
-      }}
-    />
+    <TooltipProvider delayDuration={0}>
+      <Tooltip open={error !== null} onOpenChange={() => setError(null)}>
+        <TooltipTrigger asChild>
+          <ComposerActionButton
+            icon="CircleCheck"
+            label="Spec check"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setError(null);
+              void rpc
+                .call("runSpecCheck", { threadId })
+                .catch((sendError) => setError(errorMessage(sendError)))
+                .finally(() => setBusy(false));
+            }}
+          />
+        </TooltipTrigger>
+        {error === null ? null : (
+          <TooltipContent className="text-destructive-text">
+            {error}
+          </TooltipContent>
+        )}
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -264,6 +284,7 @@ function SpecInitBannerForThread({ threadId }: { threadId: string }) {
   const rpc = useRpc<typeof workbenchRpcContract>();
   const [show, setShow] = useState(false);
   const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -283,7 +304,7 @@ function SpecInitBannerForThread({ threadId }: { threadId: string }) {
   return (
     <section
       aria-label="No project spec yet"
-      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2"
+      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-raised-solid px-3 py-2"
     >
       <div className="min-w-0">
         <p className="text-sm font-medium text-foreground">
@@ -292,6 +313,9 @@ function SpecInitBannerForThread({ threadId }: { threadId: string }) {
         <p className="text-xs text-subtle-foreground">
           .claude/specs/PROJECT.md is missing
         </p>
+        {error === null ? null : (
+          <p className="text-xs text-destructive-text">{error}</p>
+        )}
       </div>
       <Button
         type="button"
@@ -300,10 +324,11 @@ function SpecInitBannerForThread({ threadId }: { threadId: string }) {
         className="bg-primary text-primary-foreground hover:bg-primary/90"
         onClick={() => {
           setRunning(true);
+          setError(null);
           void rpc
             .call("runSpecInit", { threadId })
             .then(() => setShow(false))
-            .catch(() => undefined)
+            .catch((runError) => setError(errorMessage(runError)))
             .finally(() => setRunning(false));
         }}
       >
@@ -317,6 +342,7 @@ function OrchestratedModeRow() {
   const rpc = useRpc<typeof workbenchRpcContract>();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -325,36 +351,47 @@ function OrchestratedModeRow() {
       .then((result) => {
         if (active) setEnabled(result.enabled);
       })
-      .catch(() => undefined);
+      .catch((loadError) => {
+        if (active) setError(errorMessage(loadError));
+      });
     return () => {
       active = false;
     };
   }, [rpc]);
 
   return (
-    <div className="flex items-start justify-between gap-3 rounded-md bg-surface-raised px-2 py-2">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">Orchestrated mode</p>
-        <p className="text-xs text-subtle-foreground">
-          Delegate reconnaissance, implementation, and review to subagents.
-          Applies to new sessions.
-        </p>
+    <div className="space-y-1">
+      <div className="flex items-start justify-between gap-3 rounded-md bg-surface-raised px-2 py-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">
+            Orchestrated mode
+          </p>
+          <p className="text-xs text-subtle-foreground">
+            Delegate reconnaissance, implementation, and review to subagents.
+            Applies to new sessions.
+          </p>
+        </div>
+        <Switch
+          checked={enabled ?? false}
+          disabled={enabled === null || saving}
+          aria-label="Orchestrated mode"
+          onCheckedChange={(next) => {
+            setSaving(true);
+            setEnabled(next);
+            setError(null);
+            void rpc
+              .call("setOrchestratedMode", { enabled: next })
+              .catch((saveError) => {
+                setEnabled((current) => (current === next ? !next : current));
+                setError(errorMessage(saveError));
+              })
+              .finally(() => setSaving(false));
+          }}
+        />
       </div>
-      <Switch
-        checked={enabled ?? false}
-        disabled={enabled === null || saving}
-        aria-label="Orchestrated mode"
-        onCheckedChange={(next) => {
-          setSaving(true);
-          setEnabled(next);
-          void rpc
-            .call("setOrchestratedMode", { enabled: next })
-            .catch(() =>
-              setEnabled((current) => (current === next ? !next : current)),
-            )
-            .finally(() => setSaving(false));
-        }}
-      />
+      {error === null ? null : (
+        <p className="px-2 text-xs text-destructive-text">{error}</p>
+      )}
     </div>
   );
 }
@@ -370,7 +407,13 @@ interface ProjectSpecFileRow extends SpecFileRow {
   projectName: string;
 }
 
-function SpecFileButton({ file, label }: { file: SpecFileRow; label: string }) {
+function SpecFileButton({
+  file,
+  secondary,
+}: {
+  file: SpecFileRow;
+  secondary: string;
+}) {
   const navigate = useBbNavigate();
   return (
     <button
@@ -388,8 +431,13 @@ function SpecFileButton({ file, label }: { file: SpecFileRow; label: string }) {
         className="size-4 shrink-0 text-muted-foreground"
         aria-hidden
       />
-      <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-        {label}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-foreground">
+          {file.name}
+        </span>
+        <span className="block truncate text-xs text-subtle-foreground">
+          {secondary}
+        </span>
       </span>
     </button>
   );
@@ -399,6 +447,7 @@ function SpecsSection() {
   const rpc = useRpc<typeof workbenchRpcContract>();
   const [files, setFiles] = useState<readonly SpecFileRow[]>([]);
   const [projects, setProjects] = useState<readonly ProjectSpecFileRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -409,13 +458,17 @@ function SpecsSection() {
         setFiles(result.files);
         setProjects(result.projects);
       })
-      .catch(() => undefined);
+      .catch((loadError) => {
+        if (active) setError(errorMessage(loadError));
+      });
     return () => {
       active = false;
     };
   }, [rpc]);
 
-  if (files.length === 0 && projects.length === 0) return null;
+  if (files.length === 0 && projects.length === 0 && error === null) {
+    return null;
+  }
 
   return (
     <div className="space-y-3">
@@ -424,9 +477,13 @@ function SpecsSection() {
           <h3 className="px-2 text-xs font-medium text-subtle-foreground">
             Specs
           </h3>
-          <div className="divide-y divide-border-seam rounded-md bg-surface-raised">
+          <div className="rounded-md bg-surface-raised">
             {files.map((file) => (
-              <SpecFileButton key={file.path} file={file} label={file.name} />
+              <SpecFileButton
+                key={file.path}
+                file={file}
+                secondary={file.path}
+              />
             ))}
           </div>
         </div>
@@ -436,16 +493,19 @@ function SpecsSection() {
           <h3 className="px-2 text-xs font-medium text-subtle-foreground">
             Project specs
           </h3>
-          <div className="divide-y divide-border-seam rounded-md bg-surface-raised">
+          <div className="rounded-md bg-surface-raised">
             {projects.map((file) => (
               <SpecFileButton
                 key={file.path}
                 file={file}
-                label={file.projectName}
+                secondary={file.projectName}
               />
             ))}
           </div>
         </div>
+      )}
+      {error === null ? null : (
+        <p className="px-2 text-xs text-destructive-text">{error}</p>
       )}
     </div>
   );
@@ -455,51 +515,79 @@ function ModelRoutingSection() {
   const rpc = useRpc<typeof workbenchRpcContract>();
   const [hostId, setHostId] = useState<string | null | undefined>(undefined);
   const [models, setModels] = useState<readonly ModelOption[]>([]);
+  const [providers, setProviders] = useState<readonly ProviderOption[]>([]);
+  const [providerId, setProviderId] = useState<string | null>(null);
   const [providerName, setProviderName] = useState<string | null>(null);
   const [rows, setRows] = useState<Record<
     RoutingRoleId,
     RoutingRowView
   > | null>(null);
   const [savingRole, setSavingRole] = useState<RoutingRoleId | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const result = await rpc.call("getRouting");
-    setHostId(result.hostId);
-    setModels(result.models);
-    setProviderName(result.providerName);
-    setRows({
-      scout: result.scout,
-      implementer: result.implementer,
-      reviewer: result.reviewer,
-    });
-  }, [rpc]);
+  const load = useCallback(
+    async (requestedProviderId: string | null) => {
+      const result = await rpc.call("getRouting", {
+        providerId: requestedProviderId,
+      });
+      setHostId(result.hostId);
+      setModels(result.models);
+      setProviders(result.providers);
+      setProviderId(result.providerId);
+      setProviderName(result.providerName);
+      setRows({
+        scout: result.scout,
+        implementer: result.implementer,
+        reviewer: result.reviewer,
+      });
+    },
+    [rpc],
+  );
 
   useEffect(() => {
-    void load().catch(() => undefined);
+    void load(null).catch((loadError) => setError(errorMessage(loadError)));
   }, [load]);
 
-  if (rows === null) return null;
+  if (rows === null) {
+    return error === null ? null : (
+      <p className="px-2 text-xs text-destructive-text">{error}</p>
+    );
+  }
 
   return (
-    <ModelRoutingSectionView
-      rows={rows}
-      models={models}
-      providerName={providerName}
-      savingRole={savingRole}
-      hostAvailable={hostId !== null}
-      onSave={(role, model) => {
-        setSavingRole(role);
-        void rpc
-          .call("setRouting", { role, model })
-          .then((row) => {
-            setRows((current) =>
-              current === null ? current : { ...current, [role]: row },
-            );
-          })
-          .catch(() => undefined)
-          .finally(() => setSavingRole(null));
-      }}
-    />
+    <div className="space-y-1">
+      <ModelRoutingSectionView
+        rows={rows}
+        models={models}
+        providers={providers}
+        providerId={providerId}
+        providerName={providerName}
+        savingRole={savingRole}
+        hostAvailable={hostId !== null}
+        onProviderChange={(nextProviderId) => {
+          setError(null);
+          void load(nextProviderId).catch((loadError) =>
+            setError(errorMessage(loadError)),
+          );
+        }}
+        onSave={(role, model) => {
+          setSavingRole(role);
+          setError(null);
+          void rpc
+            .call("setRouting", { role, model })
+            .then((row) => {
+              setRows((current) =>
+                current === null ? current : { ...current, [role]: row },
+              );
+            })
+            .catch((saveError) => setError(errorMessage(saveError)))
+            .finally(() => setSavingRole(null));
+        }}
+      />
+      {error === null ? null : (
+        <p className="px-2 text-xs text-destructive-text">{error}</p>
+      )}
+    </div>
   );
 }
 
@@ -764,7 +852,7 @@ export default definePluginApp((app) => {
       { id: "goal", component: GoalAction },
     ],
     banners: [
-      { id: "spec-init", chrome: "card", component: SpecInitBanner },
+      { id: "spec-init", chrome: "bare", component: SpecInitBanner },
       {
         id: "subagents-done",
         chrome: "bare",
