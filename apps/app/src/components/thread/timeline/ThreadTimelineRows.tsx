@@ -1094,7 +1094,7 @@ function TimelineSystemDetailBlock({
     <TimelineDetailScroll
       size="base"
       streaming={streaming}
-      className="overflow-hidden rounded-lg bg-surface-raised-solid"
+      className="overflow-hidden rounded-lg border border-border-seam bg-surface-raised-solid"
       fadeFromClassName="from-surface-raised-solid"
     >
       <pre className="whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs leading-tight text-subtle-foreground opacity-70">

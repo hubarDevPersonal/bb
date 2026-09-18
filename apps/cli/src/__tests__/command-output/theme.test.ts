@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { defaultAppTheme } from "@bb/domain";
 import {
   collectLogLines,
   collectLogPayloads,
@@ -103,7 +104,7 @@ describe("bb theme commands", () => {
     await runCommand(["theme", "reset"], register);
 
     expect(put).toHaveBeenCalledWith({
-      json: { themeId: "default", faviconColor: "pink" },
+      json: { themeId: defaultAppTheme.themeId, faviconColor: "pink" },
     });
   });
 

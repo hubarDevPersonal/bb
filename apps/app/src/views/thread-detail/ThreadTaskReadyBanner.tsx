@@ -35,7 +35,7 @@ export function ThreadTaskReadyBanner({
   const { stats } = taskActions;
 
   return (
-    <div className="mb-2 min-w-0 max-w-full overflow-hidden rounded-lg bg-surface-recessed px-4 py-3 text-xs text-muted-foreground">
+    <div className="mb-2 min-w-0 max-w-full overflow-hidden rounded-lg border border-border-seam bg-surface-recessed px-4 py-3 text-xs text-muted-foreground">
       <h3 className="min-w-0 text-sm font-semibold text-foreground">
         Task is ready for review
       </h3>
