@@ -196,9 +196,12 @@ describe("workbench model routing catalog", () => {
       },
     });
     await plugin(host.bb);
-    const result = await host.harness.callRpc("getRouting");
+    const result = await host.harness.callRpc("getRouting", {
+      providerId: null,
+    });
     expect(result).toMatchObject({
       hostId: "host_1",
+      providers: [{ id: "claude-code", name: "Claude Code" }],
       providerId: "claude-code",
       providerName: "Claude Code",
       models: [{ id: "sonnet", displayName: "Sonnet" }],
@@ -212,12 +215,105 @@ describe("workbench model routing catalog", () => {
       sdk: { hosts: { list: async () => [] } },
     });
     await plugin(host.bb);
-    const result = await host.harness.callRpc("getRouting");
+    const result = await host.harness.callRpc("getRouting", {
+      providerId: null,
+    });
     expect(result).toMatchObject({
       hostId: null,
+      providers: [],
       providerId: null,
       providerName: null,
       models: [],
+    });
+    await host.harness.dispose();
+  });
+
+  it("selects the provider whose catalog contains a current role model, not just the first available", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        hosts: {
+          list: async () => [{ id: "host_1", status: "connected" }],
+        },
+        providers: {
+          list: async () => [
+            { id: "codex", displayName: "Codex", available: true },
+            { id: "claude-code", displayName: "Claude Code", available: true },
+          ],
+          models: async (args) => {
+            if (args?.providerId === "codex") {
+              return {
+                models: [{ model: "gpt-5", displayName: "GPT-5" }],
+                selectedOnlyModels: [],
+              };
+            }
+            return {
+              models: [{ model: "opus", displayName: "Opus" }],
+              selectedOnlyModels: [],
+            };
+          },
+        },
+      },
+      experimental_callHostRpc: ({ method, input }) => {
+        if (method === "readAgentModel") {
+          return { ok: true, model: "opus" };
+        }
+        throw new Error(
+          `unexpected host RPC method ${method} ${JSON.stringify(input)}`,
+        );
+      },
+    });
+    await plugin(host.bb);
+    const result = await host.harness.callRpc("getRouting", {
+      providerId: null,
+    });
+    expect(result).toMatchObject({
+      providers: [
+        { id: "codex", name: "Codex" },
+        { id: "claude-code", name: "Claude Code" },
+      ],
+      providerId: "claude-code",
+      providerName: "Claude Code",
+      models: [{ id: "opus", displayName: "Opus" }],
+    });
+    await host.harness.dispose();
+  });
+
+  it("honors an explicit providerId argument", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        hosts: {
+          list: async () => [{ id: "host_1", status: "connected" }],
+        },
+        providers: {
+          list: async () => [
+            { id: "codex", displayName: "Codex", available: true },
+            { id: "claude-code", displayName: "Claude Code", available: true },
+          ],
+          models: async (args) => ({
+            models: [
+              {
+                model: `${args?.providerId}-model`,
+                displayName: args?.providerId ?? "",
+              },
+            ],
+            selectedOnlyModels: [],
+          }),
+        },
+      },
+      experimental_callHostRpc: ({ method }) => {
+        if (method === "readAgentModel") return { ok: true, model: "opus" };
+        throw new Error(`unexpected host RPC method ${method}`);
+      },
+    });
+    await plugin(host.bb);
+    const result = await host.harness.callRpc("getRouting", {
+      providerId: "codex",
+    });
+    expect(result).toMatchObject({
+      providerId: "codex",
+      models: [{ id: "codex-model", displayName: "codex" }],
     });
     await host.harness.dispose();
   });
@@ -397,6 +493,219 @@ describe("workbench thread outputs", () => {
       threadId: "thr_1",
     });
     expect(result).toEqual({ outputs: [] });
+    await host.harness.dispose();
+  });
+});
+
+describe("workbench spec-init banner status", () => {
+  it("shows the banner when the project spec file is missing", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: { get: async () => threadRecord("env_1") },
+        environments: {
+          get: async () => ({
+            id: "env_1",
+            hostId: "host_1",
+            path: "/work/repo",
+            isWorktree: false,
+            branchName: "main",
+            baseBranch: null,
+            defaultBranch: "main",
+            mergeBaseBranch: null,
+          }),
+        },
+        files: {
+          read: async () => {
+            throw Object.assign(new Error("not found"), { code: "ENOENT" });
+          },
+        },
+      },
+    });
+    await plugin(host.bb);
+    await expect(
+      host.harness.callRpc("specInitBannerStatus", { threadId: "thr_1" }),
+    ).resolves.toEqual({ show: true });
+    await host.harness.dispose();
+  });
+
+  it("hides the banner on a non-ENOENT read error", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: { get: async () => threadRecord("env_1") },
+        environments: {
+          get: async () => ({
+            id: "env_1",
+            hostId: "host_1",
+            path: "/work/repo",
+            isWorktree: false,
+            branchName: "main",
+            baseBranch: null,
+            defaultBranch: "main",
+            mergeBaseBranch: null,
+          }),
+        },
+        files: {
+          read: async () => {
+            throw Object.assign(new Error("permission denied"), {
+              code: "EACCES",
+            });
+          },
+        },
+      },
+    });
+    await plugin(host.bb);
+    await expect(
+      host.harness.callRpc("specInitBannerStatus", { threadId: "thr_1" }),
+    ).resolves.toEqual({ show: false });
+    await host.harness.dispose();
+  });
+});
+
+describe("workbench goal workflow shell quoting", () => {
+  it("keeps a newline and a command substitution inert inside the single-quoted arg", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: { send: async () => ({ ok: true, delivery: "sent" }) },
+      },
+    });
+    await plugin(host.bb);
+    const goal = "first line\nsecond line $(rm -rf /) `whoami`";
+    const result = await host.harness.callRpc("runGoal", {
+      threadId: "thr_1",
+      goal,
+      maxTasks: 3,
+    });
+    const message = (result as { message: string }).message;
+    const quotedArg = message.slice(message.indexOf("'"));
+    expect(quotedArg.startsWith("'")).toBe(true);
+    expect(quotedArg.endsWith("'")).toBe(true);
+    const jsonInside = quotedArg.slice(1, -1).replace(/'\\''/g, "'");
+    expect(JSON.parse(jsonInside)).toEqual({ goal, maxTasks: 3 });
+    await host.harness.dispose();
+  });
+});
+
+describe("workbench CLI", () => {
+  it("registers routing and orchestrated, with no dispatch-mismatched routing-set entry", async () => {
+    const host = createFakePluginHost({ pluginId: "workbench" });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    expect(cli.commands.map((command) => command.name)).toEqual([
+      "routing",
+      "orchestrated",
+    ]);
+    await host.harness.dispose();
+  });
+
+  it("routing lists every role's model", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
+      },
+      experimental_callHostRpc: ({ method }) => {
+        if (method === "readAgentModel") return { ok: true, model: "haiku" };
+        throw new Error(`unexpected host RPC method ${method}`);
+      },
+    });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    await expect(cli.run(["routing"], {})).resolves.toEqual({
+      exitCode: 0,
+      stdout: "scout: haiku\nimplementer: haiku\nreviewer: haiku",
+    });
+    await host.harness.dispose();
+  });
+
+  it("routing set writes through the host under the same name argv[0] resolves to", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
+      },
+      experimental_callHostRpc: ({ method, input }) => {
+        if (method === "writeAgentModel") {
+          return { ok: true, model: (input as { model: string }).model };
+        }
+        throw new Error(`unexpected host RPC method ${method}`);
+      },
+    });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    await expect(
+      cli.run(["routing", "set", "scout", "opus"], {}),
+    ).resolves.toEqual({ exitCode: 0, stdout: "scout: opus" });
+    await host.harness.dispose();
+  });
+
+  it("rejects an unknown role", async () => {
+    const host = createFakePluginHost({ pluginId: "workbench" });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    const result = await cli.run(["routing", "set", "bogus", "opus"], {});
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Unknown role");
+    await host.harness.dispose();
+  });
+
+  it("rejects a model that would break out of the frontmatter line", async () => {
+    const host = createFakePluginHost({ pluginId: "workbench" });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    const result = await cli.run(
+      ["routing", "set", "scout", "opus\n---\nevil: 1"],
+      {},
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Invalid model");
+    await host.harness.dispose();
+  });
+
+  it("shows and sets orchestrated mode", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        plugins: {
+          updateSettings: async ({ values }) => {
+            await host.harness.setSettings(values as Record<string, boolean>);
+            return {} as never;
+          },
+        },
+      },
+    });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    await expect(cli.run(["orchestrated"], {})).resolves.toEqual({
+      exitCode: 0,
+      stdout: "off",
+    });
+    await expect(cli.run(["orchestrated", "on"], {})).resolves.toEqual({
+      exitCode: 0,
+      stdout: "on",
+    });
+    await expect(cli.run(["orchestrated"], {})).resolves.toEqual({
+      exitCode: 0,
+      stdout: "on",
+    });
+    await host.harness.dispose();
+  });
+
+  it("rejects an unknown top-level command", async () => {
+    const host = createFakePluginHost({ pluginId: "workbench" });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    const result = await cli.run(["bogus"], {});
+    expect(result.exitCode).toBe(1);
     await host.harness.dispose();
   });
 });

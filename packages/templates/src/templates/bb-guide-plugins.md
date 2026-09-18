@@ -179,6 +179,20 @@ provider list --environment "$BB_ENVIRONMENT_ID" --json` and then `bb provider
 models <provider-id> --environment "$BB_ENVIRONMENT_ID" --json` before writing
 an explicit selection; never guess ACP model IDs.
 
+The builtin Workbench plugin adds composer shortcuts (spec check, task,
+bugfix, goal) and a nav panel for model routing, orchestrated mode, and spec
+file shortcuts. Its "Orchestrated mode" setting asks agents to delegate
+reconnaissance, implementation, and review to the `scout`, `implementer`, and
+`reviewer` subagents on new sessions. Model routing reads and writes the
+`model:` frontmatter key in each role's `~/.claude/agents/<role>.md` on the
+host. The CLI equivalents are:
+
+```
+bb workbench routing
+bb workbench routing set <role> <model>
+bb workbench orchestrated <on|off>
+```
+
 The Memory plugin is an opt-in install, bundled with the app:
 `bb plugin install memory`. Once installed, it injects a compact global and
 current-project memory index into agent context and progressively discloses

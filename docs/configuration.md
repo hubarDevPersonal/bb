@@ -1409,6 +1409,24 @@ Installed plugins or with `bb plugin config workflows set <key> <value>`:
 The five settings other than `maxActiveRuns` are snapshotted into each new run.
 Settings changes do not require a plugin reload.
 
+### Workbench plugin
+
+The builtin Workbench plugin adds composer shortcuts (spec check, task,
+bugfix, goal) and a nav panel for model routing, orchestrated mode, and spec
+file shortcuts. Model routing reads and writes the `model:` frontmatter key in
+each role's `~/.claude/agents/<role>.md` on the connected host, from the
+catalog of the provider whose models include a role's current value, or the
+first available provider otherwise. The "Orchestrated mode" setting
+(`orchestratedMode`) asks agents to delegate reconnaissance, implementation,
+and review to the `scout`, `implementer`, and `reviewer` subagents on new
+sessions; it defaults to off. Configure it from the CLI:
+
+```bash
+bb workbench routing
+bb workbench routing set <role> <model>
+bb workbench orchestrated <on|off>
+```
+
 `bb plugin install npm:<package>[@<version|tag|range>]` uses BB's shipped npm
 and its running Node runtime; neither executable needs to be on PATH. Packages
 are installed with `--ignore-scripts`. Git plugins also use this npm with

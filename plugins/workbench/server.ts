@@ -1,7 +1,9 @@
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
+  AGENT_MODEL_MAX_LENGTH,
   AGENT_ROLES,
+  agentModelValueSchema,
   workbenchHostContract,
   type AgentRole,
 } from "./contract.js";
@@ -21,6 +23,10 @@ const ORCHESTRATED_INSTRUCTIONS =
   "context in its prompt.";
 
 const SPEC_PROJECT_FILE = ".claude/specs/PROJECT.md";
+
+const INVALID_MODEL_MESSAGE =
+  "Invalid model: expected a single token (letters, digits, " +
+  `._:/[]-), up to ${AGENT_MODEL_MAX_LENGTH} characters`;
 
 const routingErrorSchema = z.enum([
   "host_unavailable",
@@ -44,9 +50,14 @@ const modelOptionSchema = z
   .object({ id: z.string(), displayName: z.string() })
   .strict();
 
+const providerOptionSchema = z
+  .object({ id: z.string(), name: z.string() })
+  .strict();
+
 const routingViewSchema = z
   .object({
     hostId: z.string().nullable(),
+    providers: z.array(providerOptionSchema),
     providerId: z.string().nullable(),
     providerName: z.string().nullable(),
     models: z.array(modelOptionSchema),
@@ -119,14 +130,14 @@ export const workbenchRpcContract = defineRpcContract({
     output: z.object({ show: z.boolean() }).strict(),
   },
   getRouting: {
-    input: z.null(),
+    input: z.object({ providerId: z.string().nullable() }).strict(),
     output: routingViewSchema,
   },
   setRouting: {
     input: z
       .object({
         role: z.enum(AGENT_ROLES),
-        model: z.string().min(1),
+        model: agentModelValueSchema,
       })
       .strict(),
     output: routingRowSchema,
@@ -285,37 +296,103 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     }
   }
 
-  async function routingModelCatalog(hostId: string | null): Promise<{
+  async function selectProviderWithModels(
+    hostId: string,
+    available: readonly { id: string; displayName: string }[],
+    requestedProviderId: string | null,
+    roleModels: readonly string[],
+  ): Promise<{
+    provider: { id: string; displayName: string };
+    models: { model: string; displayName: string }[];
+  } | null> {
+    const requested =
+      requestedProviderId === null
+        ? null
+        : (available.find((provider) => provider.id === requestedProviderId) ??
+          null);
+    if (requested !== null) {
+      const execution = await bb.sdk.providers.models({
+        hostId,
+        providerId: requested.id,
+      });
+      return { provider: requested, models: execution.models };
+    }
+    let fallback: {
+      provider: { id: string; displayName: string };
+      models: { model: string; displayName: string }[];
+    } | null = null;
+    for (const provider of available) {
+      const execution = await bb.sdk.providers.models({
+        hostId,
+        providerId: provider.id,
+      });
+      fallback ??= { provider, models: execution.models };
+      const ids = new Set(execution.models.map((model) => model.model));
+      if (roleModels.some((model) => ids.has(model))) {
+        return { provider, models: execution.models };
+      }
+    }
+    return fallback;
+  }
+
+  async function routingModelCatalog(
+    hostId: string | null,
+    requestedProviderId: string | null,
+    roleModels: readonly string[],
+  ): Promise<{
+    providers: { id: string; name: string }[];
     providerId: string | null;
     providerName: string | null;
     models: { id: string; displayName: string }[];
   }> {
     if (hostId === null) {
-      return { providerId: null, providerName: null, models: [] };
+      return {
+        providers: [],
+        providerId: null,
+        providerName: null,
+        models: [],
+      };
     }
     try {
-      const providers = await bb.sdk.providers.list({ hostId });
-      const provider =
-        providers.find((candidate) => candidate.available) ??
-        providers[0] ??
-        null;
-      if (provider === null) {
-        return { providerId: null, providerName: null, models: [] };
+      const allProviders = await bb.sdk.providers.list({ hostId });
+      const available = allProviders.filter((provider) => provider.available);
+      if (available.length === 0) {
+        return {
+          providers: [],
+          providerId: null,
+          providerName: null,
+          models: [],
+        };
       }
-      const execution = await bb.sdk.providers.models({
+      const providers = available.map((provider) => ({
+        id: provider.id,
+        name: provider.displayName,
+      }));
+      const selection = await selectProviderWithModels(
         hostId,
-        providerId: provider.id,
-      });
+        available,
+        requestedProviderId,
+        roleModels,
+      );
+      if (selection === null) {
+        return { providers, providerId: null, providerName: null, models: [] };
+      }
       return {
-        providerId: provider.id,
-        providerName: provider.displayName,
-        models: execution.models.map((model) => ({
+        providers,
+        providerId: selection.provider.id,
+        providerName: selection.provider.displayName,
+        models: selection.models.map((model) => ({
           id: model.model,
           displayName: model.displayName,
         })),
       };
     } catch {
-      return { providerId: null, providerName: null, models: [] };
+      return {
+        providers: [],
+        providerId: null,
+        providerName: null,
+        models: [],
+      };
     }
   }
 
@@ -371,14 +448,21 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
         return { show: errorCode(error) === "ENOENT" };
       }
     },
-    async getRouting() {
+    async getRouting({ providerId: requestedProviderId }) {
       const hostId = await primaryHostId();
-      const [catalog, scout, implementer, reviewer] = await Promise.all([
-        routingModelCatalog(hostId),
+      const [scout, implementer, reviewer] = await Promise.all([
         readRoutingRow("scout", hostId),
         readRoutingRow("implementer", hostId),
         readRoutingRow("reviewer", hostId),
       ]);
+      const roleModels = [scout, implementer, reviewer]
+        .filter((row): row is Extract<RoutingRow, { ok: true }> => row.ok)
+        .map((row) => row.model);
+      const catalog = await routingModelCatalog(
+        hostId,
+        requestedProviderId,
+        roleModels,
+      );
       return { hostId, ...catalog, scout, implementer, reviewer };
     },
     async setRouting({ role, model }): Promise<RoutingRow> {
@@ -499,13 +583,8 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     commands: [
       {
         name: "routing",
-        summary: "Print the current role -> model routing",
-        usage: "bb workbench routing",
-      },
-      {
-        name: "routing-set",
-        summary: "Set the model for a role's agent file",
-        usage: "bb workbench routing set <role> <model>",
+        summary: "Print or set the role -> model routing",
+        usage: "bb workbench routing [set <role> <model>]",
       },
       {
         name: "orchestrated",
@@ -528,6 +607,9 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
             exitCode: 1,
             stderr: `Unknown role ${role}; expected one of ${AGENT_ROLES.join(", ")}`,
           };
+        }
+        if (!agentModelValueSchema.safeParse(model).success) {
+          return { exitCode: 1, stderr: INVALID_MODEL_MESSAGE };
         }
         const hostId = await primaryHostId();
         if (hostId === null) {

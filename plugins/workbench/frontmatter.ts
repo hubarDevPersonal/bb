@@ -9,7 +9,7 @@ export type FrontmatterModelWriteResult =
   | { ok: false; error: FrontmatterModelError };
 
 const LINE_PATTERN = /[^\n]*\n|[^\n]+$/g;
-const MODEL_LINE_PATTERN = /^(\s*model\s*:\s*)(.*)$/;
+const MODEL_LINE_PATTERN = /^model\s*:(.*)$/;
 
 function splitLines(content: string): string[] {
   return content.match(LINE_PATTERN) ?? [];
@@ -41,6 +41,19 @@ function findModelLineIndex(
   return null;
 }
 
+function unquoteYamlScalar(raw: string): string {
+  const trimmed = raw.trim();
+  const quote = trimmed.charAt(0);
+  if (
+    trimmed.length >= 2 &&
+    (quote === '"' || quote === "'") &&
+    trimmed.endsWith(quote)
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed.replace(/\s+#.*$/, "").trim();
+}
+
 export function readFrontmatterModel(
   content: string,
 ): FrontmatterModelReadResult {
@@ -50,7 +63,7 @@ export function readFrontmatterModel(
   const modelIndex = findModelLineIndex(lines, range);
   if (modelIndex === null) return { ok: false, error: "missing_model_key" };
   const match = MODEL_LINE_PATTERN.exec(lineBody(lines[modelIndex]!))!;
-  return { ok: true, model: match[2]!.trim() };
+  return { ok: true, model: unquoteYamlScalar(match[1]!) };
 }
 
 export function replaceFrontmatterModel(
@@ -64,7 +77,6 @@ export function replaceFrontmatterModel(
   if (modelIndex === null) return { ok: false, error: "missing_model_key" };
   const line = lines[modelIndex]!;
   const terminator = line.slice(lineBody(line).length);
-  const match = MODEL_LINE_PATTERN.exec(lineBody(line))!;
-  lines[modelIndex] = `${match[1]}${model}${terminator}`;
+  lines[modelIndex] = `model: ${model}${terminator}`;
   return { ok: true, content: lines.join("") };
 }
