@@ -1094,7 +1094,8 @@ function TimelineSystemDetailBlock({
     <TimelineDetailScroll
       size="base"
       streaming={streaming}
-      className="overflow-hidden rounded-lg bg-surface-raised"
+      className="overflow-hidden rounded-lg bg-surface-raised-solid"
+      fadeFromClassName="from-surface-raised-solid"
     >
       <pre className="whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs leading-tight text-subtle-foreground opacity-70">
         {detail}
@@ -1181,7 +1182,11 @@ function TimelineExpandableBodyContent({
       const isFrontier =
         row.kind === "bundle-summary" && row.id === activeLatestBundleId;
       return (
-        <TimelineDetailScroll size="summary" streaming={isFrontier}>
+        <TimelineDetailScroll
+          size="summary"
+          streaming={isFrontier}
+          fadeFromClassName="from-background"
+        >
           {list}
         </TimelineDetailScroll>
       );
@@ -1512,6 +1517,7 @@ function DelegationRowBody({ row }: { row: TimelineViewDelegationWorkRow }) {
       size="delegation"
       streaming={delegationActive}
       className={NESTED_TIMELINE_GROUP_LINE_CLASS_NAME}
+      fadeFromClassName="from-background"
     >
       <div className="flex flex-col gap-3">
         {row.childRows === null ? (
