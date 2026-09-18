@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   definePluginApp,
   useBbNavigate,
   useComposerView,
+  useRealtimeConnectionState,
   useRpc,
   type PluginNavPanelProps,
+  type PluginThreadPanelProps,
 } from "@get-bb/plugin-sdk/app";
 import { Button } from "@bb/shared-ui/button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
@@ -20,7 +28,17 @@ import {
   type RoutingRoleId,
   type RoutingRowView,
 } from "./model-routing.js";
+import {
+  SubagentsDoneCardView,
+  SubagentsPanelView,
+  type SubagentOutputView,
+  type SubagentRowView,
+} from "./subagents-panel.js";
 import type { workbenchRpcContract } from "./server.js";
+
+const SUBAGENTS_PANEL_ACTION_ID = "subagents";
+const SUBAGENTS_POLL_INTERVAL_MS = 3_000;
+const SUBAGENTS_NOW_TICK_MS = 30_000;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -279,6 +297,7 @@ function SpecInitBannerForThread({ threadId }: { threadId: string }) {
         type="button"
         size="sm"
         disabled={running}
+        className="bg-primary text-primary-foreground hover:bg-primary/90"
         onClick={() => {
           setRunning(true);
           void rpc
@@ -484,6 +503,246 @@ function ModelRoutingSection() {
   );
 }
 
+function subscribeDocumentVisibility(onChange: () => void): () => void {
+  document.addEventListener("visibilitychange", onChange);
+  return () => document.removeEventListener("visibilitychange", onChange);
+}
+
+function readDocumentVisible(): boolean {
+  return document.visibilityState !== "hidden";
+}
+
+function useDocumentVisible(): boolean {
+  return useSyncExternalStore(
+    subscribeDocumentVisibility,
+    readDocumentVisible,
+    () => true,
+  );
+}
+
+function useVisibleActivePolling(
+  refresh: () => Promise<void>,
+  active: boolean,
+): void {
+  const visible = useDocumentVisible();
+  const connection = useRealtimeConnectionState();
+  const wasHidden = useRef(false);
+  const wasDisconnected = useRef(false);
+
+  useEffect(() => {
+    if (!visible) {
+      wasHidden.current = true;
+      return;
+    }
+    if (!wasHidden.current) return;
+    wasHidden.current = false;
+    void refresh();
+  }, [refresh, visible]);
+
+  useEffect(() => {
+    if (connection !== "connected") {
+      wasDisconnected.current = true;
+      return;
+    }
+    if (!wasDisconnected.current) return;
+    wasDisconnected.current = false;
+    void refresh();
+  }, [connection, refresh]);
+
+  const enabled = active && visible;
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    let timeout: number | null = null;
+    const schedule = () => {
+      timeout = window.setTimeout(() => {
+        void refresh().finally(() => {
+          if (!cancelled) schedule();
+        });
+      }, SUBAGENTS_POLL_INTERVAL_MS);
+    };
+    schedule();
+    return () => {
+      cancelled = true;
+      if (timeout !== null) window.clearTimeout(timeout);
+    };
+  }, [enabled, refresh]);
+}
+
+function useNow(intervalMs: number): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), intervalMs);
+    return () => window.clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
+type SubagentsListLoadState =
+  | { status: "loading" }
+  | { status: "ready"; subagents: SubagentRowView[] }
+  | { status: "error" };
+
+function useSubagentsList(threadId: string): {
+  state: SubagentsListLoadState;
+} {
+  const rpc = useRpc<typeof workbenchRpcContract>();
+  const [state, setState] = useState<SubagentsListLoadState>({
+    status: "loading",
+  });
+  const requestSequence = useRef(0);
+
+  const refresh = useCallback(async () => {
+    const sequence = ++requestSequence.current;
+    try {
+      const result = await rpc.call("threadSubagents", { threadId });
+      if (sequence === requestSequence.current) {
+        setState({ status: "ready", subagents: result.subagents });
+      }
+    } catch {
+      if (sequence === requestSequence.current) setState({ status: "error" });
+    }
+  }, [rpc, threadId]);
+
+  useEffect(() => {
+    setState({ status: "loading" });
+    void refresh();
+    return () => {
+      requestSequence.current += 1;
+    };
+  }, [refresh]);
+
+  const shouldPoll =
+    state.status === "error" ||
+    (state.status === "ready" &&
+      state.subagents.some((subagent) => subagent.status === "active"));
+  useVisibleActivePolling(refresh, shouldPoll);
+
+  return { state };
+}
+
+type SubagentsPanelLoadState =
+  | { status: "loading" }
+  | {
+      status: "ready";
+      subagents: SubagentRowView[];
+      outputs: SubagentOutputView[];
+    }
+  | { status: "error" };
+
+function useSubagentsPanelData(threadId: string): {
+  state: SubagentsPanelLoadState;
+} {
+  const rpc = useRpc<typeof workbenchRpcContract>();
+  const [state, setState] = useState<SubagentsPanelLoadState>({
+    status: "loading",
+  });
+  const requestSequence = useRef(0);
+
+  const refresh = useCallback(async () => {
+    const sequence = ++requestSequence.current;
+    try {
+      const [subagentsResult, outputsResult] = await Promise.all([
+        rpc.call("threadSubagents", { threadId }),
+        rpc.call("threadOutputs", { threadId }),
+      ]);
+      if (sequence === requestSequence.current) {
+        setState({
+          status: "ready",
+          subagents: subagentsResult.subagents,
+          outputs: outputsResult.outputs,
+        });
+      }
+    } catch {
+      if (sequence === requestSequence.current) setState({ status: "error" });
+    }
+  }, [rpc, threadId]);
+
+  useEffect(() => {
+    setState({ status: "loading" });
+    void refresh();
+    return () => {
+      requestSequence.current += 1;
+    };
+  }, [refresh]);
+
+  const shouldPoll =
+    state.status === "error" ||
+    (state.status === "ready" &&
+      state.subagents.some((subagent) => subagent.status === "active"));
+  useVisibleActivePolling(refresh, shouldPoll);
+
+  return { state };
+}
+
+function SubagentsThreadPanel({ threadId }: PluginThreadPanelProps) {
+  const { state } = useSubagentsPanelData(threadId);
+  const navigate = useBbNavigate();
+  const now = useNow(SUBAGENTS_NOW_TICK_MS);
+
+  if (state.status === "error") {
+    return (
+      <div className="p-4 text-sm text-muted-foreground">
+        Could not load subagents.
+      </div>
+    );
+  }
+  if (state.status === "loading") return null;
+
+  return (
+    <SubagentsPanelView
+      now={now}
+      subagents={state.subagents}
+      outputs={state.outputs}
+      onSelectSubagent={(id) => navigate.toThread(id)}
+      onSelectOutput={(output) =>
+        navigate.experimental_openFilePreview({
+          target: {
+            kind: "workspace",
+            environmentId: output.environmentId,
+            path: output.path,
+          },
+          location: null,
+        })
+      }
+    />
+  );
+}
+
+function SubagentsDoneBanner() {
+  const view = useComposerView();
+  if (view.scope.kind !== "thread") return null;
+  return (
+    <SubagentsDoneBannerForThread
+      key={view.scope.threadId}
+      threadId={view.scope.threadId}
+    />
+  );
+}
+
+function SubagentsDoneBannerForThread({ threadId }: { threadId: string }) {
+  const { state } = useSubagentsList(threadId);
+  const navigate = useBbNavigate();
+  if (state.status !== "ready") return null;
+
+  const done = state.subagents.filter((subagent) => subagent.status === "done");
+  if (done.length === 0) return null;
+  const active = state.subagents.filter(
+    (subagent) => subagent.status === "active",
+  );
+
+  return (
+    <SubagentsDoneCardView
+      doneNames={done.map((subagent) => subagent.title)}
+      doneCount={done.length}
+      activeCount={active.length}
+      onView={() => {
+        navigate.openThreadPanel({ actionId: SUBAGENTS_PANEL_ACTION_ID });
+      }}
+    />
+  );
+}
+
 function WorkbenchNavPanel(_props: PluginNavPanelProps) {
   return (
     <div className="space-y-4 p-3">
@@ -504,7 +763,14 @@ export default definePluginApp((app) => {
       { id: "bugfix", component: BugfixAction },
       { id: "goal", component: GoalAction },
     ],
-    banners: [{ id: "spec-init", chrome: "card", component: SpecInitBanner }],
+    banners: [
+      { id: "spec-init", chrome: "card", component: SpecInitBanner },
+      {
+        id: "subagents-done",
+        chrome: "bare",
+        component: SubagentsDoneBanner,
+      },
+    ],
   });
   app.slots.navPanel({
     id: "workbench",
@@ -512,5 +778,12 @@ export default definePluginApp((app) => {
     icon: "Toolbox",
     path: "workbench",
     component: WorkbenchNavPanel,
+  });
+  app.slots.threadPanelAction({
+    id: SUBAGENTS_PANEL_ACTION_ID,
+    title: "Subagents",
+    icon: "Bot",
+    component: SubagentsThreadPanel,
+    layout: "flush",
   });
 });

@@ -120,7 +120,7 @@ export function ModelRoutingSectionView({
       <h3 className="px-2 text-xs font-medium text-subtle-foreground">
         Model routing
       </h3>
-      <div className="divide-y divide-border-seam rounded-md bg-surface-raised">
+      <div className="rounded-md bg-surface-raised">
         {(Object.keys(rows) as RoutingRoleId[]).map((role) => (
           <ModelRoutingRow
             key={role}

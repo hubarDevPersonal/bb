@@ -64,7 +64,7 @@ export function GoalDialogView({
               className="min-h-24 resize-y bg-background text-sm"
             />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <label
               htmlFor="workbench-goal-max-tasks"
               className="text-xs font-medium text-subtle-foreground"
@@ -102,6 +102,7 @@ export function GoalDialogView({
             type="button"
             size="sm"
             disabled={!canSubmit}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={onSubmit}
           >
             {submitting ? "Starting…" : "Run goal workflow"}
