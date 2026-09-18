@@ -1123,7 +1123,8 @@ function TimelineSystemDetailBlock({
       size="base"
       streaming={streaming}
       contentKey={detail}
-      className="overflow-hidden rounded-lg bg-surface-raised"
+      className="overflow-hidden rounded-lg bg-surface-raised-solid"
+      fadeFromClassName="from-surface-raised-solid"
     >
       <pre className="whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs leading-tight text-subtle-foreground opacity-70">
         {detail}
@@ -1171,6 +1172,7 @@ function TimelineExpandableBody({
           size="summary"
           streaming={isFrontier}
           contentKey={timelineRowsSignature(row.children)}
+          fadeFromClassName="from-background"
         >
           {list}
         </TimelineDetailScroll>
@@ -1195,6 +1197,7 @@ function TimelineExpandableBody({
             streaming={delegationActive}
             contentKey={`${timelineRowsSignature(row.childRows)}|${row.output.length}`}
             className={NESTED_TIMELINE_GROUP_LINE_CLASS_NAME}
+            fadeFromClassName="from-background"
           >
             <div className="flex flex-col gap-3">
               {row.childRows.length > 0 ? (
