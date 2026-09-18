@@ -22,7 +22,7 @@ export const codexThemeCss = `
   --palette-purple: #a67df2;
   --palette-yellow: #f6c543;
   --palette-pink: #f077af;
-  --font-sans: "OpenAI Sans", -apple-system, ui-sans-serif;
+  --font-sans: "OpenAI Sans", -apple-system, ui-sans-serif, sans-serif;
 }
 .dark {
   --canvas: #212121;
@@ -92,6 +92,6 @@ export const codexThemeCss = `
   --ansi-bg-fg-12: #0d0d0d;
   --ansi-bg-fg-13: #0d0d0d;
   --ansi-bg-fg-15: #0d0d0d;
-  --font-sans: "OpenAI Sans", -apple-system, ui-sans-serif;
+  --font-sans: "OpenAI Sans", -apple-system, ui-sans-serif, sans-serif;
 }
 `;
