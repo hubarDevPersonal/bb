@@ -17,18 +17,52 @@ import {
   type TimelineFileChangeEntry,
 } from "./subagents-data.js";
 
-const ORCHESTRATED_INSTRUCTIONS =
-  "Orchestrated mode: act as the orchestrator — intent, plan, acceptance, " +
-  "report. Delegate code reconnaissance to the `scout` subagent, " +
-  "implementation of each task to `implementer`, and independent " +
-  "verification to `reviewer`. One subagent per task, with the full " +
-  "context in its prompt.";
+const MULTI_MODEL_INSTRUCTIONS =
+  "Multi-model mode: orchestrate — delegate reconnaissance to the `scout` " +
+  "subagent, implementation of each task to `implementer`, and " +
+  "verification to `reviewer`, one subagent per task with the full " +
+  "context in its prompt. Before reporting completion, request a " +
+  "cross-model review by running `bb workbench review <this thread id>` " +
+  "(the agent's thread id is available via `bb status`) and address its " +
+  "findings.";
+
+const REVIEW_PROVIDER_AUTO = "auto";
 
 const SPEC_PROJECT_FILE = ".claude/specs/PROJECT.md";
 
 const INVALID_MODEL_MESSAGE =
   "Invalid model: expected a single token (letters, digits, " +
   `._:/[]-), up to ${AGENT_MODEL_MAX_LENGTH} characters`;
+
+const reviewErrorSchema = z.enum([
+  "host_unavailable",
+  "no_provider_available",
+  "provider_unavailable",
+]);
+type ReviewError = z.infer<typeof reviewErrorSchema>;
+
+const reviewProviderResultSchema = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      providerId: z.string(),
+      providerName: z.string(),
+    })
+    .strict(),
+  z.object({ ok: z.literal(false), error: reviewErrorSchema }).strict(),
+]);
+
+const requestReviewResultSchema = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      reviewThreadId: z.string(),
+      providerId: z.string(),
+      providerName: z.string(),
+    })
+    .strict(),
+  z.object({ ok: z.literal(false), error: reviewErrorSchema }).strict(),
+]);
 
 const routingErrorSchema = z.enum([
   "host_unavailable",
@@ -54,6 +88,10 @@ const modelOptionSchema = z
 
 const providerOptionSchema = z
   .object({ id: z.string(), name: z.string() })
+  .strict();
+
+const reviewProviderOptionsSchema = z
+  .object({ value: z.string(), providers: z.array(providerOptionSchema) })
   .strict();
 
 const routingViewSchema = z
@@ -111,27 +149,27 @@ export const workbenchRpcContract = defineRpcContract({
     input: z.object({ threadId: z.string().min(1) }).strict(),
     output: z.object({ command: z.string() }).strict(),
   },
-  runTask: {
-    input: z
-      .object({ threadId: z.string().min(1), description: z.string().min(1) })
-      .strict(),
-    output: z.object({ command: z.string() }).strict(),
-  },
   runBugfix: {
     input: z
       .object({ threadId: z.string().min(1), description: z.string().min(1) })
       .strict(),
     output: z.object({ command: z.string() }).strict(),
   },
-  runGoal: {
-    input: z
-      .object({
-        threadId: z.string().min(1),
-        goal: z.string().min(1),
-        maxTasks: z.number().int().min(1).max(12),
-      })
-      .strict(),
-    output: z.object({ message: z.string() }).strict(),
+  requestReview: {
+    input: z.object({ threadId: z.string().min(1) }).strict(),
+    output: requestReviewResultSchema,
+  },
+  reviewProviderPreview: {
+    input: z.object({ threadId: z.string().min(1) }).strict(),
+    output: reviewProviderResultSchema,
+  },
+  getReviewProviderOptions: {
+    input: z.null(),
+    output: reviewProviderOptionsSchema,
+  },
+  setReviewProviderOption: {
+    input: z.object({ value: z.string().min(1) }).strict(),
+    output: z.object({ value: z.string() }).strict(),
   },
   runSpecInit: {
     input: z.object({ threadId: z.string().min(1) }).strict(),
@@ -185,10 +223,6 @@ const SUBAGENT_LIST_LIMIT = 100;
 const OUTPUTS_TIMELINE_SEGMENT_LIMIT = "100";
 const OUTPUTS_TIMELINE_MAX_PAGES = 3;
 
-function shellSingleQuote(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-
 function isAgentRole(value: string): value is AgentRole {
   return (AGENT_ROLES as readonly string[]).includes(value);
 }
@@ -212,20 +246,32 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
   const settings = bb.settings.define({
     orchestratedMode: {
       type: "boolean",
-      label: "Orchestrated mode",
+      label: "Multi-model mode",
       description:
         "Ask agents to delegate reconnaissance, implementation, and review " +
-        "to subagents. Applies to new sessions.",
+        "to subagents, and to request a cross-model review before " +
+        "reporting completion. Applies to new sessions.",
       default: false,
+    },
+    reviewProvider: {
+      type: "string",
+      label: "Review provider",
+      description:
+        '"Ask for review" provider: "auto" picks the first available ' +
+        "provider that differs from the thread's own provider, or an " +
+        "explicit provider id.",
+      default: REVIEW_PROVIDER_AUTO,
     },
   });
   let orchestratedMode = (await settings.get()).orchestratedMode;
+  let reviewProviderValue = (await settings.get()).reviewProvider;
   settings.onChange((next) => {
     orchestratedMode = next.orchestratedMode;
+    reviewProviderValue = next.reviewProvider;
   });
 
   bb.agents.contributeInstructions(() =>
-    orchestratedMode ? ORCHESTRATED_INSTRUCTIONS : null,
+    orchestratedMode ? MULTI_MODEL_INSTRUCTIONS : null,
   );
 
   function publishSubagentsChanged(parentThreadId: string): void {
@@ -281,6 +327,106 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       return `/spec-check ${base}..${environment.branchName}`;
     }
     return "/spec-check";
+  }
+
+  async function diffScopeForThread(
+    environmentId: string | null,
+  ): Promise<{ environmentId: string | null; diffCommand: string }> {
+    if (environmentId === null) {
+      return { environmentId: null, diffCommand: "git diff HEAD" };
+    }
+    let environment;
+    try {
+      environment = await bb.sdk.environments.get({ environmentId });
+    } catch {
+      return { environmentId, diffCommand: "git diff HEAD" };
+    }
+    const base =
+      environment.mergeBaseBranch ??
+      environment.baseBranch ??
+      environment.defaultBranch ??
+      null;
+    if (
+      environment.isWorktree &&
+      base !== null &&
+      environment.branchName !== null
+    ) {
+      return {
+        environmentId,
+        diffCommand: `git diff ${base}...${environment.branchName}`,
+      };
+    }
+    return { environmentId, diffCommand: "git diff HEAD" };
+  }
+
+  function buildReviewPrompt(diffCommand: string): string {
+    const untrackedNote =
+      diffCommand === "git diff HEAD"
+        ? " plus any untracked files (`git status --porcelain`)"
+        : "";
+    return (
+      `Review the changes (\`${diffCommand}\`${untrackedNote}) in this ` +
+      "workspace for correctness, security, and tests. List findings by " +
+      "severity with file:line and a concrete fix. Do not modify files. " +
+      "Finish with a verdict."
+    );
+  }
+
+  type ReviewProviderResolution =
+    | {
+        ok: true;
+        hostId: string;
+        thread: {
+          id: string;
+          projectId: string;
+          environmentId: string | null;
+          providerId: string;
+          title: string | null;
+          titleFallback: string | null;
+        };
+        providerId: string;
+        providerName: string;
+      }
+    | { ok: false; error: ReviewError };
+
+  async function resolveReviewProviderForThread(
+    threadId: string,
+  ): Promise<ReviewProviderResolution> {
+    const hostId = await primaryHostId();
+    if (hostId === null) return { ok: false, error: "host_unavailable" };
+    const thread = await bb.sdk.threads.get({ threadId });
+    let available: { id: string; displayName: string }[];
+    try {
+      available = (await bb.sdk.providers.list({ hostId }))
+        .filter((provider) => provider.available)
+        .map((provider) => ({
+          id: provider.id,
+          displayName: provider.displayName,
+        }));
+    } catch {
+      return { ok: false, error: "host_unavailable" };
+    }
+    const requested = reviewProviderValue;
+    const candidate =
+      requested === REVIEW_PROVIDER_AUTO
+        ? available.find((provider) => provider.id !== thread.providerId)
+        : available.find((provider) => provider.id === requested);
+    if (candidate === undefined) {
+      return {
+        ok: false,
+        error:
+          requested === REVIEW_PROVIDER_AUTO
+            ? "no_provider_available"
+            : "provider_unavailable",
+      };
+    }
+    return {
+      ok: true,
+      hostId,
+      thread,
+      providerId: candidate.id,
+      providerName: candidate.displayName,
+    };
   }
 
   async function collectFileChanges(
@@ -475,14 +621,45 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     }
   }
 
+  async function requestReview(
+    threadId: string,
+  ): Promise<z.infer<typeof requestReviewResultSchema>> {
+    const resolution = await resolveReviewProviderForThread(threadId);
+    if (!resolution.ok) return resolution;
+    const { hostId, thread, providerId, providerName } = resolution;
+    const diffScope = await diffScopeForThread(thread.environmentId);
+    let defaultModel: string | undefined;
+    try {
+      const catalog = await bb.sdk.providers.models({ hostId, providerId });
+      defaultModel = (
+        catalog.models.find((model) => model.isDefault) ?? catalog.models[0]
+      )?.model;
+    } catch {
+      defaultModel = undefined;
+    }
+    if (defaultModel === undefined) {
+      return { ok: false, error: "provider_unavailable" };
+    }
+    const title = `Review: ${thread.title ?? thread.titleFallback ?? "thread"}`;
+    const child = await bb.sdk.threads.spawn({
+      projectId: thread.projectId,
+      environment:
+        diffScope.environmentId === null
+          ? { type: "project-default" }
+          : { type: "reuse", environmentId: diffScope.environmentId },
+      parentThreadId: threadId,
+      providerId,
+      model: defaultModel,
+      permissionMode: "accept-edits",
+      title,
+      prompt: buildReviewPrompt(diffScope.diffCommand),
+    });
+    return { ok: true, reviewThreadId: child.id, providerId, providerName };
+  }
+
   bb.rpc.register(workbenchRpcContract, {
     async runSpecCheck({ threadId }) {
       const command = await specCheckCommand(threadId);
-      await sendUserMessage(threadId, command);
-      return { command };
-    },
-    async runTask({ threadId, description }) {
-      const command = `/task ${description.trim()}`;
       await sendUserMessage(threadId, command);
       return { command };
     },
@@ -491,13 +668,43 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       await sendUserMessage(threadId, command);
       return { command };
     },
-    async runGoal({ threadId, goal, maxTasks }) {
-      const args = JSON.stringify({ goal, maxTasks });
-      const message =
-        "Run the goal workflow and post its run card: " +
-        `bb workflows run --name goal --args ${shellSingleQuote(args)}`;
-      await sendUserMessage(threadId, message);
-      return { message };
+    requestReview({ threadId }) {
+      return requestReview(threadId);
+    },
+    async reviewProviderPreview({ threadId }) {
+      const resolution = await resolveReviewProviderForThread(threadId);
+      if (!resolution.ok) return resolution;
+      return {
+        ok: true as const,
+        providerId: resolution.providerId,
+        providerName: resolution.providerName,
+      };
+    },
+    async getReviewProviderOptions() {
+      const hostId = await primaryHostId();
+      const providers =
+        hostId === null
+          ? []
+          : await bb.sdk.providers
+              .list({ hostId })
+              .then((list) =>
+                list
+                  .filter((provider) => provider.available)
+                  .map((provider) => ({
+                    id: provider.id,
+                    name: provider.displayName,
+                  })),
+              )
+              .catch(() => []);
+      return { value: reviewProviderValue, providers };
+    },
+    async setReviewProviderOption({ value }) {
+      await bb.sdk.plugins.updateSettings({
+        pluginId: bb.pluginId,
+        values: { reviewProvider: value },
+      });
+      reviewProviderValue = value;
+      return { value };
     },
     async runSpecInit({ threadId }) {
       const command = "/spec-init";
@@ -626,7 +833,7 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     },
   });
 
-  async function setOrchestratedModeFromCli(enabled: boolean): Promise<void> {
+  async function setMultiModelModeFromCli(enabled: boolean): Promise<void> {
     await bb.sdk.plugins.updateSettings({
       pluginId: bb.pluginId,
       values: { orchestratedMode: enabled },
@@ -636,7 +843,8 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
 
   bb.cli.register({
     name: "workbench",
-    summary: "Agent workflow shortcuts: model routing and orchestrated mode",
+    summary:
+      "Agent workflow shortcuts: model routing, multi-model mode, review",
     commands: [
       {
         name: "routing",
@@ -644,9 +852,14 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
         usage: "bb workbench routing [set <role> <model>]",
       },
       {
-        name: "orchestrated",
-        summary: "Show or set orchestrated mode",
-        usage: "bb workbench orchestrated <on|off>",
+        name: "multimodel",
+        summary: "Show or set multi-model mode",
+        usage: "bb workbench multimodel <on|off>",
+      },
+      {
+        name: "review",
+        summary: "Spawn a cross-model review thread for a thread",
+        usage: "bb workbench review <threadId>",
       },
       {
         name: "subagents",
@@ -702,19 +915,36 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
         );
         return { exitCode: 0, stdout: lines.join("\n") };
       }
-      if (command === "orchestrated") {
+      if (command === "multimodel") {
         const value = rest[0];
         if (value === "on" || value === "off") {
-          await setOrchestratedModeFromCli(value === "on");
+          await setMultiModelModeFromCli(value === "on");
         } else if (value !== undefined) {
           return {
             exitCode: 1,
-            stderr: "Usage: bb workbench orchestrated <on|off>",
+            stderr: "Usage: bb workbench multimodel <on|off>",
           };
         }
         return {
           exitCode: 0,
           stdout: orchestratedMode ? "on" : "off",
+        };
+      }
+      if (command === "review") {
+        const threadId = rest[0];
+        if (threadId === undefined) {
+          return {
+            exitCode: 1,
+            stderr: "Usage: bb workbench review <threadId>",
+          };
+        }
+        const result = await requestReview(threadId);
+        if (!result.ok) {
+          return { exitCode: 1, stderr: result.error };
+        }
+        return {
+          exitCode: 0,
+          stdout: `Started review thread ${result.reviewThreadId} with ${result.providerName}`,
         };
       }
       if (command === "subagents") {
@@ -755,7 +985,7 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       return {
         exitCode: 1,
         stderr:
-          "Usage: bb workbench <routing|routing set|orchestrated|subagents|outputs> [args]",
+          "Usage: bb workbench <routing|routing set|multimodel|review|subagents|outputs> [args]",
       };
     },
   });
