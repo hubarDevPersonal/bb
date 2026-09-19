@@ -8,7 +8,10 @@ import {
   type AgentRole,
 } from "./contract.js";
 import { projectSpecCandidates } from "./project-specs.js";
-import { WORKBENCH_SUBAGENTS_REALTIME_CHANNEL } from "./realtime-channel.js";
+import {
+  WORKBENCH_MULTI_MODEL_MODE_REALTIME_CHANNEL,
+  WORKBENCH_SUBAGENTS_REALTIME_CHANNEL,
+} from "./realtime-channel.js";
 import {
   extractCreatedFilePaths,
   flattenFileChangeRows,
@@ -30,14 +33,30 @@ const REVIEW_PROVIDER_AUTO = "auto";
 
 const SPEC_PROJECT_FILE = ".claude/specs/PROJECT.md";
 
+const REVIEW_THREAD_IDS_KV_KEY = "reviewThreadIds";
+
 const INVALID_MODEL_MESSAGE =
   "Invalid model: expected a single token (letters, digits, " +
   `._:/[]-), up to ${AGENT_MODEL_MAX_LENGTH} characters`;
+
+const PERMISSION_MODE_RANK = ["accept-edits", "auto", "full"] as const;
+type WorkbenchPermissionMode = (typeof PERMISSION_MODE_RANK)[number];
+
+function lowestSupportedPermissionMode(
+  permissionModes: readonly string[],
+): WorkbenchPermissionMode {
+  const match = PERMISSION_MODE_RANK.find((mode) =>
+    permissionModes.includes(mode),
+  );
+  return match ?? (permissionModes[0] as WorkbenchPermissionMode);
+}
 
 const reviewErrorSchema = z.enum([
   "host_unavailable",
   "no_provider_available",
   "provider_unavailable",
+  "no_environment",
+  "review_of_review",
 ]);
 type ReviewError = z.infer<typeof reviewErrorSchema>;
 
@@ -270,9 +289,26 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     reviewProviderValue = next.reviewProvider;
   });
 
-  bb.agents.contributeInstructions(() =>
-    orchestratedMode ? MULTI_MODEL_INSTRUCTIONS : null,
+  const reviewThreadIds = new Set<string>(
+    (await bb.storage.kv.get<string[]>(REVIEW_THREAD_IDS_KV_KEY)) ?? [],
   );
+
+  async function markReviewThread(threadId: string): Promise<void> {
+    reviewThreadIds.add(threadId);
+    await bb.storage.kv.set(REVIEW_THREAD_IDS_KV_KEY, [...reviewThreadIds]);
+  }
+
+  bb.agents.contributeInstructions((ctx) =>
+    orchestratedMode && !reviewThreadIds.has(ctx.threadId)
+      ? MULTI_MODEL_INSTRUCTIONS
+      : null,
+  );
+
+  function publishMultiModelModeChanged(enabled: boolean): void {
+    bb.realtime.publish(WORKBENCH_MULTI_MODEL_MODE_REALTIME_CHANNEL, {
+      enabled,
+    });
+  }
 
   function publishSubagentsChanged(parentThreadId: string): void {
     bb.realtime.publish(WORKBENCH_SUBAGENTS_REALTIME_CHANNEL, {
@@ -368,18 +404,31 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       `Review the changes (\`${diffCommand}\`${untrackedNote}) in this ` +
       "workspace for correctness, security, and tests. List findings by " +
       "severity with file:line and a concrete fix. Do not modify files. " +
-      "Finish with a verdict."
+      "This thread is itself the cross-model review: do not run " +
+      "`bb workbench review` or request another review. Finish with a " +
+      "verdict."
     );
+  }
+
+  async function resolveHostIdForEnvironment(
+    environmentId: string,
+  ): Promise<string | null> {
+    try {
+      return (await bb.sdk.environments.get({ environmentId })).hostId;
+    } catch {
+      return null;
+    }
   }
 
   type ReviewProviderResolution =
     | {
         ok: true;
         hostId: string;
+        environmentId: string;
+        permissionMode: WorkbenchPermissionMode;
         thread: {
           id: string;
           projectId: string;
-          environmentId: string | null;
           providerId: string;
           title: string | null;
           titleFallback: string | null;
@@ -392,16 +441,26 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
   async function resolveReviewProviderForThread(
     threadId: string,
   ): Promise<ReviewProviderResolution> {
-    const hostId = await primaryHostId();
-    if (hostId === null) return { ok: false, error: "host_unavailable" };
+    if (reviewThreadIds.has(threadId)) {
+      return { ok: false, error: "review_of_review" };
+    }
     const thread = await bb.sdk.threads.get({ threadId });
-    let available: { id: string; displayName: string }[];
+    const environmentId = thread.environmentId;
+    if (environmentId === null) return { ok: false, error: "no_environment" };
+    const hostId = await resolveHostIdForEnvironment(environmentId);
+    if (hostId === null) return { ok: false, error: "host_unavailable" };
+    let available: {
+      id: string;
+      displayName: string;
+      permissionModes: readonly string[];
+    }[];
     try {
       available = (await bb.sdk.providers.list({ hostId }))
         .filter((provider) => provider.available)
         .map((provider) => ({
           id: provider.id,
           displayName: provider.displayName,
+          permissionModes: provider.capabilities.permissionModes,
         }));
     } catch {
       return { ok: false, error: "host_unavailable" };
@@ -423,7 +482,15 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     return {
       ok: true,
       hostId,
-      thread,
+      environmentId,
+      permissionMode: lowestSupportedPermissionMode(candidate.permissionModes),
+      thread: {
+        id: thread.id,
+        projectId: thread.projectId,
+        providerId: thread.providerId,
+        title: thread.title,
+        titleFallback: thread.titleFallback,
+      },
       providerId: candidate.id,
       providerName: candidate.displayName,
     };
@@ -626,8 +693,15 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
   ): Promise<z.infer<typeof requestReviewResultSchema>> {
     const resolution = await resolveReviewProviderForThread(threadId);
     if (!resolution.ok) return resolution;
-    const { hostId, thread, providerId, providerName } = resolution;
-    const diffScope = await diffScopeForThread(thread.environmentId);
+    const {
+      hostId,
+      environmentId,
+      permissionMode,
+      thread,
+      providerId,
+      providerName,
+    } = resolution;
+    const diffScope = await diffScopeForThread(environmentId);
     let defaultModel: string | undefined;
     try {
       const catalog = await bb.sdk.providers.models({ hostId, providerId });
@@ -643,17 +717,15 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     const title = `Review: ${thread.title ?? thread.titleFallback ?? "thread"}`;
     const child = await bb.sdk.threads.spawn({
       projectId: thread.projectId,
-      environment:
-        diffScope.environmentId === null
-          ? { type: "project-default" }
-          : { type: "reuse", environmentId: diffScope.environmentId },
+      environment: { type: "reuse", environmentId },
       parentThreadId: threadId,
       providerId,
       model: defaultModel,
-      permissionMode: "accept-edits",
+      permissionMode,
       title,
       prompt: buildReviewPrompt(diffScope.diffCommand),
     });
+    await markReviewThread(child.id);
     return { ok: true, reviewThreadId: child.id, providerId, providerName };
   }
 
@@ -769,6 +841,7 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
         values: { orchestratedMode: enabled },
       });
       orchestratedMode = enabled;
+      publishMultiModelModeChanged(enabled);
       return { enabled };
     },
     async listSpecs() {
@@ -839,6 +912,7 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       values: { orchestratedMode: enabled },
     });
     orchestratedMode = enabled;
+    publishMultiModelModeChanged(enabled);
   }
 
   bb.cli.register({

@@ -680,6 +680,7 @@ function MarkdownAnchor({
       href={anchorHref}
       className={cn(
         "break-words [overflow-wrap:anywhere] text-timeline-accent underline underline-offset-2",
+        "[[data-user-bubble]_&]:text-user-message-foreground",
       )}
       target="_blank"
       rel="noopener noreferrer"

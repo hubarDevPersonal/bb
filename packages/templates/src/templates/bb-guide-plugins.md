@@ -185,12 +185,13 @@ review provider, and spec file shortcuts. Its "Multi-model mode" setting asks
 agents to delegate reconnaissance, implementation, and review to the `scout`,
 `implementer`, and `reviewer` subagents on new sessions, and to request a
 cross-model review before reporting completion. "Ask for review" (and
-`bb workbench review <threadId>`) spawns a read-only review thread on another
-provider: the "Review provider" setting picks it, either "auto" (the first
-available provider that differs from the thread's own) or an explicit
-provider id. Model routing reads and writes the `model:` frontmatter key in
-each role's `~/.claude/agents/<role>.md` on the host. The CLI equivalents
-are:
+`bb workbench review <threadId>`) spawns a review thread on another
+provider, asked not to modify files and run at the lowest permission mode
+that provider supports: the "Review provider" setting picks it, either
+"auto" (the first available provider that differs from the thread's own) or
+an explicit provider id. Model routing reads and writes the `model:`
+frontmatter key in each role's `~/.claude/agents/<role>.md` on the host. The
+CLI equivalents are:
 
 ```
 bb workbench routing
@@ -199,6 +200,7 @@ bb workbench multimodel <on|off>
 bb workbench review <threadId>
 bb workbench subagents <threadId>
 bb workbench outputs <threadId>
+bb plugin config workbench set reviewProvider <id|auto>
 ```
 
 The Memory plugin is an opt-in install, bundled with the app:

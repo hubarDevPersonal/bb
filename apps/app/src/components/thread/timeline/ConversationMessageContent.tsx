@@ -431,7 +431,10 @@ function UserConversationMessage({
           </div>
         ) : null}
         <div className="flex w-fit max-w-full flex-col items-end">
-          <div className="max-w-full rounded-xl border border-border-seam bg-user-message px-4 py-2.5 text-sm leading-relaxed text-user-message-foreground">
+          <div
+            data-user-bubble=""
+            className="max-w-full rounded-xl border border-border-seam bg-user-message px-4 py-2.5 text-sm leading-relaxed text-user-message-foreground"
+          >
             {messageText ? (
               <CollapsibleMessageText
                 mentions={mentions}
