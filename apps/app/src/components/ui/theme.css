@@ -77,6 +77,8 @@
   --color-surface-recessed-soft-solid: var(--surface-recessed-soft-solid);
   --color-surface-raised: var(--surface-raised);
   --color-surface-raised-solid: var(--surface-raised-solid);
+  --color-user-message: var(--user-message);
+  --color-user-message-foreground: var(--user-message-foreground);
   --color-surface-scrim: var(--surface-scrim);
   --color-surface-destructive: var(--surface-destructive);
   --color-surface-destructive-border: var(--surface-destructive-border);
@@ -535,6 +537,11 @@
   );
   --surface-raised: color-mix(in oklab, var(--ink) 2.5%, transparent);
   --surface-raised-solid: color-mix(in oklab, var(--ink) 2.5%, var(--canvas));
+  /* The user's own message bubble. Defaults to the same fill/text pair the
+   * bubble already used before this token existed, so only themes that
+   * override it (e.g. Codex) change. */
+  --user-message: var(--surface-recessed);
+  --user-message-foreground: var(--foreground);
   --surface-scrim: color-mix(in oklab, var(--canvas) 92%, transparent);
   --surface-destructive: color-mix(
     in oklab,
@@ -771,6 +778,8 @@
   );
   --surface-raised: color-mix(in oklab, var(--ink) 2.5%, transparent);
   --surface-raised-solid: color-mix(in oklab, var(--ink) 2.5%, var(--canvas));
+  --user-message: var(--surface-recessed);
+  --user-message-foreground: var(--foreground);
   --surface-scrim: color-mix(in oklab, var(--canvas) 92%, transparent);
   --surface-destructive: color-mix(
     in oklab,

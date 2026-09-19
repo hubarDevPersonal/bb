@@ -107,22 +107,23 @@ semantic** tokens; the rest derive.
 
 **Surfaces & chrome — auto-derive from `--canvas`/`--ink`; leave alone unless you want one element to differ:**
 
-| token                                                                       | drives                                                                        | derives           |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------- |
-| `--background`                                                              | main content-area background                                                  | `= --canvas`      |
-| `--card`, `--popover`                                                       | card surfaces; dropdown/menu/popover/tooltip surfaces                         | `= --canvas`      |
-| `--secondary`, `--accent`                                                   | subtle fills: secondary buttons, hovered list rows, highlights                | ink 8%            |
-| `--muted`                                                                   | muted fill: badges, chips, inset blocks                                       | ink 11%           |
-| `--border`                                                                  | default component borders (cards, dividers)                                   | ink 14%           |
-| `--border-hairline`                                                         | the finest 1px separators                                                     | ink ~15%          |
-| `--border-seam`                                                             | resizable app-shell boundaries: sidebar↔content, split panes, and side panels | ink ~10%          |
-| `--border-seam-vertical`                                                    | compatibility alias for `--border-seam`; prefer the orientation-neutral token | `= --border-seam` |
-| `--input`                                                                   | input/control field borders                                                   | ink ~30%          |
-| `--surface-recessed`                                                        | sunken inset wells (code/diagram backgrounds)                                 | translucent ink   |
-| `--surface-raised`                                                          | faintly lifted panels                                                         | translucent ink   |
-| `--surface-scrim`                                                           | **frosted top bars** — the thread/page header (`bg-surface-scrim`, blurred)   | canvas 92%        |
-| `--state-hover`, `--state-active`                                           | translucent hover / pressed overlays on rows & buttons                        | translucent ink   |
-| `--sidebar`, `--sidebar-foreground`, `--sidebar-accent`, `--sidebar-border` | left sidebar surface, its text, hovered items, borders                        | canvas/ink mixes  |
+| token                                                                       | drives                                                                        | derives                                   |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------- |
+| `--background`                                                              | main content-area background                                                  | `= --canvas`                              |
+| `--card`, `--popover`                                                       | card surfaces; dropdown/menu/popover/tooltip surfaces                         | `= --canvas`                              |
+| `--secondary`, `--accent`                                                   | subtle fills: secondary buttons, hovered list rows, highlights                | ink 8%                                    |
+| `--muted`                                                                   | muted fill: badges, chips, inset blocks                                       | ink 11%                                   |
+| `--border`                                                                  | default component borders (cards, dividers)                                   | ink 14%                                   |
+| `--border-hairline`                                                         | the finest 1px separators                                                     | ink ~15%                                  |
+| `--border-seam`                                                             | resizable app-shell boundaries: sidebar↔content, split panes, and side panels | ink ~10%                                  |
+| `--border-seam-vertical`                                                    | compatibility alias for `--border-seam`; prefer the orientation-neutral token | `= --border-seam`                         |
+| `--input`                                                                   | input/control field borders                                                   | ink ~30%                                  |
+| `--surface-recessed`                                                        | sunken inset wells (code/diagram backgrounds)                                 | translucent ink                           |
+| `--surface-raised`                                                          | faintly lifted panels                                                         | translucent ink                           |
+| `--user-message`, `--user-message-foreground`                               | the user's own message bubble in the thread timeline, and its text            | `= --surface-recessed` / `= --foreground` |
+| `--surface-scrim`                                                           | **frosted top bars** — the thread/page header (`bg-surface-scrim`, blurred)   | canvas 92%                                |
+| `--state-hover`, `--state-active`                                           | translucent hover / pressed overlays on rows & buttons                        | translucent ink                           |
+| `--sidebar`, `--sidebar-foreground`, `--sidebar-accent`, `--sidebar-border` | left sidebar surface, its text, hovered items, borders                        | canvas/ink mixes                          |
 
 **Accent — set `--primary` (+ foreground); these follow it:**
 
@@ -159,14 +160,14 @@ semantic** tokens; the rest derive.
 
 **Identity — six fixed hues for avatars/labels (`bg-palette-*`, `text-palette-*`); set only if you want distinct hues, otherwise built-in palettes alias them to existing semantic tokens:**
 
-| token | drives | default alias |
-|---|---|---|
-| `--palette-blue` | identity color (avatars, labels) | `= --ansi-4` |
-| `--palette-green` | identity color (avatars, labels) | `= --success` |
-| `--palette-orange` | identity color (avatars, labels) | `= --warning` |
+| token              | drives                           | default alias   |
+| ------------------ | -------------------------------- | --------------- |
+| `--palette-blue`   | identity color (avatars, labels) | `= --ansi-4`    |
+| `--palette-green`  | identity color (avatars, labels) | `= --success`   |
+| `--palette-orange` | identity color (avatars, labels) | `= --warning`   |
 | `--palette-purple` | identity color (avatars, labels) | `= --pr-merged` |
 | `--palette-yellow` | identity color (avatars, labels) | `= --attention` |
-| `--palette-pink` | identity color (avatars, labels) | `= --ansi-13` |
+| `--palette-pink`   | identity color (avatars, labels) | `= --ansi-13`   |
 
 **Terminal — set only if remapping:** `--ansi-0` … `--ansi-15` (the 16 ANSI
 colors) and `--ansi-bg-fg-0` … `--ansi-bg-fg-15` (the readable text drawn on each
@@ -182,12 +183,12 @@ Four font tokens, overridden the same way as colors. Fonts are mode-independent,
 so set them in the `:root, .light` block only. Always end the stack with a
 generic family (`sans-serif` / `monospace` / `serif`) as a fallback.
 
-| token                    | drives                                                           |
-| ------------------------ | ---------------------------------------------------------------- |
-| `--font-sans`            | the entire app UI / body text (`body` uses it)                   |
-| `--font-mono`            | code blocks, diffs, file paths and previews, terminal-style text |
-| `--font-serif`           | serif prose (rarely used in the UI)                              |
-| `--font-terminal`        | the integrated terminal's renderer font family                  |
+| token             | drives                                                           |
+| ----------------- | ---------------------------------------------------------------- |
+| `--font-sans`     | the entire app UI / body text (`body` uses it)                   |
+| `--font-mono`     | code blocks, diffs, file paths and previews, terminal-style text |
+| `--font-serif`    | serif prose (rarely used in the UI)                              |
+| `--font-terminal` | the integrated terminal's renderer font family                   |
 
 The browser must be able to load the family. Three ways:
 

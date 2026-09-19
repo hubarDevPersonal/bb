@@ -67,6 +67,8 @@
   --color-surface-recessed-soft-solid: var(--surface-recessed-soft-solid);
   --color-surface-raised: var(--surface-raised);
   --color-surface-raised-solid: var(--surface-raised-solid);
+  --color-user-message: var(--user-message);
+  --color-user-message-foreground: var(--user-message-foreground);
   --color-surface-scrim: var(--surface-scrim);
   --color-surface-destructive: var(--surface-destructive);
   --color-surface-destructive-border: var(--surface-destructive-border);

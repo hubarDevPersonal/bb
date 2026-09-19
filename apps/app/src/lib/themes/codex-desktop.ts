@@ -29,8 +29,8 @@ export const codexThemeCss = `
   --muted-foreground: #cdcdcd;
   --readback-foreground: #afafaf;
   --subtle-foreground: #afafaf;
-  --primary: #63a8f8;
-  --primary-foreground: #0d0d0d;
+  --primary: #3a83f7;
+  --primary-foreground: #ffffff;
   --timeline-accent: #63a8f8;
   --file-accent: var(--timeline-accent);
   --ring: #ffffff40;
@@ -42,6 +42,8 @@ export const codexThemeCss = `
   --surface-recessed-solid: #1b1b1b;
   --surface-selected: #41414199;
   --surface-selected-border: #ffffff0d;
+  --user-message: #1e3d74;
+  --user-message-foreground: #f6fafe;
   --border: #ffffff26;
   --border-hairline: #ffffff1a;
   --border-seam: #ffffff0d;
