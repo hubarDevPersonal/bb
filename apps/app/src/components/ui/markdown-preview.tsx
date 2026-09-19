@@ -669,7 +669,7 @@ function MarkdownAnchor({
       }
       href={anchorHref}
       className={cn(
-        "break-words [overflow-wrap:anywhere] text-primary underline underline-offset-2",
+        "break-words [overflow-wrap:anywhere] text-timeline-accent underline underline-offset-2",
       )}
       target={linkTarget.kind === "fragment" ? undefined : "_blank"}
       rel="noopener noreferrer"
