@@ -139,7 +139,7 @@ export function ConversationMessageOverflowToggle({
       <button
         type="button"
         onClick={onToggle}
-        className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground"
+        className="cursor-pointer text-xs font-medium text-user-message-foreground/80 hover:text-user-message-foreground"
         aria-expanded={expanded}
       >
         {expanded ? "Show less" : "Show more"}

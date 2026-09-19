@@ -260,7 +260,7 @@ function CollapsibleMessageText({
     <>
       {prefixText !== null ? (
         <span
-          className="line-clamp-1 text-muted-foreground"
+          className="line-clamp-1 text-user-message-foreground/80"
           title={prefixText.trimEnd()}
         >
           {prefixText}
@@ -430,7 +430,7 @@ function UserConversationMessage({
         ) : null}
         {}
         <div className="flex w-fit max-w-full flex-col items-end">
-          <div className="max-w-full rounded-xl border border-border-seam bg-surface-recessed px-4 py-2.5 text-sm leading-relaxed text-foreground">
+          <div className="max-w-full rounded-xl border border-border-seam bg-user-message px-4 py-2.5 text-sm leading-relaxed text-user-message-foreground">
             {messageText ? (
               <CollapsibleMessageText
                 mentions={mentions}
@@ -441,7 +441,9 @@ function UserConversationMessage({
                 mutePrefixLength={mutePrefixLength || undefined}
               />
             ) : (
-              <p className="text-muted-foreground">Sent attachments</p>
+              <p className="text-user-message-foreground/80">
+                Sent attachments
+              </p>
             )}
             <ConversationAttachments
               align="end"

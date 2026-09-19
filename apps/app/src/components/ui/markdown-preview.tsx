@@ -626,7 +626,7 @@ function MarkdownAnchor({
       {...anchorProps}
       href={anchorHref}
       className={cn(
-        "break-words [overflow-wrap:anywhere] text-primary underline underline-offset-2",
+        "break-words [overflow-wrap:anywhere] text-timeline-accent underline underline-offset-2",
       )}
       target="_blank"
       rel="noopener noreferrer"
