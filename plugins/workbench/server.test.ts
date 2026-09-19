@@ -10,6 +10,19 @@ function threadRecord(environmentId: string | null) {
   return { id: "thr_1", environmentId };
 }
 
+const PERMISSIVE_CAPABILITIES = {
+  permissionModes: ["accept-edits", "auto", "full"],
+} as const;
+
+type RequestReviewResult =
+  | {
+      ok: true;
+      reviewThreadId: string;
+      providerId: string;
+      providerName: string;
+    }
+  | { ok: false; error: string };
+
 describe("workbench spec-check command", () => {
   it("targets the working tree for a non-worktree thread", async () => {
     const host = createFakePluginHost({
@@ -139,6 +152,106 @@ describe("workbench multi-model mode instructions", () => {
     });
 
     await host.harness.dispose();
+  });
+
+  it("does not contribute instructions to a thread it spawned as a cross-model review", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_1",
+              projectId: "proj_1",
+              environmentId: "env_1",
+              providerId: "claude-code",
+              title: "Fix the bug",
+            }),
+          spawn: async () => makeThreadResponse({ id: "thr_review" }),
+        },
+        environments: { get: async () => ({ hostId: "host_1" }) },
+        providers: {
+          list: async () => [
+            {
+              id: "codex",
+              displayName: "Codex",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
+          ],
+          models: async () => ({
+            models: [{ model: "gpt-5", displayName: "GPT-5", isDefault: true }],
+            selectedOnlyModels: [],
+          }),
+        },
+      },
+    });
+    await plugin(host.bb);
+    await host.harness.setSettings({ orchestratedMode: true });
+    const provider = host.harness.registrations.instructionProvider;
+    if (provider === null) throw new Error("expected an instruction provider");
+    expect(provider({ threadId: "thr_1", projectId: "proj_1" })).toContain(
+      "Multi-model mode: orchestrate",
+    );
+
+    const result = (await host.harness.callRpc("requestReview", {
+      threadId: "thr_1",
+    })) as RequestReviewResult;
+    if (!result.ok) throw new Error("expected requestReview to succeed");
+    expect(
+      provider({ threadId: result.reviewThreadId, projectId: "proj_1" }),
+    ).toBeNull();
+
+    await host.harness.dispose();
+  });
+
+  it("keeps the review-thread guard across a plugin reload", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_1",
+              projectId: "proj_1",
+              environmentId: "env_1",
+              providerId: "claude-code",
+              title: "Fix the bug",
+            }),
+          spawn: async () => makeThreadResponse({ id: "thr_review" }),
+        },
+        environments: { get: async () => ({ hostId: "host_1" }) },
+        providers: {
+          list: async () => [
+            {
+              id: "codex",
+              displayName: "Codex",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
+          ],
+          models: async () => ({
+            models: [{ model: "gpt-5", displayName: "GPT-5", isDefault: true }],
+            selectedOnlyModels: [],
+          }),
+        },
+      },
+    });
+    await plugin(host.bb);
+    await host.harness.setSettings({ orchestratedMode: true });
+    const result = (await host.harness.callRpc("requestReview", {
+      threadId: "thr_1",
+    })) as RequestReviewResult;
+    if (!result.ok) throw new Error("expected requestReview to succeed");
+
+    const reloaded = await host.harness.reload(plugin);
+    const provider = reloaded.harness.registrations.instructionProvider;
+    if (provider === null) throw new Error("expected an instruction provider");
+    expect(
+      provider({ threadId: result.reviewThreadId, projectId: "proj_1" }),
+    ).toBeNull();
+
+    await reloaded.harness.dispose();
   });
 });
 
@@ -696,15 +809,29 @@ describe("workbench review provider resolution", () => {
     const host = createFakePluginHost({
       pluginId: "workbench",
       sdk: {
-        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
         threads: {
           get: async () =>
-            makeThreadResponse({ id: "thr_1", providerId: "claude-code" }),
+            makeThreadResponse({
+              id: "thr_1",
+              environmentId: "env_1",
+              providerId: "claude-code",
+            }),
         },
+        environments: { get: async () => ({ hostId: "host_1" }) },
         providers: {
           list: async () => [
-            { id: "claude-code", displayName: "Claude Code", available: true },
-            { id: "codex", displayName: "Codex", available: true },
+            {
+              id: "claude-code",
+              displayName: "Claude Code",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
+            {
+              id: "codex",
+              displayName: "Codex",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
           ],
         },
       },
@@ -724,14 +851,23 @@ describe("workbench review provider resolution", () => {
     const host = createFakePluginHost({
       pluginId: "workbench",
       sdk: {
-        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
         threads: {
           get: async () =>
-            makeThreadResponse({ id: "thr_1", providerId: "claude-code" }),
+            makeThreadResponse({
+              id: "thr_1",
+              environmentId: "env_1",
+              providerId: "claude-code",
+            }),
         },
+        environments: { get: async () => ({ hostId: "host_1" }) },
         providers: {
           list: async () => [
-            { id: "claude-code", displayName: "Claude Code", available: true },
+            {
+              id: "claude-code",
+              displayName: "Claude Code",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
             { id: "codex", displayName: "Codex", available: false },
           ],
         },
@@ -748,15 +884,29 @@ describe("workbench review provider resolution", () => {
     const host = createFakePluginHost({
       pluginId: "workbench",
       sdk: {
-        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
         threads: {
           get: async () =>
-            makeThreadResponse({ id: "thr_1", providerId: "claude-code" }),
+            makeThreadResponse({
+              id: "thr_1",
+              environmentId: "env_1",
+              providerId: "claude-code",
+            }),
         },
+        environments: { get: async () => ({ hostId: "host_1" }) },
         providers: {
           list: async () => [
-            { id: "claude-code", displayName: "Claude Code", available: true },
-            { id: "codex", displayName: "Codex", available: true },
+            {
+              id: "claude-code",
+              displayName: "Claude Code",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
+            {
+              id: "codex",
+              displayName: "Codex",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
           ],
         },
       },
@@ -777,14 +927,23 @@ describe("workbench review provider resolution", () => {
     const host = createFakePluginHost({
       pluginId: "workbench",
       sdk: {
-        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
         threads: {
           get: async () =>
-            makeThreadResponse({ id: "thr_1", providerId: "claude-code" }),
+            makeThreadResponse({
+              id: "thr_1",
+              environmentId: "env_1",
+              providerId: "claude-code",
+            }),
         },
+        environments: { get: async () => ({ hostId: "host_1" }) },
         providers: {
           list: async () => [
-            { id: "claude-code", displayName: "Claude Code", available: true },
+            {
+              id: "claude-code",
+              displayName: "Claude Code",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
           ],
         },
       },
@@ -796,6 +955,100 @@ describe("workbench review provider resolution", () => {
     ).resolves.toEqual({ ok: false, error: "provider_unavailable" });
     await host.harness.dispose();
   });
+
+  it("errors with no_environment when the thread has no environment", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          get: async () => makeThreadResponse({ id: "thr_1" }),
+        },
+      },
+    });
+    await plugin(host.bb);
+    await expect(
+      host.harness.callRpc("reviewProviderPreview", { threadId: "thr_1" }),
+    ).resolves.toEqual({ ok: false, error: "no_environment" });
+    await host.harness.dispose();
+  });
+});
+
+describe("workbench review provider settings", () => {
+  it("lists only available providers and defaults to auto", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
+        providers: {
+          list: async () => [
+            { id: "claude-code", displayName: "Claude Code", available: true },
+            { id: "codex", displayName: "Codex", available: false },
+          ],
+        },
+      },
+    });
+    await plugin(host.bb);
+    await expect(
+      host.harness.callRpc("getReviewProviderOptions"),
+    ).resolves.toEqual({
+      value: "auto",
+      providers: [{ id: "claude-code", name: "Claude Code" }],
+    });
+    await host.harness.dispose();
+  });
+
+  it("persists the setting via plugins.updateSettings and changes the next preview", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        plugins: {
+          updateSettings: async ({ values }) => {
+            await host.harness.setSettings(values as Record<string, string>);
+            return {} as never;
+          },
+        },
+        threads: {
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_1",
+              environmentId: "env_1",
+              providerId: "claude-code",
+            }),
+        },
+        environments: { get: async () => ({ hostId: "host_1" }) },
+        providers: {
+          list: async () => [
+            {
+              id: "claude-code",
+              displayName: "Claude Code",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
+            {
+              id: "codex",
+              displayName: "Codex",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
+          ],
+        },
+      },
+    });
+    await plugin(host.bb);
+    await expect(
+      host.harness.callRpc("setReviewProviderOption", {
+        value: "claude-code",
+      }),
+    ).resolves.toEqual({ value: "claude-code" });
+    await expect(
+      host.harness.callRpc("reviewProviderPreview", { threadId: "thr_1" }),
+    ).resolves.toEqual({
+      ok: true,
+      providerId: "claude-code",
+      providerName: "Claude Code",
+    });
+    await host.harness.dispose();
+  });
 });
 
 describe("workbench requestReview spawn", () => {
@@ -803,7 +1056,6 @@ describe("workbench requestReview spawn", () => {
     const host = createFakePluginHost({
       pluginId: "workbench",
       sdk: {
-        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
         threads: {
           get: async () =>
             makeThreadResponse({
@@ -832,8 +1084,18 @@ describe("workbench requestReview spawn", () => {
         },
         providers: {
           list: async () => [
-            { id: "claude-code", displayName: "Claude Code", available: true },
-            { id: "codex", displayName: "Codex", available: true },
+            {
+              id: "claude-code",
+              displayName: "Claude Code",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
+            {
+              id: "codex",
+              displayName: "Codex",
+              available: true,
+              capabilities: { permissionModes: ["full"] },
+            },
           ],
           models: async () => ({
             models: [
@@ -862,21 +1124,72 @@ describe("workbench requestReview spawn", () => {
       parentThreadId: "thr_1",
       providerId: "codex",
       model: "gpt-5",
-      permissionMode: "accept-edits",
+      permissionMode: "full",
       title: "Review: Fix the bug",
     });
     const prompt = (spawnArgs as { prompt: string }).prompt;
     expect(prompt).toContain("git diff main...feature/x");
     expect(prompt).toContain("Do not modify files");
+    expect(prompt).toContain("do not run `bb workbench review`");
     await host.harness.dispose();
   });
 
-  it("falls back to the project's default environment when the thread has none", async () => {
-    let spawnArgs: unknown;
+  it("picks the lowest permission mode the review provider supports", async () => {
     const host = createFakePluginHost({
       pluginId: "workbench",
       sdk: {
-        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
+        threads: {
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_1",
+              projectId: "proj_1",
+              environmentId: "env_1",
+              providerId: "claude-code",
+              title: "Fix the bug",
+            }),
+          spawn: async (args: unknown) => {
+            spawnArgs = args;
+            return makeThreadResponse({ id: "thr_review" });
+          },
+        },
+        environments: { get: async () => ({ hostId: "host_1" }) },
+        providers: {
+          list: async () => [
+            {
+              id: "claude-code",
+              displayName: "Claude Code",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
+            {
+              id: "pi",
+              displayName: "Pi",
+              available: true,
+              capabilities: { permissionModes: ["full"] },
+            },
+          ],
+          models: async () => ({
+            models: [{ model: "pi-model", displayName: "Pi", isDefault: true }],
+            selectedOnlyModels: [],
+          }),
+        },
+      },
+    });
+    let spawnArgs: unknown;
+    await plugin(host.bb);
+    await host.harness.callRpc("requestReview", { threadId: "thr_1" });
+    expect(spawnArgs).toMatchObject({
+      providerId: "pi",
+      permissionMode: "full",
+    });
+    await host.harness.dispose();
+  });
+
+  it("errors with no_environment and does not spawn when the thread has no environment", async () => {
+    let spawnCalled = false;
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
         threads: {
           get: async () =>
             makeThreadResponse({
@@ -887,15 +1200,88 @@ describe("workbench requestReview spawn", () => {
               title: null,
               titleFallback: "Untitled",
             }),
-          spawn: async (args: unknown) => {
-            spawnArgs = args;
+          spawn: async () => {
+            spawnCalled = true;
             return makeThreadResponse({ id: "thr_review" });
           },
         },
+      },
+    });
+    await plugin(host.bb);
+    const result = await host.harness.callRpc("requestReview", {
+      threadId: "thr_1",
+    });
+    expect(result).toEqual({ ok: false, error: "no_environment" });
+    expect(spawnCalled).toBe(false);
+    await host.harness.dispose();
+  });
+
+  it("errors with provider_unavailable and does not spawn when the model catalog is empty", async () => {
+    let spawnCalled = false;
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_1",
+              projectId: "proj_1",
+              environmentId: "env_1",
+              providerId: "claude-code",
+              title: "Fix the bug",
+            }),
+          spawn: async () => {
+            spawnCalled = true;
+            return makeThreadResponse({ id: "thr_review" });
+          },
+        },
+        environments: { get: async () => ({ hostId: "host_1" }) },
         providers: {
           list: async () => [
-            { id: "claude-code", displayName: "Claude Code", available: true },
-            { id: "codex", displayName: "Codex", available: true },
+            {
+              id: "codex",
+              displayName: "Codex",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
+          ],
+          models: async () => ({ models: [], selectedOnlyModels: [] }),
+        },
+      },
+    });
+    await plugin(host.bb);
+    const result = await host.harness.callRpc("requestReview", {
+      threadId: "thr_1",
+    });
+    expect(result).toEqual({ ok: false, error: "provider_unavailable" });
+    expect(spawnCalled).toBe(false);
+    await host.harness.dispose();
+  });
+
+  it("refuses to review a thread that is itself a spawned cross-model review", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_1",
+              projectId: "proj_1",
+              environmentId: "env_1",
+              providerId: "claude-code",
+              title: "Fix the bug",
+            }),
+          spawn: async () => makeThreadResponse({ id: "thr_review" }),
+        },
+        environments: { get: async () => ({ hostId: "host_1" }) },
+        providers: {
+          list: async () => [
+            {
+              id: "codex",
+              displayName: "Codex",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
           ],
           models: async () => ({
             models: [{ model: "gpt-5", displayName: "GPT-5", isDefault: true }],
@@ -905,17 +1291,14 @@ describe("workbench requestReview spawn", () => {
       },
     });
     await plugin(host.bb);
-    const result = await host.harness.callRpc("requestReview", {
+    const first = await host.harness.callRpc("requestReview", {
       threadId: "thr_1",
     });
-    expect(result).toMatchObject({ ok: true, reviewThreadId: "thr_review" });
-    expect(spawnArgs).toMatchObject({
-      environment: { type: "project-default" },
-      title: "Review: Untitled",
+    expect(first).toMatchObject({ ok: true, reviewThreadId: "thr_review" });
+    const second = await host.harness.callRpc("requestReview", {
+      threadId: "thr_review",
     });
-    const prompt = (spawnArgs as { prompt: string }).prompt;
-    expect(prompt).toContain("git diff HEAD");
-    expect(prompt).toContain("untracked files");
+    expect(second).toEqual({ ok: false, error: "review_of_review" });
     await host.harness.dispose();
   });
 });
@@ -1038,22 +1421,32 @@ describe("workbench CLI", () => {
     const host = createFakePluginHost({
       pluginId: "workbench",
       sdk: {
-        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
         threads: {
           get: async () =>
             makeThreadResponse({
               id: "thr_1",
               projectId: "proj_1",
-              environmentId: null,
+              environmentId: "env_1",
               providerId: "claude-code",
               title: "Fix the bug",
             }),
           spawn: async () => makeThreadResponse({ id: "thr_review" }),
         },
+        environments: { get: async () => ({ hostId: "host_1" }) },
         providers: {
           list: async () => [
-            { id: "claude-code", displayName: "Claude Code", available: true },
-            { id: "codex", displayName: "Codex", available: true },
+            {
+              id: "claude-code",
+              displayName: "Claude Code",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
+            {
+              id: "codex",
+              displayName: "Codex",
+              available: true,
+              capabilities: PERMISSIVE_CAPABILITIES,
+            },
           ],
           models: async () => ({
             models: [{ model: "gpt-5", displayName: "GPT-5", isDefault: true }],
@@ -1086,7 +1479,12 @@ describe("workbench CLI", () => {
   it("review reports the resolution error", async () => {
     const host = createFakePluginHost({
       pluginId: "workbench",
-      sdk: { hosts: { list: async () => [] } },
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({ id: "thr_1", environmentId: "env_1" }),
+        },
+      },
     });
     await plugin(host.bb);
     const cli = host.harness.registrations.cli;

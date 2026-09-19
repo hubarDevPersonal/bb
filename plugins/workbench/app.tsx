@@ -38,7 +38,9 @@ import {
   type DescriptionDialogViewProps,
 } from "./description-dialog.js";
 import {
+  WORKBENCH_MULTI_MODEL_MODE_REALTIME_CHANNEL,
   WORKBENCH_SUBAGENTS_REALTIME_CHANNEL,
+  workbenchMultiModelModeSignalEnabled,
   workbenchSubagentsSignalParentThreadId,
 } from "./realtime-channel.js";
 import {
@@ -217,6 +219,8 @@ const REVIEW_ERROR_COPY: Readonly<Record<string, string>> = {
   host_unavailable: "No connected host",
   no_provider_available: "No other available provider to review with",
   provider_unavailable: "Configured review provider is unavailable",
+  no_environment: "This thread has no environment to review",
+  review_of_review: "This thread is itself a cross-model review",
 };
 
 function reviewErrorMessage(error: string): string {
@@ -369,6 +373,11 @@ function MultiModelPill() {
     };
   }, [rpc]);
 
+  useRealtime(WORKBENCH_MULTI_MODEL_MODE_REALTIME_CHANNEL, (payload) => {
+    const next = workbenchMultiModelModeSignalEnabled(payload);
+    if (next !== null) setEnabled(next);
+  });
+
   useEffect(() => {
     if (threadId === null) return;
     let active = true;
@@ -397,7 +406,12 @@ function MultiModelPill() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <Tooltip open={error !== null ? true : undefined}>
+      <Tooltip
+        open={error !== null ? true : undefined}
+        onOpenChange={(open) => {
+          if (!open) setError(null);
+        }}
+      >
         <TooltipTrigger asChild>
           <button
             type="button"
@@ -418,7 +432,7 @@ function MultiModelPill() {
             }}
             className={cn(
               "flex h-6.5 items-center gap-1 rounded-md px-2 text-xs font-medium hover:bg-state-hover disabled:opacity-50",
-              enabled ? "text-primary" : "text-muted-foreground",
+              enabled ? "text-timeline-accent" : "text-muted-foreground",
             )}
           >
             <Icon name="Layers" className="size-4" aria-hidden />
@@ -525,6 +539,11 @@ function MultiModelModeRow() {
     };
   }, [rpc]);
 
+  useRealtime(WORKBENCH_MULTI_MODEL_MODE_REALTIME_CHANNEL, (payload) => {
+    const next = workbenchMultiModelModeSignalEnabled(payload);
+    if (next !== null) setEnabled(next);
+  });
+
   return (
     <div className="space-y-1">
       <div className="flex items-start justify-between gap-3 rounded-md bg-surface-raised px-2 py-2">
@@ -601,11 +620,15 @@ function ReviewProviderRow() {
           disabled={value === null || saving}
           onValueChange={(next) => {
             setSaving(true);
+            const previous = value;
             setValue(next);
             setError(null);
             void rpc
               .call("setReviewProviderOption", { value: next })
-              .catch((saveError) => setError(errorMessage(saveError)))
+              .catch((saveError) => {
+                setValue((current) => (current === next ? previous : current));
+                setError(errorMessage(saveError));
+              })
               .finally(() => setSaving(false));
           }}
         >
