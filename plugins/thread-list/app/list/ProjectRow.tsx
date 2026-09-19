@@ -73,6 +73,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Icon } from "@/components/ui/icon";
 import { ThreadListEmptyState } from "@/components/ui/thread-list-empty-state";
+import { identityColorForId } from "../ui/identity-color.js";
 import {
   SidebarMenuSkeleton,
   SidebarStickyGroup,
@@ -2240,6 +2241,7 @@ function ProjectRowComponent({
         >
           <TopLevelSidebarSection
             label={project.name}
+            identityColor={identityColorForId(project.id)}
             dropParentKey={buildSidebarEntitySectionId("project", project.id)}
             labelEditor={rename.editor}
             onRename={rename.startEditingFromDoubleClick}
