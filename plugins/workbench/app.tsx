@@ -73,8 +73,12 @@ const ComposerActionButton = forwardRef<
     label: string;
     disabled?: boolean;
     onClick: () => void;
+    iconColorClassName?: string;
   }
->(function ComposerActionButton({ icon, label, disabled, onClick }, ref) {
+>(function ComposerActionButton(
+  { icon, label, disabled, onClick, iconColorClassName },
+  ref,
+) {
   return (
     <button
       ref={ref}
@@ -83,7 +87,10 @@ const ComposerActionButton = forwardRef<
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex size-6.5 items-center justify-center rounded-md text-muted-foreground hover:bg-state-hover hover:text-foreground disabled:opacity-50"
+      className={cn(
+        "flex size-6.5 items-center justify-center rounded-md hover:bg-state-hover disabled:opacity-50",
+        iconColorClassName ?? "text-muted-foreground hover:text-foreground",
+      )}
     >
       <Icon name={icon} className="size-4" aria-hidden />
     </button>
@@ -109,6 +116,7 @@ function SpecCheckAction() {
             icon="CircleCheck"
             label="Spec check"
             disabled={busy}
+            iconColorClassName="text-palette-green"
             onClick={() => {
               setBusy(true);
               setError(null);
@@ -137,6 +145,7 @@ function DescriptionAction({
   placeholder,
   submitLabel,
   method,
+  iconColorClassName,
 }: {
   icon: IconName;
   label: string;
@@ -145,6 +154,7 @@ function DescriptionAction({
   placeholder: string;
   submitLabel: string;
   method: "runBugfix";
+  iconColorClassName?: string;
 }) {
   const threadId = useThreadId();
   const rpc = useRpc<typeof workbenchRpcContract>();
@@ -191,6 +201,7 @@ function DescriptionAction({
       <ComposerActionButton
         icon={icon}
         label={label}
+        iconColorClassName={iconColorClassName}
         onClick={() => {
           setError(null);
           setOpen(true);
@@ -211,6 +222,7 @@ function BugfixAction() {
       placeholder="Describe the bug…"
       submitLabel="Send /bugfix"
       method="runBugfix"
+      iconColorClassName="text-palette-orange"
     />
   );
 }
@@ -273,6 +285,7 @@ function ReviewAction() {
             icon="SecurityCheck"
             label={label}
             disabled={busy}
+            iconColorClassName="text-palette-purple"
             onClick={() => {
               setBusy(true);
               setError(null);
@@ -431,8 +444,10 @@ function MultiModelPill() {
                 .finally(() => setSaving(false));
             }}
             className={cn(
-              "flex h-6.5 items-center gap-1 rounded-md px-2 text-xs font-medium hover:bg-state-hover disabled:opacity-50",
-              enabled ? "text-timeline-accent" : "text-muted-foreground",
+              "flex h-6.5 items-center gap-1 text-xs font-medium disabled:opacity-50",
+              enabled
+                ? "rounded-full bg-primary/15 px-2.5 text-timeline-accent"
+                : "rounded-md px-2 text-muted-foreground hover:bg-state-hover",
             )}
           >
             <Icon name="Layers" className="size-4" aria-hidden />

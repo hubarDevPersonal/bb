@@ -6,7 +6,6 @@ import {
   COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
 } from "@/components/ui/coarse-pointer-sizing";
 import { cn } from "@/lib/utils";
-import { CONTEXT_SELECTION_SURFACE_CLASS } from "../ui/context-selection.js";
 import { SIDEBAR_HOVER_ACTIONS_GAP_CLASS } from "../ui/sidebar-hover-actions.js";
 
 export const SIDEBAR_ROW_BASE_CLASS =
@@ -19,14 +18,14 @@ export const SIDEBAR_STATUS_ICON_CLASS = "size-4";
 
 export const SIDEBAR_STATUS_GLYPH_BOX_CLASS = "h-4 w-4";
 
-export const SIDEBAR_UNREAD_DOT_CLASS = `rounded-full bg-foreground ${COARSE_POINTER_DOT_SIZE_CLASS}`;
+export const SIDEBAR_UNREAD_DOT_CLASS = `rounded-full bg-primary ${COARSE_POINTER_DOT_SIZE_CLASS}`;
 
 export const SIDEBAR_WORKING_STATUS_COLOR_CLASS = "text-muted-foreground/50";
 
-export const SIDEBAR_SUCCESS_STATUS_COLOR_CLASS = "text-success-foreground";
+export const SIDEBAR_SUCCESS_STATUS_COLOR_CLASS = "text-success";
 
 export const SIDEBAR_SUCCESS_STATUS_DOT_CLASS =
-  "size-[5px] rounded-full bg-muted-foreground/60 max-md:pointer-coarse:size-1.5";
+  "size-[5px] rounded-full bg-success max-md:pointer-coarse:size-1.5";
 
 const SIDEBAR_THREAD_ROW_BASE_PADDING_PX = 8;
 const SIDEBAR_THREAD_ROW_DEPTH_STEP_PX = 24;
@@ -70,7 +69,7 @@ export function getSidebarThreadGroupLineLeft(depth: number): number {
 
 export const SIDEBAR_ROW_INTERACTIVE_STATE_CLASS = `cursor-pointer ${SIDEBAR_ROW_TEXT_CLASS} hover:bg-sidebar-accent hover:text-sidebar-accent-foreground`;
 
-export const SIDEBAR_ROW_SELECTED_STATE_CLASS = `${CONTEXT_SELECTION_SURFACE_CLASS} bb-sidebar-selected-row ${SIDEBAR_ROW_TEXT_CLASS}`;
+export const SIDEBAR_ROW_SELECTED_STATE_CLASS = `bg-sidebar-selected bb-sidebar-selected-row ${SIDEBAR_ROW_TEXT_CLASS}`;
 
 export const SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS =
   "bb-sidebar-open-in-split-row";

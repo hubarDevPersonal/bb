@@ -91,6 +91,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-selected: var(--sidebar-selected);
+  --color-inline-code-foreground: var(--inline-code-foreground);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
@@ -249,7 +251,7 @@
   [data-sidebar-sticky-stack]
     [data-sidebar-sticky-tier].bb-sidebar-selected-row {
     background-image:
-      linear-gradient(var(--state-active), var(--state-active)),
+      linear-gradient(var(--sidebar-selected), var(--sidebar-selected)),
       linear-gradient(var(--sidebar), var(--sidebar));
   }
 
@@ -451,6 +453,7 @@
   --ink: oklch(0.3211 0 0);
   --background: var(--canvas);
   --foreground: var(--ink);
+  --inline-code-foreground: var(--foreground);
   /* Card and popover are flush with the canvas — elevation is conveyed by
    * border + shadow, not a surface tint, so floating menus, raised cards, and
    * the page all share one surface value (guarded in theme.test.ts). The
@@ -491,6 +494,7 @@
   * surfaces they composite for real, visible contrast. */
   --state-hover: color-mix(in oklab, var(--ink) 5.9%, transparent);
   --state-active: color-mix(in oklab, var(--ink) 11.8%, transparent);
+  --sidebar-selected: var(--state-active);
   --destructive: oklch(0.45 0.19 25.8625);
   --destructive-foreground: oklch(1 0 0);
   /* Text-only destructive. Light is identical to --destructive (8.04:1); the
@@ -709,6 +713,7 @@
   --ink: oklch(0.81 0 0);
   --background: var(--canvas);
   --foreground: var(--ink);
+  --inline-code-foreground: var(--foreground);
   /* Card and popover stay flush with the canvas here too — elevation comes from
    * border + shadow. The lift ramp below uses larger steps than light so the
    * neutral surfaces still read against the darker canvas. */
@@ -738,6 +743,7 @@
   * reads consistently on canvas, cards, and recessed surfaces alike. */
   --state-hover: color-mix(in oklab, var(--ink) 13.8%, transparent);
   --state-active: color-mix(in oklab, var(--ink) 22.5%, transparent);
+  --sidebar-selected: var(--state-active);
   --destructive: oklch(0.56 0.19 22.1703);
   --destructive-foreground: oklch(1 0 0);
   /* Lighter/less-saturated than the fill so error TEXT clears AA (~4.8:1) on the

@@ -22,6 +22,11 @@ import {
   useIsAppCommandModifierHeld,
 } from "@/components/commands/AppCommandProvider";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
+import { cn } from "@bb/shared-ui/lib/utils";
+import {
+  identityColorForId,
+  IDENTITY_TEXT_COLOR_CLASS,
+} from "@/lib/identity-color";
 import { PluginSlotMount } from "@/components/plugin/PluginSlotMount";
 import { openPluginDetailsInWorkspace } from "@/components/plugin/plugin-detail-opener";
 import { useSetPluginEnabled } from "@/components/plugin/useSetPluginEnabled";
@@ -84,6 +89,13 @@ const HOST_ICON_NAMES: Record<
   skills: "Zap",
 };
 
+const HOST_ICON_COLOR_CLASSES: Partial<
+  Record<keyof typeof HOST_ICON_NAMES, string>
+> = {
+  "new-thread": "text-timeline-accent",
+  extensions: IDENTITY_TEXT_COLOR_CLASS[identityColorForId("extensions")],
+};
+
 export function SidebarNavigationIcon({
   icon,
   className,
@@ -92,7 +104,7 @@ export function SidebarNavigationIcon({
     return (
       <Icon
         name={HOST_ICON_NAMES[icon.name]}
-        className={className}
+        className={cn(HOST_ICON_COLOR_CLASSES[icon.name], className)}
         aria-hidden="true"
       />
     );
@@ -101,7 +113,10 @@ export function SidebarNavigationIcon({
     <PluginIcon
       pluginId={icon.pluginId}
       icon={icon.icon}
-      className={className}
+      className={cn(
+        IDENTITY_TEXT_COLOR_CLASS[identityColorForId(icon.pluginId)],
+        className,
+      )}
     />
   );
 }
