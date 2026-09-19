@@ -16,18 +16,24 @@ Official store plugins ship with the app and install on request; third-party
 plugins come from marketplaces, Git, npm, or a local path. Plugin state lives
 under `<bb-data-dir>/plugins/<id>/` (SQLite database, secrets, logs).
 
-The builtin Workbench plugin adds composer shortcuts (spec check, task,
-bugfix, goal) and a nav panel for model routing, orchestrated mode, and spec
-file shortcuts. Its "Orchestrated mode" setting asks agents to delegate
-reconnaissance, implementation, and review to the `scout`, `implementer`, and
-`reviewer` subagents on new sessions. Model routing reads and writes the
-`model:` frontmatter key in each role's `~/.claude/agents/<role>.md` on the
-host. The CLI equivalents are:
+The builtin Workbench plugin adds composer shortcuts (spec check, bugfix,
+ask for review) and a nav panel for model routing, multi-model mode, the
+review provider, and spec file shortcuts. Its "Multi-model mode" setting asks
+agents to delegate reconnaissance, implementation, and review to the `scout`,
+`implementer`, and `reviewer` subagents on new sessions, and to request a
+cross-model review before reporting completion. "Ask for review" (and
+`bb workbench review <threadId>`) spawns a read-only review thread on another
+provider: the "Review provider" setting picks it, either "auto" (the first
+available provider that differs from the thread's own) or an explicit
+provider id. Model routing reads and writes the `model:` frontmatter key in
+each role's `~/.claude/agents/<role>.md` on the host. The CLI equivalents
+are:
 
 ```
 bb workbench routing
 bb workbench routing set <role> <model>
-bb workbench orchestrated <on|off>
+bb workbench multimodel <on|off>
+bb workbench review <threadId>
 bb workbench subagents <threadId>
 bb workbench outputs <threadId>
 ```

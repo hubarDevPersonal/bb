@@ -18,6 +18,13 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { Button } from "@bb/shared-ui/button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@bb/shared-ui/select";
 import { Switch } from "@bb/shared-ui/switch";
 import {
   Tooltip,
@@ -25,11 +32,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@bb/shared-ui/tooltip";
+import { cn } from "@bb/shared-ui/lib/utils";
 import {
   DescriptionDialogView,
   type DescriptionDialogViewProps,
 } from "./description-dialog.js";
-import { GOAL_MAX_TASKS_DEFAULT, GoalDialogView } from "./goal-dialog.js";
 import {
   WORKBENCH_SUBAGENTS_REALTIME_CHANNEL,
   workbenchSubagentsSignalParentThreadId,
@@ -135,7 +142,7 @@ function DescriptionAction({
   description: string;
   placeholder: string;
   submitLabel: string;
-  method: "runTask" | "runBugfix";
+  method: "runBugfix";
 }) {
   const threadId = useThreadId();
   const rpc = useRpc<typeof workbenchRpcContract>();
@@ -192,20 +199,6 @@ function DescriptionAction({
   );
 }
 
-function TaskAction() {
-  return (
-    <DescriptionAction
-      icon="ListTodo"
-      label="Task"
-      title="New task"
-      description="Describe the task; sends /task with your description."
-      placeholder="Describe the task…"
-      submitLabel="Send /task"
-      method="runTask"
-    />
-  );
-}
-
 function BugfixAction() {
   return (
     <DescriptionAction
@@ -220,57 +213,225 @@ function BugfixAction() {
   );
 }
 
-function GoalAction() {
+const REVIEW_ERROR_COPY: Readonly<Record<string, string>> = {
+  host_unavailable: "No connected host",
+  no_provider_available: "No other available provider to review with",
+  provider_unavailable: "Configured review provider is unavailable",
+};
+
+function reviewErrorMessage(error: string): string {
+  return REVIEW_ERROR_COPY[error] ?? error;
+}
+
+const REVIEW_ACTION_CONFIRMATION_MS = 2_000;
+
+function ReviewAction() {
   const threadId = useThreadId();
   const rpc = useRpc<typeof workbenchRpcContract>();
-  const [open, setOpen] = useState(false);
-  const [goal, setGoal] = useState("");
-  const [maxTasks, setMaxTasks] = useState(GOAL_MAX_TASKS_DEFAULT);
-  const [submitting, setSubmitting] = useState(false);
+  const navigate = useBbNavigate();
+  const [providerName, setProviderName] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (threadId === null) return;
+    let active = true;
+    void rpc
+      .call("reviewProviderPreview", { threadId })
+      .then((result) => {
+        if (active && result.ok) setProviderName(result.providerName);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [rpc, threadId]);
+
   if (threadId === null) return null;
 
-  const submit = async () => {
-    const trimmedGoal = goal.trim();
-    if (trimmedGoal.length === 0) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      await rpc.call("runGoal", { threadId, goal: trimmedGoal, maxTasks });
-      setOpen(false);
-      setGoal("");
-      setMaxTasks(GOAL_MAX_TASKS_DEFAULT);
-    } catch (submitError) {
-      setError(errorMessage(submitError));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const label =
+    providerName === null ? "Ask for review" : `Ask ${providerName} for review`;
 
   return (
-    <>
-      <ComposerActionButton
-        icon="Target"
-        label="Goal"
-        onClick={() => {
-          setError(null);
-          setOpen(true);
+    <TooltipProvider delayDuration={0}>
+      <Tooltip
+        open={error !== null || sent}
+        onOpenChange={(open) => {
+          if (!open) {
+            setError(null);
+            setSent(false);
+          }
         }}
-      />
-      <GoalDialogView
-        open={open}
-        onOpenChange={(next) => {
-          if (!submitting) setOpen(next);
-        }}
-        goal={goal}
-        onGoalChange={setGoal}
-        maxTasks={maxTasks}
-        onMaxTasksChange={setMaxTasks}
-        submitting={submitting}
-        error={error}
-        onSubmit={() => void submit()}
-      />
-    </>
+      >
+        <TooltipTrigger asChild>
+          <ComposerActionButton
+            icon="SecurityCheck"
+            label={label}
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setError(null);
+              setSent(false);
+              void rpc
+                .call("requestReview", { threadId })
+                .then((result) => {
+                  if (result.ok) {
+                    setSent(true);
+                    window.setTimeout(
+                      () => setSent(false),
+                      REVIEW_ACTION_CONFIRMATION_MS,
+                    );
+                    navigate.openThreadPanel({
+                      actionId: SUBAGENTS_PANEL_ACTION_ID,
+                    });
+                  } else {
+                    setError(reviewErrorMessage(result.error));
+                  }
+                })
+                .catch((sendError) => setError(errorMessage(sendError)))
+                .finally(() => setBusy(false));
+            }}
+          />
+        </TooltipTrigger>
+        {error !== null ? (
+          <TooltipContent className="text-destructive-text">
+            {error}
+          </TooltipContent>
+        ) : sent ? (
+          <TooltipContent>Review started</TooltipContent>
+        ) : null}
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function MultiModelRoutingSummary({
+  routing,
+}: {
+  routing: {
+    scout: RoutingRowView;
+    implementer: RoutingRowView;
+    reviewer: RoutingRowView;
+    reviewProviderName: string | null;
+  } | null;
+}) {
+  if (routing === null) return <p className="text-xs">Loading routing…</p>;
+  const rows: [string, string][] = [
+    ["Scout", routing.scout.ok ? routing.scout.model : routing.scout.error],
+    [
+      "Implementer",
+      routing.implementer.ok
+        ? routing.implementer.model
+        : routing.implementer.error,
+    ],
+    [
+      "Reviewer",
+      routing.reviewer.ok ? routing.reviewer.model : routing.reviewer.error,
+    ],
+    ["Final review", routing.reviewProviderName ?? "unavailable"],
+  ];
+  return (
+    <div className="space-y-1 text-xs">
+      <p className="text-subtle-foreground">Applies to new sessions.</p>
+      {rows.map(([label, value]) => (
+        <p key={label}>
+          {label} → {value}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function MultiModelPill() {
+  const threadId = useThreadId();
+  const rpc = useRpc<typeof workbenchRpcContract>();
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [routing, setRouting] = useState<{
+    scout: RoutingRowView;
+    implementer: RoutingRowView;
+    reviewer: RoutingRowView;
+    reviewProviderName: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void rpc
+      .call("getOrchestratedMode")
+      .then((result) => {
+        if (active) setEnabled(result.enabled);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [rpc]);
+
+  useEffect(() => {
+    if (threadId === null) return;
+    let active = true;
+    void Promise.all([
+      rpc.call("getRouting", { providerId: null }),
+      rpc.call("reviewProviderPreview", { threadId }),
+    ])
+      .then(([routingResult, reviewResult]) => {
+        if (!active) return;
+        setRouting({
+          scout: routingResult.scout,
+          implementer: routingResult.implementer,
+          reviewer: routingResult.reviewer,
+          reviewProviderName: reviewResult.ok
+            ? reviewResult.providerName
+            : null,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [rpc, threadId]);
+
+  if (threadId === null) return null;
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip open={error !== null ? true : undefined}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-pressed={enabled ?? false}
+            disabled={enabled === null || saving}
+            onClick={() => {
+              setSaving(true);
+              const next = !(enabled ?? false);
+              setEnabled(next);
+              setError(null);
+              void rpc
+                .call("setOrchestratedMode", { enabled: next })
+                .catch((saveError) => {
+                  setEnabled((current) => (current === next ? !next : current));
+                  setError(errorMessage(saveError));
+                })
+                .finally(() => setSaving(false));
+            }}
+            className={cn(
+              "flex h-6.5 items-center gap-1 rounded-md px-2 text-xs font-medium hover:bg-state-hover disabled:opacity-50",
+              enabled ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <Icon name="Layers" className="size-4" aria-hidden />
+            Multi-model
+          </button>
+        </TooltipTrigger>
+        <TooltipContent
+          className={error !== null ? "text-destructive-text" : undefined}
+        >
+          {error ?? <MultiModelRoutingSummary routing={routing} />}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -343,7 +504,7 @@ function SpecInitBannerForThread({ threadId }: { threadId: string }) {
   );
 }
 
-function OrchestratedModeRow() {
+function MultiModelModeRow() {
   const rpc = useRpc<typeof workbenchRpcContract>();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
@@ -369,17 +530,18 @@ function OrchestratedModeRow() {
       <div className="flex items-start justify-between gap-3 rounded-md bg-surface-raised px-2 py-2">
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">
-            Orchestrated mode
+            Multi-model mode
           </p>
           <p className="text-xs text-subtle-foreground">
-            Delegate reconnaissance, implementation, and review to subagents.
+            Delegate reconnaissance, implementation, and review to subagents,
+            and request a cross-model review before reporting completion.
             Applies to new sessions.
           </p>
         </div>
         <Switch
           checked={enabled ?? false}
           disabled={enabled === null || saving}
-          aria-label="Orchestrated mode"
+          aria-label="Multi-model mode"
           onCheckedChange={(next) => {
             setSaving(true);
             setEnabled(next);
@@ -393,6 +555,75 @@ function OrchestratedModeRow() {
               .finally(() => setSaving(false));
           }}
         />
+      </div>
+      {error === null ? null : (
+        <p className="px-2 text-xs text-destructive-text">{error}</p>
+      )}
+    </div>
+  );
+}
+
+function ReviewProviderRow() {
+  const rpc = useRpc<typeof workbenchRpcContract>();
+  const [value, setValue] = useState<string | null>(null);
+  const [providers, setProviders] = useState<readonly ProviderOption[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void rpc
+      .call("getReviewProviderOptions", null)
+      .then((result) => {
+        if (!active) return;
+        setValue(result.value);
+        setProviders(result.providers);
+      })
+      .catch((loadError) => {
+        if (active) setError(errorMessage(loadError));
+      });
+    return () => {
+      active = false;
+    };
+  }, [rpc]);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-3 rounded-md bg-surface-raised px-2 py-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">Review provider</p>
+          <p className="text-xs text-subtle-foreground">
+            Provider "Ask for review" spawns a review thread on.
+          </p>
+        </div>
+        <Select
+          value={value ?? undefined}
+          disabled={value === null || saving}
+          onValueChange={(next) => {
+            setSaving(true);
+            setValue(next);
+            setError(null);
+            void rpc
+              .call("setReviewProviderOption", { value: next })
+              .catch((saveError) => setError(errorMessage(saveError)))
+              .finally(() => setSaving(false));
+          }}
+        >
+          <SelectTrigger
+            aria-label="Review provider"
+            className="h-7 w-32 text-xs"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">Auto</SelectItem>
+            {providers.map((provider) => (
+              <SelectItem key={provider.id} value={provider.id}>
+                {provider.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       {error === null ? null : (
         <p className="px-2 text-xs text-destructive-text">{error}</p>
@@ -848,7 +1079,8 @@ function WorkbenchNavPanel(_props: PluginNavPanelProps) {
   return (
     <div className="space-y-4 p-3">
       <ModelRoutingSection />
-      <OrchestratedModeRow />
+      <MultiModelModeRow />
+      <ReviewProviderRow />
       <SpecsSection />
     </div>
   );
@@ -860,9 +1092,9 @@ export default definePluginApp((app) => {
     scopes: ["thread"],
     actions: [
       { id: "spec-check", component: SpecCheckAction },
-      { id: "task", component: TaskAction },
       { id: "bugfix", component: BugfixAction },
-      { id: "goal", component: GoalAction },
+      { id: "review", component: ReviewAction },
+      { id: "multi-model", component: MultiModelPill },
     ],
     banners: [
       { id: "spec-init", chrome: "bare", component: SpecInitBanner },
