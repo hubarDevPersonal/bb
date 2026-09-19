@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Buttons and a nav panel for the spec-check, task, bugfix, and goal agent workflow.",
+  "description": "Buttons and a nav panel for spec-check, bugfix, cross-model review, and model routing.",
   "engines": {
     "bb": ">=0.0"
   },
   "bb": {
     "name": "Workbench",
-    "description": "Buttons and a nav panel for the spec-check, task, bugfix, and goal agent workflow.",
+    "description": "Buttons and a nav panel for spec-check, bugfix, cross-model review, and model routing.",
     "branding": {
       "icon": "Toolbox"
     },

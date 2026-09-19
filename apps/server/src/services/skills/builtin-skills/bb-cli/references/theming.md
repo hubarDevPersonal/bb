@@ -113,7 +113,7 @@ semantic** tokens; the rest derive.
 | `--input` | input/control field borders | ink ~30% |
 | `--surface-recessed` | sunken inset wells (code/diagram backgrounds) | translucent ink |
 | `--surface-raised` | faintly lifted panels | translucent ink |
-| `--user-message`, `--user-message-foreground` | the user's own message bubble in the thread timeline, and its text | `= --surface-recessed` / `= --foreground` |
+| `--user-message`, `--user-message-foreground` | the user's own message bubble in the thread timeline, and its prefix/secondary text and links; markdown body text (paragraphs, lists, headings) keeps `--foreground` | `= --surface-recessed` / `= --foreground` |
 | `--surface-scrim` | **frosted top bars** — the thread/page header (`bg-surface-scrim`, blurred) | canvas 92% |
 | `--state-hover`, `--state-active` | translucent hover / pressed overlays on rows & buttons | translucent ink |
 | `--sidebar`, `--sidebar-foreground`, `--sidebar-accent`, `--sidebar-border` | left sidebar surface, its text, hovered items, borders | canvas/ink mixes |

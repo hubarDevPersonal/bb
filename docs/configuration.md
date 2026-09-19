@@ -844,17 +844,18 @@ agents to delegate reconnaissance, implementation, and review to the `scout`,
 `implementer`, and `reviewer` subagents on new sessions, and to request a
 cross-model review before reporting completion; it defaults to off. "Ask for
 review" spawns a child thread — same project and environment,
-`parentThreadId` set so it shows in the Subagents panel — on another provider
-to review the workspace's changes read-only. The `reviewProvider` setting
-picks that provider: `"auto"` (default) selects the first available provider
-that differs from the thread's own, or an explicit provider id. Configure
-these from the CLI:
+`parentThreadId` set so it shows in the Subagents panel — on another
+provider, asked not to modify files and run at the lowest permission mode
+that provider supports. The `reviewProvider` setting picks that provider:
+`"auto"` (default) selects the first available provider that differs from
+the thread's own, or an explicit provider id. Configure these from the CLI:
 
 ```bash
 bb workbench routing
 bb workbench routing set <role> <model>
 bb workbench multimodel <on|off>
 bb workbench review <threadId>
+bb plugin config workbench set reviewProvider <id|auto>
 ```
 
 `bb plugin install npm:<package>[@<version|tag|range>]` requires `npm` on PATH
