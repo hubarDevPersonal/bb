@@ -1411,20 +1411,28 @@ Settings changes do not require a plugin reload.
 
 ### Workbench plugin
 
-The builtin Workbench plugin adds composer shortcuts (spec check, task,
-bugfix, goal) and a nav panel for model routing, orchestrated mode, and spec
-file shortcuts. Model routing reads and writes the `model:` frontmatter key in
-each role's `~/.claude/agents/<role>.md` on the connected host, from the
-catalog of the provider whose models include a role's current value, or the
-first available provider otherwise. The "Orchestrated mode" setting
-(`orchestratedMode`) asks agents to delegate reconnaissance, implementation,
-and review to the `scout`, `implementer`, and `reviewer` subagents on new
-sessions; it defaults to off. Configure it from the CLI:
+The builtin Workbench plugin adds composer shortcuts (spec check, bugfix,
+ask for review) and a nav panel for model routing, multi-model mode, the
+review provider, and spec file shortcuts. Model routing reads and writes the
+`model:` frontmatter key in each role's `~/.claude/agents/<role>.md` on the
+connected host, from the catalog of the provider whose models include a
+role's current value, or the first available provider otherwise. The
+"Multi-model mode" setting (`orchestratedMode`, kept for compatibility) asks
+agents to delegate reconnaissance, implementation, and review to the `scout`,
+`implementer`, and `reviewer` subagents on new sessions, and to request a
+cross-model review before reporting completion; it defaults to off. "Ask for
+review" spawns a child thread — same project and environment,
+`parentThreadId` set so it shows in the Subagents panel — on another provider
+to review the workspace's changes read-only. The `reviewProvider` setting
+picks that provider: `"auto"` (default) selects the first available provider
+that differs from the thread's own, or an explicit provider id. Configure
+these from the CLI:
 
 ```bash
 bb workbench routing
 bb workbench routing set <role> <model>
-bb workbench orchestrated <on|off>
+bb workbench multimodel <on|off>
+bb workbench review <threadId>
 ```
 
 `bb plugin install npm:<package>[@<version|tag|range>]` uses BB's shipped npm
