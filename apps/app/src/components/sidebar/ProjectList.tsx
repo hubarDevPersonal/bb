@@ -838,7 +838,7 @@ export function ProjectListActionButtons({
           }
           aria-keyshortcuts={newThreadShortcut?.ariaKeyshortcuts}
         >
-          <Icon name="MessageSquarePlus" />
+          <Icon name="MessageSquarePlus" className="text-timeline-accent" />
           <span className="flex min-w-0 flex-1 items-center gap-1.5">
             <span className="min-w-0 truncate text-left">New thread</span>
             {newThreadSplitIndicator.miniMap ? (

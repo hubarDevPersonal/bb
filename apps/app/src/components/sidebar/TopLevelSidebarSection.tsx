@@ -12,6 +12,11 @@ import { Icon } from "@bb/shared-ui/icon";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import { CHROME_SECTION_LABEL_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import {
+  IDENTITY_BG_COLOR_CLASS,
+  IDENTITY_TEXT_COLOR_CLASS,
+  type IdentityPaletteColor,
+} from "@/lib/identity-color";
+import {
   SidebarStickyGroup,
   SidebarStickyTier,
 } from "@/components/ui/sidebar.js";
@@ -51,6 +56,7 @@ interface TopLevelSidebarSectionCollapseControl {
 
 export interface TopLevelSidebarSectionProps {
   label: string;
+  identityColor?: IdentityPaletteColor;
   children: ReactNode;
   sectionId?: string;
   actions?: ReactNode;
@@ -69,6 +75,7 @@ export interface TopLevelSidebarSectionProps {
 
 export function TopLevelSidebarSection({
   label,
+  identityColor,
   children,
   sectionId,
   actions,
@@ -145,7 +152,25 @@ export function TopLevelSidebarSection({
         {...(dragBindings?.listeners ?? {})}
       >
         <span className="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
-          <span className="min-w-0 truncate" title={label}>
+          {identityColor ? (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-2 shrink-0 rounded-full",
+                IDENTITY_BG_COLOR_CLASS[identityColor],
+              )}
+            />
+          ) : null}
+          <span
+            className={cn(
+              "min-w-0 truncate",
+              identityColor && [
+                IDENTITY_TEXT_COLOR_CLASS[identityColor],
+                "font-medium",
+              ],
+            )}
+            title={label}
+          >
             {label}
           </span>
           {collapseControl ? (

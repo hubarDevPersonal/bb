@@ -117,6 +117,7 @@ semantic** tokens; the rest derive.
 | `--surface-scrim` | **frosted top bars** — the thread/page header (`bg-surface-scrim`, blurred) | canvas 92% |
 | `--state-hover`, `--state-active` | translucent hover / pressed overlays on rows & buttons | translucent ink |
 | `--sidebar`, `--sidebar-foreground`, `--sidebar-accent`, `--sidebar-border` | left sidebar surface, its text, hovered items, borders | canvas/ink mixes |
+| `--sidebar-selected` | selected sidebar row background (the active thread/project row) | `= --state-active` |
 
 **Accent — set `--primary` (+ foreground); these follow it:**
 
@@ -133,6 +134,7 @@ semantic** tokens; the rest derive.
 | token | drives |
 |---|---|
 | `--foreground` | primary body text (auto `= --ink`; usually leave it) |
+| `--inline-code-foreground` | inline `` `code` `` text in rendered markdown, outside fenced code blocks (auto `= --foreground`; usually leave it) |
 | `--muted-foreground` | secondary text: metadata, timestamps, labels (highest-contrast secondary tier) |
 | `--subtle-foreground` | low-emphasis text: captions, hints, placeholders |
 | `--readback-foreground` | settled/closed-turn machinery text (recede tier between muted and subtle) |

@@ -1,5 +1,4 @@
 import { COARSE_POINTER_DOT_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
-import { CONTEXT_SELECTION_SURFACE_CLASS } from "@/components/ui/context-selection";
 
 export const SIDEBAR_ROW_BASE_CLASS =
   "flex w-full items-center gap-2 rounded-md pr-0 text-sm transition-colors";
@@ -7,14 +6,14 @@ export const SIDEBAR_ROW_BASE_CLASS =
 export const SIDEBAR_ROW_GLYPH_SLOT_CLASS =
   "inline-flex shrink-0 items-center justify-center text-subtle-foreground";
 
-export const SIDEBAR_UNREAD_DOT_CLASS = `rounded-full bg-foreground ${COARSE_POINTER_DOT_SIZE_CLASS}`;
+export const SIDEBAR_UNREAD_DOT_CLASS = `rounded-full bg-primary ${COARSE_POINTER_DOT_SIZE_CLASS}`;
 
 export const SIDEBAR_WORKING_STATUS_COLOR_CLASS = "text-primary";
 
-export const SIDEBAR_SUCCESS_STATUS_COLOR_CLASS = "text-success-foreground";
+export const SIDEBAR_SUCCESS_STATUS_COLOR_CLASS = "text-success";
 
 export const SIDEBAR_SUCCESS_STATUS_DOT_CLASS =
-  "size-[5px] rounded-full bg-muted-foreground/60 max-md:pointer-coarse:size-1.5";
+  "size-[5px] rounded-full bg-success max-md:pointer-coarse:size-1.5";
 
 export const SIDEBAR_LEADING_GLYPH_SLOT_CLASS =
   "inline-flex w-4 shrink-0 items-center justify-center";
@@ -45,7 +44,8 @@ export const SIDEBAR_ROW_INTERACTIVE_STATE_CLASS =
 export const SIDEBAR_ROW_STATIC_STATE_CLASS =
   "text-sidebar-foreground/85 dark:text-sidebar-foreground";
 
-export const SIDEBAR_ROW_SELECTED_STATE_CLASS = `${CONTEXT_SELECTION_SURFACE_CLASS} bb-sidebar-selected-row text-sidebar-foreground`;
+export const SIDEBAR_ROW_SELECTED_STATE_CLASS =
+  "bg-sidebar-selected bb-sidebar-selected-row text-sidebar-foreground";
 
 export const SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS =
   "bb-sidebar-open-in-split-row";

@@ -310,10 +310,7 @@ export function ThreadStatusGlyph({
       return (
         <Icon
           name="CircleQuestion"
-          className={cn(
-            "text-muted-foreground/75",
-            COARSE_POINTER_ICON_SIZE_CLASS,
-          )}
+          className={cn("text-attention", COARSE_POINTER_ICON_SIZE_CLASS)}
           aria-label={getThreadListIndicatorLabel(kind) ?? undefined}
         />
       );

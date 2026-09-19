@@ -36,6 +36,7 @@ import {
 } from "@bb/shared-ui/dropdown-menu";
 import { EmptyState } from "@bb/shared-ui/empty-state";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { identityColorForId } from "@/lib/identity-color";
 import {
   SidebarMenuSkeleton,
   SidebarStickyGroup,
@@ -2333,6 +2334,7 @@ function ProjectRowComponent({
       >
         <TopLevelSidebarSection
           label={project.name}
+          identityColor={identityColorForId(project.id)}
           actions={projectActions}
           actionsAlwaysVisible
           actionsMobileAlways

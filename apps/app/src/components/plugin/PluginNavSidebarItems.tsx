@@ -41,6 +41,10 @@ import {
 } from "@/lib/plugin-nav-panel-chrome";
 import { cn } from "@bb/shared-ui/lib/utils";
 import type { PluginNavPanelSlot } from "@/lib/plugin-slots";
+import {
+  identityColorForId,
+  IDENTITY_TEXT_COLOR_CLASS,
+} from "@/lib/identity-color";
 import { usePaneContentSplitDrag } from "@/components/sidebar/usePaneContentSplitDrag";
 import { usePaneContentSplitIndicator } from "@/components/sidebar/paneContentSplitIndicator";
 import type { MiniMapSlot } from "@/components/sidebar/paneContentSplitIndicator";
@@ -357,7 +361,13 @@ function PluginNavRowVisibilityMenuItem({
 
 function ToolsNavSidebarItemIcon() {
   return (
-    <span className="bb-sidebar-row-icon-swap shrink-0" aria-hidden="true">
+    <span
+      className={cn(
+        "bb-sidebar-row-icon-swap shrink-0",
+        IDENTITY_TEXT_COLOR_CLASS[identityColorForId("extensions")],
+      )}
+      aria-hidden="true"
+    >
       <Icon name="Toolbox" className="bb-sidebar-row-icon-rest" />
       <Icon name="ToolCase" className="bb-sidebar-row-icon-hover" />
     </span>
@@ -435,7 +445,17 @@ function PluginNavSidebarItem({
       {...props}
       rowKey={getPluginNavPanelKey(row)}
       title={chrome.title}
-      icon={<PluginIcon pluginId={chrome.pluginId} icon={chrome.icon} />}
+      icon={
+        <PluginIcon
+          pluginId={chrome.pluginId}
+          icon={chrome.icon}
+          className={
+            IDENTITY_TEXT_COLOR_CLASS[
+              identityColorForId(`${chrome.pluginId}/${chrome.id}`)
+            ]
+          }
+        />
+      }
       isActive={pathname === path || pathname.startsWith(`${path}/`)}
       splitMiniMap={splitIndicator.miniMap}
       accessory={sidebarAccessory}
