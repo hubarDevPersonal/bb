@@ -865,7 +865,10 @@ function MarkdownCode({
 
   const code = (
     <code
-      className="rounded bg-muted/70 px-1.5 py-0.5 font-mono text-xs"
+      className={cn(
+        "rounded bg-muted/70 px-1.5 py-0.5 font-mono text-xs text-inline-code-foreground",
+        "[[data-user-bubble]_&]:text-user-message-foreground",
+      )}
       {...props}
     >
       {children}

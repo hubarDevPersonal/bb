@@ -143,7 +143,12 @@ export function ThreadStatusGlyph({
       return (
         <Icon
           name={WAITING_ICONS[indicator]}
-          className={cn("text-muted-foreground/75", iconSizeClass)}
+          className={cn(
+            indicator === "waiting-for-input"
+              ? "text-attention"
+              : "text-muted-foreground/75",
+            iconSizeClass,
+          )}
           aria-label={threadIndicatorLabel(indicator) ?? undefined}
         />
       );

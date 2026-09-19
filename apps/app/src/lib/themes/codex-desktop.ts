@@ -36,6 +36,7 @@ export const codexThemeCss = `
   --ring: #ffffff40;
   --state-hover: color-mix(in oklab, var(--ink) 9%, transparent);
   --state-active: color-mix(in oklab, var(--ink) 14%, transparent);
+  --sidebar-selected: #394a5b;
   --surface-raised: #303030;
   --surface-raised-solid: #303030;
   --surface-recessed: #1b1b1b;
@@ -58,6 +59,7 @@ export const codexThemeCss = `
   --warning-text: #f1a275;
   --attention: #f6c543;
   --success: #53b559;
+  --inline-code-foreground: #f1a275;
   --diff-added: #53b559;
   --diff-removed: #ff6764;
   --pr-merged: #a67df2;

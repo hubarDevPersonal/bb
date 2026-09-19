@@ -40,6 +40,11 @@ import {
 } from "./groupRollups.js";
 import { SplitPaneMiniMap } from "@/components/ui/split-pane-mini-map";
 import { COARSE_POINTER_ROW_ACTION_SIZE_CLASS } from "@/components/ui/coarse-pointer-sizing";
+import {
+  IDENTITY_BG_COLOR_CLASS,
+  IDENTITY_TEXT_COLOR_CLASS,
+  type IdentityPaletteColor,
+} from "../ui/identity-color.js";
 
 function stopActionsClick(event: MouseEvent<HTMLSpanElement>) {
   event.stopPropagation();
@@ -54,6 +59,7 @@ export interface TopLevelSidebarSectionProps {
   label: string;
   labelEditor?: ReactNode;
   onRename?: () => void;
+  identityColor?: IdentityPaletteColor;
   children: ReactNode;
   dropParentKey?: string;
   sectionId?: string;
@@ -76,6 +82,7 @@ export function TopLevelSidebarSection({
   label,
   labelEditor,
   onRename,
+  identityColor,
   children,
   dropParentKey,
   sectionId,
@@ -197,9 +204,24 @@ export function TopLevelSidebarSection({
         {...(dragBindings?.listeners ?? {})}
       >
         <span className="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
+          {identityColor ? (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-2 shrink-0 rounded-full",
+                IDENTITY_BG_COLOR_CLASS[identityColor],
+              )}
+            />
+          ) : null}
           {labelEditor ?? (
             <span
-              className="min-w-0 truncate"
+              className={cn(
+                "min-w-0 truncate",
+                identityColor && [
+                  IDENTITY_TEXT_COLOR_CLASS[identityColor],
+                  "font-medium",
+                ],
+              )}
               title={label}
               onDoubleClick={
                 onRename
