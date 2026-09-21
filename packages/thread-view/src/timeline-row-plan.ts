@@ -82,6 +82,7 @@ function planTurn(
         kind: "turn",
         status: turn.status,
         summaryCount: item.summaryCount,
+        editedFiles: item.editedFiles,
         completedAt,
         children: null,
       },

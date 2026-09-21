@@ -395,6 +395,7 @@ function turnRow(): TimelineViewTurnRow {
     turnId: "turn-1",
     status: "completed",
     summaryCount: 1,
+    editedFiles: [],
     completedAt: 3_661_001,
     children: null,
   };

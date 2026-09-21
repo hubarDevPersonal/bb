@@ -2,7 +2,10 @@ import {
   ThreadDiffContentContext,
   ThreadTaskDiffContentContext,
 } from "./git-diff/thread-diff-registration";
-import { TaskDiffPanelContent } from "./git-diff/TaskDiffPanelContent";
+import {
+  TaskDiffPanelContent,
+  type TaskDiffFileFilter,
+} from "./git-diff/TaskDiffPanelContent";
 import { useThreadDiffContent } from "./git-diff/useThreadDiffContent";
 import { isGitDiffFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
 import { ThreadInfoContentContext } from "@/components/secondary-panel/thread-info-registration";
@@ -386,10 +389,11 @@ function ThreadSecondaryPanelContent({
     handleGitDiffDisplayModeChange,
   });
   const renderTaskDiffContent = useCallback(
-    (threadId: string) => (
+    (threadId: string, fileFilter: TaskDiffFileFilter | null) => (
       <TaskDiffPanelContent
         threadId={threadId}
         isPanelOpen={isLayoutOpen}
+        fileFilter={fileFilter}
         workspaceRootPath={workspaceRootPath}
         onOpenFileInEditor={onOpenFileInEditor}
         onOpenFilePreview={onOpenFilePreview}

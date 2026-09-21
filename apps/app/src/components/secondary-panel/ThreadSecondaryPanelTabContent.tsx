@@ -65,6 +65,7 @@ interface GitDiffTabContentProps {
   onOpenFilePreview?: (path: string) => void;
   onSelectionAddToChat?: (text: string) => void;
   pendingGitDiffScrollPath?: string | null;
+  visiblePaths?: ReadonlySet<string> | null;
   workspaceRootPath?: string | null;
 }
 
@@ -192,6 +193,7 @@ export function GitDiffTabContent({
   onOpenFilePreview,
   onSelectionAddToChat,
   pendingGitDiffScrollPath,
+  visiblePaths = null,
   workspaceRootPath,
 }: GitDiffTabContentProps) {
   const isQueryEnabled =
@@ -233,11 +235,21 @@ export function GitDiffTabContent({
     requestDiffWorkers();
   }, [isPanelOpen, requestDiffWorkers]);
 
+  const availableFiles =
+    diffFilesResponse?.outcome === "available" ? diffFilesResponse.files : null;
+  const visibleFiles = useMemo(
+    () =>
+      availableFiles === null || visiblePaths === null
+        ? availableFiles
+        : availableFiles.filter((file) => visiblePaths.has(file.path)),
+    [availableFiles, visiblePaths],
+  );
+
   useEffect(() => {
-    if (diffFilesResponse?.outcome === "available") {
-      onFilesChange?.(diffFilesResponse.files);
+    if (visibleFiles !== null) {
+      onFilesChange?.(visibleFiles);
     }
-  }, [diffFilesResponse, onFilesChange]);
+  }, [visibleFiles, onFilesChange]);
 
   const isPreparing =
     isQueryEnabled &&
@@ -294,7 +306,8 @@ export function GitDiffTabContent({
   }
 
   if (
-    diffFilesResponse.files.length === 0 ||
+    visibleFiles === null ||
+    visibleFiles.length === 0 ||
     !environmentId ||
     target === undefined
   ) {
@@ -322,7 +335,7 @@ export function GitDiffTabContent({
         environmentId={environmentId}
         target={target}
         diffIdentity={diffIdentity}
-        files={diffFilesResponse.files}
+        files={visibleFiles}
         fileFilter={fileFilter}
         filters={filters}
         initialPatches={diffFilesResponse.initialPatches}

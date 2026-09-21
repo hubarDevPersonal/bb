@@ -29,6 +29,7 @@ import type {
   ThreadTimelineLocalFileLinkHandler,
   ThreadTimelineOpenPluginPanelHandler,
   ThreadTimelineUnreadDividerPlacement,
+  ThreadTimelineViewTurnChangesHandler,
 } from "./types.js";
 
 export interface HostConnectionNotice {
@@ -59,6 +60,7 @@ export interface ThreadTimelineSurfaceProps {
   onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
   onOpenPluginPanel?: ThreadTimelineOpenPluginPanelHandler;
   onTitleAction?: TimelineTitleActionResolver;
+  onViewTurnChanges?: ThreadTimelineViewTurnChangesHandler;
   projectId?: string;
   resolveMentionLink?: PromptMentionLinkResolver;
   showOngoingIndicator: boolean;
@@ -160,6 +162,7 @@ export function ThreadTimelineSurface({
   onOpenLocalFileLink,
   onOpenPluginPanel,
   onTitleAction,
+  onViewTurnChanges,
   projectId,
   resolveMentionLink,
   showOngoingIndicator,
@@ -243,6 +246,7 @@ export function ThreadTimelineSurface({
             onOpenLocalFileLink={onOpenLocalFileLink}
             onOpenPluginPanel={onOpenPluginPanel}
             onTitleAction={onTitleAction}
+            onViewTurnChanges={onViewTurnChanges}
             projectId={projectId}
             resolveMentionLink={resolveMentionLink}
             resolveUserAttachmentImageSrc={toUserAttachmentImageSrc}

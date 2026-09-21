@@ -119,6 +119,7 @@ function completedTurn(
     completedAt: messages.length,
     status: "completed",
     summaryCount,
+    editedFiles: [],
     messages,
     ...(terminalMessage ? { terminalMessage } : {}),
   };

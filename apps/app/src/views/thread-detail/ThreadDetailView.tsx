@@ -1,7 +1,10 @@
 import type { AppTabOpenIntent } from "@/lib/app-navigation-host";
 import { openAppTabFromDestinations } from "@/lib/app-fixed-tab-navigation";
 import { createPanelActionDestination } from "@/components/plugin/PluginPanelActions";
-import { ThreadDiffVisibilityContext } from "@/components/secondary-panel/git-diff/thread-diff-registration";
+import {
+  ThreadDiffVisibilityContext,
+  ThreadTaskDiffFileFilterContext,
+} from "@/components/secondary-panel/git-diff/thread-diff-registration";
 import { isGitDiffFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
 import {
   useThreadFixedTabs,
@@ -35,9 +38,11 @@ import {
   type ThreadTimelineLinkHandler,
   type ThreadTimelineLocalFileLink,
   type ThreadTimelineLocalFileLinkHandler,
+  type ThreadTimelineViewTurnChangesHandler,
   type TimelineTitleActionResolver,
   useThreadTimelineController,
 } from "@/components/thread/timeline";
+import { useTaskDiffTurnFilter } from "./useTaskDiffTurnFilter";
 import { ThreadProviderContext } from "@/components/thread/thread-provider-context";
 import {
   defaultAppSettings,
@@ -153,6 +158,7 @@ import {
   GIT_DIFF_FIXED_TAB_REFERENCE,
 } from "@/components/secondary-panel/git-diff/git-diff-fixed-tab-navigation";
 import { THREAD_INFO_FIXED_TAB_REFERENCE } from "@/components/secondary-panel/thread-info-fixed-tab-navigation";
+import { TASK_DIFF_FIXED_TAB_REFERENCE } from "@/components/secondary-panel/git-diff/task-diff-fixed-tab-navigation";
 import { ThreadDetailHeader } from "./ThreadDetailHeader";
 import {
   ThreadDetailPromptArea,
@@ -543,6 +549,18 @@ function ThreadDetailViewInternal(
     : isPersistedSecondaryPanelOpen;
   const isSecondaryPanelOpen =
     isWorkspacePanelOpen || pluginDetails.activePluginId !== null;
+  const {
+    apply: applyTaskDiffTurnFilter,
+    clear: clearTaskDiffTurnFilter,
+    fileFilter: taskDiffFileFilter,
+  } = useTaskDiffTurnFilter({
+    isTaskDiffActive:
+      isSecondaryPanelOpen &&
+      activeFixedSecondaryTab?.kind === "plugin-fixed" &&
+      activeFixedSecondaryTab.pluginId === "core" &&
+      activeFixedSecondaryTab.tabId === TASK_DIFF_FIXED_TAB_REFERENCE.tabId,
+    threadId,
+  });
   const touchFixedPanelTabsState = useTouchFixedPanelTabsState(
     threadId,
     threadId,
@@ -1387,10 +1405,12 @@ function ThreadDetailViewInternal(
       )
       .map((entry) =>
         createThreadFixedTabDescriptor(entry, thread.id, (reference) => {
+          clearTaskDiffTurnFilter();
           openFixedTab({ surface: { kind: "current" }, tab: reference });
         }),
       );
   }, [
+    clearTaskDiffTurnFilter,
     fixedPanelTabsState.secondary.tabs,
     threadFixedTabs.entries,
     openFixedTab,
@@ -1944,6 +1964,20 @@ function ThreadDetailViewInternal(
     },
     [openSecondaryPanelDiffFile, handleOpenTimelinePluginPanel, threadId],
   );
+  const handleViewTurnChanges =
+    useCallback<ThreadTimelineViewTurnChangesHandler>(
+      (paths) => {
+        if (
+          openFixedTab({
+            surface: { kind: "current" },
+            tab: TASK_DIFF_FIXED_TAB_REFERENCE,
+          })
+        ) {
+          applyTaskDiffTurnFilter(paths);
+        }
+      },
+      [applyTaskDiffTurnFilter, openFixedTab],
+    );
   const metadataStorage = useMemo(
     () =>
       resolvedThreadEnvironmentHost?.status === "connected"
@@ -2714,6 +2748,7 @@ function ThreadDetailViewInternal(
       />
       <UrlOpenRoutingProvider openInAppBrowser={openBrowser}>
         <AppNavigationHostProvider capabilities={appNavigationCapabilities}>
+          <ThreadTaskDiffFileFilterContext.Provider value={taskDiffFileFilter}>
           <ThreadDiffVisibilityContext.Provider
             value={gitDiffTabStatus !== "ineligible"}
           >
@@ -2836,6 +2871,9 @@ function ThreadDetailViewInternal(
               onOpenLocalFileLink: handleOpenTimelineLocalFileLink,
               onOpenPluginPanel: handleOpenTimelinePluginPanel,
               onTitleAction: handleTimelineTitleAction,
+              onViewTurnChanges: canUseGitUi
+                ? handleViewTurnChanges
+                : undefined,
               projectId,
               resolveMentionLink,
               showOngoingIndicator:
@@ -2874,6 +2912,7 @@ function ThreadDetailViewInternal(
             onOpenChange={taskActions.conflictDialog.onOpenChange}
             open={taskActions.conflictDialog.open}
           />
+          </ThreadTaskDiffFileFilterContext.Provider>
         </AppNavigationHostProvider>
       </UrlOpenRoutingProvider>
     </MarkdownLocalFileContextMenuContext.Provider>

@@ -28,9 +28,15 @@ const TASK_DIFF_PRESENTATION: DiffPresentation = {
   showLineNumbers: true,
 };
 
+export interface TaskDiffFileFilter {
+  paths: ReadonlySet<string>;
+  onClear: () => void;
+}
+
 export interface TaskDiffPanelContentProps {
   threadId: string;
   isPanelOpen: boolean;
+  fileFilter: TaskDiffFileFilter | null;
   onOpenFileInEditor?: (path: string) => void;
   onOpenFilePreview?: (path: string) => void;
   onSelectionAddToChat?: (text: string) => void;
@@ -45,6 +51,7 @@ type AvailableThreadTaskDiff = Extract<
 interface TaskDiffAvailableContentProps {
   taskDiff: AvailableThreadTaskDiff;
   isPanelOpen: boolean;
+  fileFilter: TaskDiffFileFilter | null;
   onOpenFileInEditor?: (path: string) => void;
   onOpenFilePreview?: (path: string) => void;
   onSelectionAddToChat?: (text: string) => void;
@@ -93,6 +100,7 @@ function TaskDiffMessage({
 function TaskDiffAvailableContent({
   taskDiff,
   isPanelOpen,
+  fileFilter,
   onOpenFileInEditor,
   onOpenFilePreview,
   onSelectionAddToChat,
@@ -144,6 +152,25 @@ function TaskDiffAvailableContent({
         onNavigateNext={handleNavigateNext}
         onNavigatePrevious={handleNavigatePrevious}
       />
+      {fileFilter === null ? null : (
+        <div
+          role="status"
+          className="mx-4 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground"
+        >
+          <span>
+            Showing {files.length} {files.length === 1 ? "file" : "files"} from
+            this turn
+          </span>
+          <span aria-hidden>·</span>
+          <button
+            type="button"
+            onClick={fileFilter.onClear}
+            className="text-foreground hover:underline"
+          >
+            Show all
+          </button>
+        </div>
+      )}
       <GitDiffTabContent
         environmentId={taskDiff.environmentId}
         target={taskDiff.target}
@@ -156,6 +183,7 @@ function TaskDiffAvailableContent({
         onOpenFilePreview={onOpenFilePreview}
         onSelectionAddToChat={onSelectionAddToChat}
         pendingGitDiffScrollPath={scrollToPath}
+        visiblePaths={fileFilter?.paths ?? null}
         workspaceRootPath={workspaceRootPath}
       />
     </div>
@@ -165,6 +193,7 @@ function TaskDiffAvailableContent({
 export function TaskDiffPanelContent({
   threadId,
   isPanelOpen,
+  fileFilter,
   onOpenFileInEditor,
   onOpenFilePreview,
   onSelectionAddToChat,
@@ -211,6 +240,7 @@ export function TaskDiffPanelContent({
       key={buildTaskDiffIdentity(taskDiff)}
       taskDiff={taskDiff}
       isPanelOpen={isPanelOpen}
+      fileFilter={fileFilter}
       onOpenFileInEditor={onOpenFileInEditor}
       onOpenFilePreview={onOpenFilePreview}
       onSelectionAddToChat={onSelectionAddToChat}

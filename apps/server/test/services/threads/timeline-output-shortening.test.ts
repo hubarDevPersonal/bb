@@ -94,6 +94,7 @@ describe("shortenTimelineResponseOutputs", () => {
       turnId: "turn_1",
       status: "completed",
       summaryCount: 1,
+      editedFiles: [],
       completedAt: 1,
       children: [commandRow(big)],
     };
