@@ -63,6 +63,10 @@ export interface ThreadTimelineUnreadDividerPlacement {
   cutoffAt: number;
 }
 
+export type ThreadTimelineViewTurnChangesHandler = (
+  paths: readonly string[],
+) => void;
+
 export type UserAttachmentImageSrcResolver = (
   pathOrUrl: string,
   projectId?: string,

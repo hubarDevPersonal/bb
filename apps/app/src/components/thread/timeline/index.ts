@@ -23,4 +23,5 @@ export type {
   ThreadTimelineLocalFileLink,
   ThreadTimelineLocalFileLinkHandler,
   ThreadTimelineUnreadDividerPlacement,
+  ThreadTimelineViewTurnChangesHandler,
 } from "./types.js";

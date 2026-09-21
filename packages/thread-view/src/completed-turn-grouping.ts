@@ -1,3 +1,4 @@
+import type { TimelineTurnEditedFile } from "@bb/server-contract";
 import type {
   EventProjectionMessage,
   EventProjectionTurn,
@@ -9,6 +10,7 @@ import {
   isSingletonContextManagementOperation,
   isTimelineUngroupableMessage,
 } from "./timeline-message-helpers.js";
+import { getProjectionEditedFiles } from "./turn-edited-files.js";
 
 interface CompletedTurnSummaryGroup {
   kind: "summary";
@@ -17,6 +19,7 @@ interface CompletedTurnSummaryGroup {
   segmentIndex: number | null;
   sourceMessages: EventProjectionMessage[];
   summaryCount: number;
+  editedFiles: TimelineTurnEditedFile[];
 }
 
 interface CompletedTurnUngroupedMessage {
@@ -191,6 +194,7 @@ function groupCompletedTurnSummaryMessages(
         segmentIndex: null,
         sourceMessages: summaryMessages,
         summaryCount: turn.summaryCount,
+        editedFiles: turn.editedFiles,
       },
     ];
   }
@@ -213,6 +217,7 @@ function groupCompletedTurnSummaryMessages(
       segmentIndex,
       sourceMessages,
       summaryCount: getProjectionSummaryCount(sourceMessages, undefined),
+      editedFiles: getProjectionEditedFiles(sourceMessages, undefined),
     });
     segmentIndex += 1;
   }

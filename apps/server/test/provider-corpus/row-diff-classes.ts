@@ -117,6 +117,7 @@ export const CONTAINER_BOUNDS_CLASS = "container-bounds";
 const CONTAINER_FIELDS = ["children", "childRows"] as const;
 const CONTAINER_BOUND_FIELDS = new Set([
   "summaryCount",
+  "editedFiles",
   "sourceSeqEnd",
   "sourceSeqStart",
   "completedAt",

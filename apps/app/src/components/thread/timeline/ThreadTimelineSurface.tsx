@@ -26,6 +26,7 @@ import type {
   ThreadTimelineAddToChatHandler,
   ThreadTimelineConsumerMessageAction,
   ThreadTimelineUnreadDividerPlacement,
+  ThreadTimelineViewTurnChangesHandler,
 } from "./types.js";
 
 export interface HostConnectionNotice {
@@ -53,6 +54,7 @@ export interface ThreadTimelineSurfaceProps {
   includePluginMessageActions?: boolean;
   onLoadOlderRows?: () => Promise<void> | void;
   onTitleAction?: TimelineTitleActionResolver;
+  onViewTurnChanges?: ThreadTimelineViewTurnChangesHandler;
   projectId?: string;
   resolveMentionLink?: PromptMentionLinkResolver;
   showOngoingIndicator: boolean;
@@ -150,6 +152,7 @@ export function ThreadTimelineSurface({
   includePluginMessageActions,
   onLoadOlderRows,
   onTitleAction,
+  onViewTurnChanges,
   projectId,
   resolveMentionLink,
   showOngoingIndicator,
@@ -229,6 +232,7 @@ export function ThreadTimelineSurface({
             consumerMessageActions={consumerMessageActions}
             includePluginMessageActions={includePluginMessageActions}
             onTitleAction={onTitleAction}
+            onViewTurnChanges={onViewTurnChanges}
             projectId={projectId}
             resolveMentionLink={resolveMentionLink}
             resolveUserAttachmentImageSrc={toUserAttachmentImageSrc}

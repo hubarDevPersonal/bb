@@ -27,6 +27,7 @@ import type {
   TimelineSystemOperationKind,
   TimelineSystemRow,
   TimelineToolWorkRow,
+  TimelineTurnEditedFile,
   TimelineTurnRow,
   TimelineWebFetchWorkRow,
   TimelineWebSearchWorkRow,
@@ -322,6 +323,7 @@ interface DelegationRowArgs extends RowBaseOverrideArgs {
 interface TurnRowArgs extends RowBaseOverrideArgs {
   children?: TimelineRow[] | null;
   durationMs?: number | null;
+  editedFiles?: TimelineTurnEditedFile[];
   id?: string;
   seq?: number;
   sourceSeqEnd?: number;
@@ -1271,6 +1273,7 @@ export function turnRow({
   children = null,
   createdAt,
   durationMs = 4_000,
+  editedFiles = [],
   id = DEFAULT_TURN_ROW_ID,
   seq,
   sourceSeqEnd,
@@ -1297,6 +1300,7 @@ export function turnRow({
     turnId,
     status,
     summaryCount,
+    editedFiles,
     completedAt: completedAtFromDuration(base.startedAt, durationMs),
     children,
   };
