@@ -14,8 +14,10 @@ import { experimental_createHostEntryHarness } from "@get-bb/plugin-sdk/testing/
 import { describe, expect, it, vi } from "vitest";
 import { createWorkbenchHostEntry } from "./host.js";
 import {
+  readFrontmatterKey,
   readFrontmatterModel,
   replaceFrontmatterModel,
+  upsertFrontmatterKey,
 } from "./frontmatter.js";
 
 const agentPath = (role: string) =>
@@ -119,6 +121,60 @@ describe("frontmatter model parse/replace", () => {
   });
 });
 
+describe("frontmatter effort read/upsert", () => {
+  it("reads a missing effort as null and an existing one as its value", () => {
+    expect(readFrontmatterKey("---\nmodel: opus\n---\n", "effort")).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(
+      readFrontmatterKey("---\nmodel: opus\neffort: 'high'\n---\n", "effort"),
+    ).toEqual({ ok: true, value: "high" });
+  });
+
+  it("inserts a missing effort right after the model line, byte-preserving the rest", () => {
+    const content =
+      "---\r\nname: scout\r\nmodel: sonnet\r\ntools: Read, Grep\r\n---\r\neffort: body\r\n";
+    expect(upsertFrontmatterKey(content, "effort", "medium")).toEqual({
+      ok: true,
+      content:
+        "---\r\nname: scout\r\nmodel: sonnet\r\neffort: medium\r\ntools: Read, Grep\r\n---\r\neffort: body\r\n",
+    });
+  });
+
+  it("inserts before the closing delimiter when there is no model line", () => {
+    expect(
+      upsertFrontmatterKey("---\nname: scout\n---\nBody.\n", "effort", "low"),
+    ).toEqual({
+      ok: true,
+      content: "---\nname: scout\neffort: low\n---\nBody.\n",
+    });
+  });
+
+  it("replaces an existing effort in place", () => {
+    expect(
+      upsertFrontmatterKey(
+        "---\neffort: low # fast\nmodel: opus\n---\n",
+        "effort",
+        "max",
+      ),
+    ).toEqual({ ok: true, content: "---\neffort: max\nmodel: opus\n---\n" });
+  });
+
+  it("never matches an indented effort key and errors without frontmatter", () => {
+    expect(
+      readFrontmatterKey(
+        "---\ndescription: |\n  effort: high\nmodel: opus\n---\n",
+        "effort",
+      ),
+    ).toEqual({ ok: true, value: null });
+    expect(upsertFrontmatterKey("Body only.\n", "effort", "high")).toEqual({
+      ok: false,
+      error: "missing_frontmatter",
+    });
+  });
+});
+
 describe("workbench host entry", () => {
   function harnessWithFiles(files: Record<string, string>) {
     const store = new Map(Object.entries(files));
@@ -189,7 +245,61 @@ describe("workbench host entry", () => {
     });
     await expect(
       harness.experimental_call("readAgentModel", { role: "scout" }),
-    ).resolves.toEqual({ ok: true, model: "haiku" });
+    ).resolves.toEqual({ ok: true, model: "haiku", effort: null });
+    await harness.experimental_dispose();
+  });
+
+  it("reads ROUTING.md raw and reports missing_file when it is absent", async () => {
+    const routingPath = path.join(homedir(), ".claude/ROUTING.md");
+    const present = harnessWithFiles({ [routingPath]: "| **Scout** |\n" });
+    await expect(
+      present.harness.experimental_call("readRouting", null),
+    ).resolves.toEqual({ ok: true, markdown: "| **Scout** |\n" });
+    await present.harness.experimental_dispose();
+    const absent = harnessWithFiles({});
+    await expect(
+      absent.harness.experimental_call("readRouting", null),
+    ).resolves.toEqual({ ok: false, error: "missing_file" });
+    await absent.harness.experimental_dispose();
+  });
+
+  it("writes an effort key atomically and refuses a file without a model key", async () => {
+    const { harness, rename, store } = harnessWithFiles({
+      [agentPath("scout")]: "---\nmodel: sonnet\ntools: Read\n---\nBody.\n",
+      [agentPath("reviewer")]: "---\nname: reviewer\n---\nBody.\n",
+    });
+    await expect(
+      harness.experimental_call("writeAgentEffort", {
+        role: "scout",
+        effort: "medium",
+      }),
+    ).resolves.toEqual({ ok: true, model: "sonnet", effort: "medium" });
+    expect(rename).toHaveBeenCalledOnce();
+    expect(store.get(agentPath("scout"))).toBe(
+      "---\nmodel: sonnet\neffort: medium\ntools: Read\n---\nBody.\n",
+    );
+    await expect(
+      harness.experimental_call("writeAgentEffort", {
+        role: "reviewer",
+        effort: "high",
+      }),
+    ).resolves.toEqual({ ok: false, error: "missing_model_key" });
+    expect(store.get(agentPath("reviewer"))).toBe(
+      "---\nname: reviewer\n---\nBody.\n",
+    );
+    await harness.experimental_dispose();
+  });
+
+  it("rejects an effort outside the supported levels at the contract", async () => {
+    const { harness } = harnessWithFiles({
+      [agentPath("scout")]: "---\nmodel: sonnet\n---\n",
+    });
+    await expect(
+      harness.experimental_call("writeAgentEffort", {
+        role: "scout",
+        effort: "high\nevil: 1" as never,
+      }),
+    ).rejects.toThrow();
     await harness.experimental_dispose();
   });
 
@@ -216,7 +326,7 @@ describe("workbench host entry", () => {
         role: "implementer",
         model: "sonnet",
       }),
-    ).resolves.toEqual({ ok: true, model: "sonnet" });
+    ).resolves.toEqual({ ok: true, model: "sonnet", effort: null });
     expect(writeFile).toHaveBeenCalledOnce();
     expect(rename).toHaveBeenCalledOnce();
     expect(store.get(agentPath("implementer"))).toBe(
@@ -246,7 +356,7 @@ describe("workbench host entry", () => {
           role: "implementer",
           model: "sonnet",
         }),
-      ).resolves.toEqual({ ok: true, model: "sonnet" });
+      ).resolves.toEqual({ ok: true, model: "sonnet", effort: null });
       await harness.experimental_dispose();
 
       expect(await readFileReal(filePath, "utf8")).toBe(

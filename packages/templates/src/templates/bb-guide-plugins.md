@@ -87,23 +87,33 @@ an explicit selection; never guess ACP model IDs.
 
 The builtin Workbench plugin adds composer shortcuts (spec check, bugfix,
 ask for review) and a nav panel for model routing, multi-model mode, the
-review provider, and spec file shortcuts. Its "Multi-model mode" setting asks
-agents to delegate reconnaissance, implementation, and review to the `scout`,
-`implementer`, and `reviewer` subagents on new sessions, and to request a
-cross-model review before reporting completion. "Ask for review" (and
-`bb workbench review <threadId>`) spawns a review thread on another
-provider, asked not to modify files and run at the lowest permission mode
-that provider supports: the "Review provider" setting picks it, either
-"auto" (the first available provider that differs from the thread's own) or
-an explicit provider id. Model routing reads and writes the `model:`
-frontmatter key in each role's `~/.claude/agents/<role>.md` on the host. The
-CLI equivalents are:
+review provider, and spec file shortcuts. Model routing reads the role table
+in `~/.claude/ROUTING.md` on the host (Architect, Implementer, Scout, and the
+cross-vendor and in-thread Reviewer rows) and shows five roles: the architect
+read-only, the `implementer`, `scout`, and `reviewer` subagents editable
+through the `model:` and `effort:` frontmatter keys in
+`~/.claude/agents/<role>.md` (with a note when a subagent drifts from
+ROUTING.md), and the cross-vendor reviewer. The model picker never offers a
+Haiku model and offers Sonnet only to the scout; `routing set` rejects the
+same models. Its "Multi-model mode" setting asks agents to orchestrate as the
+architect, delegate to the three subagents on new sessions, and run the
+cross-vendor review before reporting completion. "Ask for review" (and
+`bb workbench review <threadId>`) spawns a review thread, asked not to modify
+files and run at the lowest permission mode that provider supports. With the
+"Review provider" setting on "auto" it uses ROUTING.md's cross-vendor reviewer
+when that provider is available and lists the model, then the in-thread
+reviewer row, then the first available provider that differs from the
+thread's own; the routed effort is passed as the reasoning level when the
+model supports it. An explicit provider id (the setting, the chevron next to
+the button, or `--provider`) uses the ROUTING.md model for that provider or
+its default model. The CLI equivalents are:
 
 ```
 bb workbench routing
 bb workbench routing set <role> <model>
+bb workbench routing effort <role> <low|medium|high|xhigh|max>
 bb workbench multimodel <on|off>
-bb workbench review <threadId>
+bb workbench review <threadId> [--provider <id>]
 bb workbench subagents <threadId>
 bb workbench outputs <threadId>
 bb plugin config workbench set reviewProvider <id|auto>
