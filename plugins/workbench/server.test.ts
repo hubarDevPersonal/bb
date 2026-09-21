@@ -3,6 +3,7 @@ import {
   makeThreadResponse,
 } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
+import { ROUTING_FIXTURE } from "./__fixtures__/routing.js";
 import { WORKBENCH_SUBAGENTS_REALTIME_CHANNEL } from "./realtime-channel.js";
 import plugin from "./server.js";
 
@@ -13,6 +14,84 @@ function threadRecord(environmentId: string | null) {
 const PERMISSIVE_CAPABILITIES = {
   permissionModes: ["accept-edits", "auto", "full"],
 } as const;
+
+function catalogModel(
+  model: string,
+  options: {
+    isDefault?: boolean;
+    efforts?: ("low" | "medium" | "high")[];
+  } = {},
+) {
+  return {
+    model,
+    displayName: model,
+    isDefault: options.isDefault ?? false,
+    supportedReasoningEfforts: (options.efforts ?? []).map(
+      (reasoningEffort) => ({ reasoningEffort, description: reasoningEffort }),
+    ),
+  };
+}
+
+const EFFORTS = ["low", "medium", "high"] as const;
+
+const ROUTING_CATALOGS: Record<string, ReturnType<typeof catalogModel>[]> = {
+  "claude-code": [
+    catalogModel("claude-sonnet-5", { isDefault: true, efforts: [...EFFORTS] }),
+    catalogModel("claude-fable-5-1", { efforts: [...EFFORTS] }),
+    catalogModel("claude-opus-5", { efforts: [...EFFORTS] }),
+  ],
+  codex: [
+    catalogModel("gpt-5", { isDefault: true, efforts: [...EFFORTS] }),
+    catalogModel("gpt-5.6-sol", { efforts: ["medium", "high"] }),
+  ],
+  pi: [catalogModel("pi-model", { isDefault: true })],
+};
+
+function routingProvidersSdk(available: readonly string[]) {
+  return {
+    list: async () =>
+      [
+        { id: "claude-code", displayName: "Claude Code" },
+        { id: "codex", displayName: "Codex" },
+        { id: "pi", displayName: "Pi" },
+      ].map((provider) => ({
+        ...provider,
+        available: available.includes(provider.id),
+        capabilities: PERMISSIVE_CAPABILITIES,
+      })),
+    models: async (args?: { providerId?: string }) => ({
+      models: ROUTING_CATALOGS[args?.providerId ?? ""] ?? [],
+      selectedOnlyModels: [],
+    }),
+  };
+}
+
+const ROUTING_PROVIDERS_SDK = routingProvidersSdk(["claude-code", "codex"]);
+
+function routingHostRpc({ method }: { method: string }) {
+  if (method === "readRouting") return { ok: true, markdown: ROUTING_FIXTURE };
+  if (method === "readAgentModel") {
+    return { ok: true, model: "claude-opus-5", effort: null };
+  }
+  throw new Error(`unexpected host RPC method ${method}`);
+}
+
+function reviewThreadSdk(onSpawn: (args: unknown) => void) {
+  return {
+    get: async () =>
+      makeThreadResponse({
+        id: "thr_1",
+        projectId: "proj_1",
+        environmentId: "env_1",
+        providerId: "claude-code",
+        title: "Fix the bug",
+      }),
+    spawn: async (args: unknown) => {
+      onSpawn(args);
+      return makeThreadResponse({ id: "thr_review" });
+    },
+  };
+}
 
 type RequestReviewResult =
   | {
@@ -275,7 +354,9 @@ describe("workbench model routing catalog", () => {
         },
       },
       experimental_callHostRpc: ({ method }) => {
-        if (method === "readAgentModel") return { ok: true, model: "haiku" };
+        if (method === "readAgentModel") {
+          return { ok: true, model: "haiku", effort: null };
+        }
         throw new Error(`unexpected host RPC method ${method}`);
       },
     });
@@ -340,7 +421,7 @@ describe("workbench model routing catalog", () => {
       },
       experimental_callHostRpc: ({ method, input }) => {
         if (method === "readAgentModel") {
-          return { ok: true, model: "opus" };
+          return { ok: true, model: "opus", effort: null };
         }
         throw new Error(
           `unexpected host RPC method ${method} ${JSON.stringify(input)}`,
@@ -387,7 +468,9 @@ describe("workbench model routing catalog", () => {
         },
       },
       experimental_callHostRpc: ({ method }) => {
-        if (method === "readAgentModel") return { ok: true, model: "opus" };
+        if (method === "readAgentModel") {
+          return { ok: true, model: "opus", effort: null };
+        }
         throw new Error(`unexpected host RPC method ${method}`);
       },
     });
@@ -833,6 +916,12 @@ describe("workbench review provider resolution", () => {
               capabilities: PERMISSIVE_CAPABILITIES,
             },
           ],
+          models: async (args) => ({
+            models: [
+              catalogModel(`${args?.providerId}-default`, { isDefault: true }),
+            ],
+            selectedOnlyModels: [],
+          }),
         },
       },
     });
@@ -840,9 +929,33 @@ describe("workbench review provider resolution", () => {
     await expect(
       host.harness.callRpc("reviewProviderPreview", { threadId: "thr_1" }),
     ).resolves.toEqual({
-      ok: true,
-      providerId: "codex",
-      providerName: "Codex",
+      target: {
+        ok: true,
+        providerId: "codex",
+        providerName: "Codex",
+        model: "codex-default",
+        effort: null,
+        reasoningLevel: null,
+        source: "fallback",
+      },
+      options: [
+        {
+          providerId: "claude-code",
+          providerName: "Claude Code",
+          model: "claude-code-default",
+          effort: null,
+          reasoningLevel: null,
+          source: "provider-default",
+        },
+        {
+          providerId: "codex",
+          providerName: "Codex",
+          model: "codex-default",
+          effort: null,
+          reasoningLevel: null,
+          source: "provider-default",
+        },
+      ],
     });
     await host.harness.dispose();
   });
@@ -876,7 +989,10 @@ describe("workbench review provider resolution", () => {
     await plugin(host.bb);
     await expect(
       host.harness.callRpc("reviewProviderPreview", { threadId: "thr_1" }),
-    ).resolves.toEqual({ ok: false, error: "no_provider_available" });
+    ).resolves.toEqual({
+      target: { ok: false, error: "no_provider_available" },
+      options: [],
+    });
     await host.harness.dispose();
   });
 
@@ -908,6 +1024,10 @@ describe("workbench review provider resolution", () => {
               capabilities: PERMISSIVE_CAPABILITIES,
             },
           ],
+          models: async () => ({
+            models: [catalogModel("default-model", { isDefault: true })],
+            selectedOnlyModels: [],
+          }),
         },
       },
     });
@@ -915,10 +1035,14 @@ describe("workbench review provider resolution", () => {
     await host.harness.setSettings({ reviewProvider: "claude-code" });
     await expect(
       host.harness.callRpc("reviewProviderPreview", { threadId: "thr_1" }),
-    ).resolves.toEqual({
-      ok: true,
-      providerId: "claude-code",
-      providerName: "Claude Code",
+    ).resolves.toMatchObject({
+      target: {
+        ok: true,
+        providerId: "claude-code",
+        providerName: "Claude Code",
+        model: "default-model",
+        source: "provider-default",
+      },
     });
     await host.harness.dispose();
   });
@@ -952,7 +1076,9 @@ describe("workbench review provider resolution", () => {
     await host.harness.setSettings({ reviewProvider: "codex" });
     await expect(
       host.harness.callRpc("reviewProviderPreview", { threadId: "thr_1" }),
-    ).resolves.toEqual({ ok: false, error: "provider_unavailable" });
+    ).resolves.toMatchObject({
+      target: { ok: false, error: "provider_unavailable" },
+    });
     await host.harness.dispose();
   });
 
@@ -968,35 +1094,15 @@ describe("workbench review provider resolution", () => {
     await plugin(host.bb);
     await expect(
       host.harness.callRpc("reviewProviderPreview", { threadId: "thr_1" }),
-    ).resolves.toEqual({ ok: false, error: "no_environment" });
+    ).resolves.toEqual({
+      target: { ok: false, error: "no_environment" },
+      options: [],
+    });
     await host.harness.dispose();
   });
 });
 
 describe("workbench review provider settings", () => {
-  it("lists only available providers and defaults to auto", async () => {
-    const host = createFakePluginHost({
-      pluginId: "workbench",
-      sdk: {
-        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
-        providers: {
-          list: async () => [
-            { id: "claude-code", displayName: "Claude Code", available: true },
-            { id: "codex", displayName: "Codex", available: false },
-          ],
-        },
-      },
-    });
-    await plugin(host.bb);
-    await expect(
-      host.harness.callRpc("getReviewProviderOptions"),
-    ).resolves.toEqual({
-      value: "auto",
-      providers: [{ id: "claude-code", name: "Claude Code" }],
-    });
-    await host.harness.dispose();
-  });
-
   it("persists the setting via plugins.updateSettings and changes the next preview", async () => {
     const host = createFakePluginHost({
       pluginId: "workbench",
@@ -1031,6 +1137,10 @@ describe("workbench review provider settings", () => {
               capabilities: PERMISSIVE_CAPABILITIES,
             },
           ],
+          models: async () => ({
+            models: [catalogModel("default-model", { isDefault: true })],
+            selectedOnlyModels: [],
+          }),
         },
       },
     });
@@ -1042,10 +1152,12 @@ describe("workbench review provider settings", () => {
     ).resolves.toEqual({ value: "claude-code" });
     await expect(
       host.harness.callRpc("reviewProviderPreview", { threadId: "thr_1" }),
-    ).resolves.toEqual({
-      ok: true,
-      providerId: "claude-code",
-      providerName: "Claude Code",
+    ).resolves.toMatchObject({
+      target: {
+        ok: true,
+        providerId: "claude-code",
+        providerName: "Claude Code",
+      },
     });
     await host.harness.dispose();
   });
@@ -1117,6 +1229,10 @@ describe("workbench requestReview spawn", () => {
       reviewThreadId: "thr_review",
       providerId: "codex",
       providerName: "Codex",
+      model: "gpt-5",
+      effort: null,
+      reasoningLevel: null,
+      source: "fallback",
     });
     expect(spawnArgs).toMatchObject({
       projectId: "proj_1",
@@ -1319,14 +1435,29 @@ describe("workbench CLI", () => {
     await host.harness.dispose();
   });
 
-  it("routing lists every role's model", async () => {
+  it("routing lists all five roles with ROUTING.md, frontmatter, and drift", async () => {
+    const frontmatter: Record<
+      string,
+      { model: string; effort: string | null }
+    > = {
+      implementer: { model: "claude-opus-5", effort: "high" },
+      scout: { model: "claude-haiku-4-5", effort: null },
+      reviewer: { model: "claude-opus-5", effort: null },
+    };
     const host = createFakePluginHost({
       pluginId: "workbench",
       sdk: {
         hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
+        providers: ROUTING_PROVIDERS_SDK,
       },
-      experimental_callHostRpc: ({ method }) => {
-        if (method === "readAgentModel") return { ok: true, model: "haiku" };
+      experimental_callHostRpc: ({ method, input }) => {
+        if (method === "readRouting") {
+          return { ok: true, markdown: ROUTING_FIXTURE };
+        }
+        if (method === "readAgentModel") {
+          const role = (input as { role: string }).role;
+          return { ok: true, ...frontmatter[role]! };
+        }
         throw new Error(`unexpected host RPC method ${method}`);
       },
     });
@@ -1335,8 +1466,88 @@ describe("workbench CLI", () => {
     if (cli === null) throw new Error("expected a cli registration");
     await expect(cli.run(["routing"], {})).resolves.toEqual({
       exitCode: 0,
-      stdout: "scout: haiku\nimplementer: haiku\nreviewer: haiku",
+      stdout: [
+        "source: ~/.claude/ROUTING.md",
+        "architect: claude-code / claude-fable-5-1 · high (orchestrator thread, read-only)",
+        "implementer: claude-opus-5 · effort high | ROUTING.md: claude-code / claude-opus-5[1m] (subagent: claude-opus-5) · high",
+        "scout: claude-haiku-4-5 | ROUTING.md: claude-code / claude-sonnet-5 · medium | not allowed by ROUTING.md | differs from ROUTING.md (claude-sonnet-5)",
+        "reviewer: claude-opus-5 | ROUTING.md: claude-code / claude-fable-5-1 · high | differs from ROUTING.md (claude-fable-5-1)",
+        "cross-vendor reviewer: codex / gpt-5.6-sol · high (source: routing-cross-vendor) | setting: auto",
+      ].join("\n"),
     });
+    await host.harness.dispose();
+  });
+
+  it("routing set rejects haiku for every role and sonnet outside scout", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
+      },
+      experimental_callHostRpc: ({ method, input }) => {
+        if (method === "writeAgentModel") {
+          return {
+            ok: true,
+            model: (input as { model: string }).model,
+            effort: null,
+          };
+        }
+        throw new Error(`unexpected host RPC method ${method}`);
+      },
+    });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    const haiku = await cli.run(
+      ["routing", "set", "scout", "claude-haiku-4-5"],
+      {},
+    );
+    expect(haiku.exitCode).toBe(1);
+    expect(haiku.stderr).toContain("not allowed for scout by ROUTING.md");
+    const sonnet = await cli.run(
+      ["routing", "set", "implementer", "claude-sonnet-5"],
+      {},
+    );
+    expect(sonnet.exitCode).toBe(1);
+    expect(sonnet.stderr).toContain("Sonnet only for scout");
+    await expect(
+      cli.run(["routing", "set", "scout", "claude-sonnet-5"], {}),
+    ).resolves.toEqual({ exitCode: 0, stdout: "scout: claude-sonnet-5" });
+    expect(
+      host.harness.experimental_hostRpcCalls.map((call) => call.input),
+    ).toEqual([{ role: "scout", model: "claude-sonnet-5" }]);
+    await host.harness.dispose();
+  });
+
+  it("routing effort writes a supported level and rejects others", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
+      },
+      experimental_callHostRpc: ({ method, input }) => {
+        if (method === "writeAgentEffort") {
+          return {
+            ok: true,
+            model: "claude-opus-5",
+            effort: (input as { effort: string }).effort,
+          };
+        }
+        throw new Error(`unexpected host RPC method ${method}`);
+      },
+    });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    await expect(
+      cli.run(["routing", "effort", "implementer", "high"], {}),
+    ).resolves.toEqual({ exitCode: 0, stdout: "implementer: effort high" });
+    const invalid = await cli.run(
+      ["routing", "effort", "implementer", "extreme"],
+      {},
+    );
+    expect(invalid.exitCode).toBe(1);
+    expect(invalid.stderr).toContain("Invalid effort");
     await host.harness.dispose();
   });
 
@@ -1348,7 +1559,11 @@ describe("workbench CLI", () => {
       },
       experimental_callHostRpc: ({ method, input }) => {
         if (method === "writeAgentModel") {
-          return { ok: true, model: (input as { model: string }).model };
+          return {
+            ok: true,
+            model: (input as { model: string }).model,
+            effort: null,
+          };
         }
         throw new Error(`unexpected host RPC method ${method}`);
       },
@@ -1460,7 +1675,7 @@ describe("workbench CLI", () => {
     if (cli === null) throw new Error("expected a cli registration");
     await expect(cli.run(["review", "thr_1"], {})).resolves.toEqual({
       exitCode: 0,
-      stdout: "Started review thread thr_review with Codex",
+      stdout: "Started review thread thr_review with Codex (gpt-5) [fallback]",
     });
     await host.harness.dispose();
   });
@@ -1579,6 +1794,316 @@ describe("workbench CLI", () => {
     const result = await cli.run(["outputs"], {});
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("Usage: bb workbench outputs");
+    await host.harness.dispose();
+  });
+});
+
+describe("workbench review target from ROUTING.md", () => {
+  it("spawns the cross-vendor reviewer with its model and reasoning level when codex is available", async () => {
+    let spawnArgs: unknown;
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: reviewThreadSdk((args) => {
+          spawnArgs = args;
+        }),
+        environments: { get: async () => ({ hostId: "host_1" }) },
+        providers: ROUTING_PROVIDERS_SDK,
+      },
+      experimental_callHostRpc: routingHostRpc,
+    });
+    await plugin(host.bb);
+    await expect(
+      host.harness.callRpc("requestReview", { threadId: "thr_1" }),
+    ).resolves.toEqual({
+      ok: true,
+      reviewThreadId: "thr_review",
+      providerId: "codex",
+      providerName: "Codex",
+      model: "gpt-5.6-sol",
+      effort: "high",
+      reasoningLevel: "high",
+      source: "routing-cross-vendor",
+    });
+    expect(spawnArgs).toMatchObject({
+      parentThreadId: "thr_1",
+      providerId: "codex",
+      model: "gpt-5.6-sol",
+      reasoningLevel: "high",
+      permissionMode: "accept-edits",
+    });
+    await host.harness.dispose();
+  });
+
+  it("falls back to the in-thread reviewer row when codex is unavailable", async () => {
+    let spawnArgs: unknown;
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: reviewThreadSdk((args) => {
+          spawnArgs = args;
+        }),
+        environments: { get: async () => ({ hostId: "host_1" }) },
+        providers: routingProvidersSdk(["claude-code", "pi"]),
+      },
+      experimental_callHostRpc: routingHostRpc,
+    });
+    await plugin(host.bb);
+    await expect(
+      host.harness.callRpc("requestReview", { threadId: "thr_1" }),
+    ).resolves.toMatchObject({
+      ok: true,
+      providerId: "claude-code",
+      model: "claude-fable-5-1",
+      source: "routing-subagent",
+    });
+    expect(spawnArgs).toMatchObject({
+      providerId: "claude-code",
+      model: "claude-fable-5-1",
+      reasoningLevel: "high",
+    });
+    await host.harness.dispose();
+  });
+
+  it("omits the reasoning level when the model does not support the routed effort", async () => {
+    let spawnArgs: Record<string, unknown> = {};
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: reviewThreadSdk((args) => {
+          spawnArgs = args as Record<string, unknown>;
+        }),
+        environments: { get: async () => ({ hostId: "host_1" }) },
+        providers: {
+          ...ROUTING_PROVIDERS_SDK,
+          models: async (args?: { providerId?: string }) => ({
+            models:
+              args?.providerId === "codex"
+                ? [catalogModel("gpt-5.6-sol", { efforts: ["low"] })]
+                : [],
+            selectedOnlyModels: [],
+          }),
+        },
+      },
+      experimental_callHostRpc: routingHostRpc,
+    });
+    await plugin(host.bb);
+    await expect(
+      host.harness.callRpc("requestReview", { threadId: "thr_1" }),
+    ).resolves.toMatchObject({
+      ok: true,
+      model: "gpt-5.6-sol",
+      effort: "high",
+      reasoningLevel: null,
+    });
+    expect(spawnArgs).not.toHaveProperty("reasoningLevel");
+    await host.harness.dispose();
+  });
+
+  it("honors a per-request provider override with that provider's ROUTING.md model", async () => {
+    let spawnArgs: unknown;
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: reviewThreadSdk((args) => {
+          spawnArgs = args;
+        }),
+        environments: { get: async () => ({ hostId: "host_1" }) },
+        providers: ROUTING_PROVIDERS_SDK,
+      },
+      experimental_callHostRpc: routingHostRpc,
+    });
+    await plugin(host.bb);
+    await expect(
+      host.harness.callRpc("requestReview", {
+        threadId: "thr_1",
+        providerId: "claude-code",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      providerId: "claude-code",
+      model: "claude-fable-5-1",
+      source: "routing-subagent",
+    });
+    expect(spawnArgs).toMatchObject({
+      providerId: "claude-code",
+      model: "claude-fable-5-1",
+    });
+    await expect(
+      host.harness.callRpc("requestReview", {
+        threadId: "thr_1",
+        providerId: "pi",
+      }),
+    ).resolves.toEqual({ ok: false, error: "provider_unavailable" });
+    await host.harness.dispose();
+  });
+
+  it("previews the default target and one option per available provider", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: reviewThreadSdk(() => undefined),
+        environments: { get: async () => ({ hostId: "host_1" }) },
+        providers: ROUTING_PROVIDERS_SDK,
+      },
+      experimental_callHostRpc: routingHostRpc,
+    });
+    await plugin(host.bb);
+    const preview = (await host.harness.callRpc("reviewProviderPreview", {
+      threadId: "thr_1",
+    })) as {
+      target: { ok: boolean; providerId?: string; model?: string };
+      options: { providerId: string; model: string; source: string }[];
+    };
+    expect(preview.target).toMatchObject({
+      ok: true,
+      providerId: "codex",
+      model: "gpt-5.6-sol",
+    });
+    expect(
+      preview.options.map((option) => [option.providerId, option.model]),
+    ).toEqual([
+      ["claude-code", "claude-fable-5-1"],
+      ["codex", "gpt-5.6-sol"],
+    ]);
+    await host.harness.dispose();
+  });
+
+  it("review --provider passes the override and rejects a malformed flag", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        threads: reviewThreadSdk(() => undefined),
+        environments: { get: async () => ({ hostId: "host_1" }) },
+        providers: ROUTING_PROVIDERS_SDK,
+      },
+      experimental_callHostRpc: routingHostRpc,
+    });
+    await plugin(host.bb);
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    await expect(
+      cli.run(["review", "thr_1", "--provider", "claude-code"], {}),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout:
+        "Started review thread thr_review with Claude Code (claude-fable-5-1, high) [routing-subagent]",
+    });
+    const missing = await cli.run(["review", "thr_1", "--provider"], {});
+    expect(missing.exitCode).toBe(1);
+    expect(missing.stderr).toContain("[--provider <id>]");
+    await host.harness.dispose();
+  });
+
+  it("getRouting returns the parsed ROUTING.md rows and the effective review target", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
+        providers: ROUTING_PROVIDERS_SDK,
+      },
+      experimental_callHostRpc: routingHostRpc,
+    });
+    await plugin(host.bb);
+    const result = (await host.harness.callRpc("getRouting", {
+      providerId: null,
+    })) as {
+      routing: { ok: boolean; entries?: { role: string }[] };
+      reviewTarget: unknown;
+      reviewProvider: string;
+    };
+    expect(result.routing.entries?.map((entry) => entry.role)).toEqual([
+      "architect",
+      "implementer",
+      "scout",
+      "reviewer-cross-vendor",
+      "reviewer-subagent",
+    ]);
+    expect(result.reviewProvider).toBe("auto");
+    expect(result.reviewTarget).toMatchObject({
+      ok: true,
+      providerId: "codex",
+      model: "gpt-5.6-sol",
+      source: "routing-cross-vendor",
+    });
+    await host.harness.dispose();
+  });
+
+  it("getRouting reports a missing ROUTING.md and a thread-dependent review target instead of guessing", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
+        providers: ROUTING_PROVIDERS_SDK,
+      },
+      experimental_callHostRpc: ({ method }) => {
+        if (method === "readRouting") {
+          return { ok: false, error: "missing_file" };
+        }
+        return routingHostRpc({ method });
+      },
+    });
+    await plugin(host.bb);
+    await expect(
+      host.harness.callRpc("getRouting", { providerId: null }),
+    ).resolves.toMatchObject({
+      routing: { ok: false, error: "missing_file" },
+      reviewTarget: { ok: false, error: "thread_dependent" },
+    });
+    const cli = host.harness.registrations.cli;
+    if (cli === null) throw new Error("expected a cli registration");
+    const result = await cli.run(["routing"], {});
+    expect(result.stdout).toContain(
+      "cross-vendor reviewer: no ROUTING.md reviewer available — the button uses the first provider other than the thread's own | setting: auto",
+    );
+    await host.harness.dispose();
+  });
+
+  it("getRouting still names an explicitly configured provider without a thread", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
+        providers: ROUTING_PROVIDERS_SDK,
+      },
+      experimental_callHostRpc: ({ method }) => {
+        if (method === "readRouting") {
+          return { ok: false, error: "missing_file" };
+        }
+        return routingHostRpc({ method });
+      },
+    });
+    await plugin(host.bb);
+    await host.harness.setSettings({ reviewProvider: "codex" });
+    await expect(
+      host.harness.callRpc("getRouting", { providerId: null }),
+    ).resolves.toMatchObject({
+      reviewTarget: {
+        ok: true,
+        providerId: "codex",
+        model: "gpt-5",
+        source: "provider-default",
+      },
+    });
+    await host.harness.dispose();
+  });
+
+  it("setRouting refuses a model ROUTING.md disallows for the role without touching the host", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      sdk: {
+        hosts: { list: async () => [{ id: "host_1", status: "connected" }] },
+      },
+      experimental_callHostRpc: routingHostRpc,
+    });
+    await plugin(host.bb);
+    await expect(
+      host.harness.callRpc("setRouting", {
+        role: "reviewer",
+        model: "claude-sonnet-5",
+      }),
+    ).resolves.toEqual({ ok: false, error: "not_allowed" });
+    expect(host.harness.experimental_hostRpcCalls).toEqual([]);
     await host.harness.dispose();
   });
 });

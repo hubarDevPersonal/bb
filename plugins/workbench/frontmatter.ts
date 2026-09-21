@@ -8,8 +8,21 @@ export type FrontmatterModelWriteResult =
   | { ok: true; content: string }
   | { ok: false; error: FrontmatterModelError };
 
+export type FrontmatterKey = "model" | "effort";
+
+export type FrontmatterKeyReadResult =
+  | { ok: true; value: string | null }
+  | { ok: false; error: "missing_frontmatter" };
+
+export type FrontmatterKeyWriteResult =
+  | { ok: true; content: string }
+  | { ok: false; error: "missing_frontmatter" };
+
 const LINE_PATTERN = /[^\n]*\n|[^\n]+$/g;
-const MODEL_LINE_PATTERN = /^model\s*:(.*)$/;
+const KEY_LINE_PATTERNS: Readonly<Record<FrontmatterKey, RegExp>> = {
+  model: /^model\s*:(.*)$/,
+  effort: /^effort\s*:(.*)$/,
+};
 
 function splitLines(content: string): string[] {
   return content.match(LINE_PATTERN) ?? [];
@@ -17,6 +30,10 @@ function splitLines(content: string): string[] {
 
 function lineBody(line: string): string {
   return line.replace(/\r?\n$/, "");
+}
+
+function lineTerminator(line: string): string {
+  return line.slice(lineBody(line).length);
 }
 
 function findFrontmatterRange(
@@ -31,12 +48,13 @@ function findFrontmatterRange(
   return null;
 }
 
-function findModelLineIndex(
+function findKeyLineIndex(
   lines: readonly string[],
   range: { start: number; end: number },
+  key: FrontmatterKey,
 ): number | null {
   for (let index = range.start; index < range.end; index += 1) {
-    if (MODEL_LINE_PATTERN.test(lineBody(lines[index]!))) return index;
+    if (KEY_LINE_PATTERNS[key].test(lineBody(lines[index]!))) return index;
   }
   return null;
 }
@@ -54,29 +72,59 @@ function unquoteYamlScalar(raw: string): string {
   return trimmed.replace(/\s+#.*$/, "").trim();
 }
 
-export function readFrontmatterModel(
+function keyValue(line: string, key: FrontmatterKey): string {
+  const match = KEY_LINE_PATTERNS[key].exec(lineBody(line))!;
+  return unquoteYamlScalar(match[1]!);
+}
+
+export function readFrontmatterKey(
   content: string,
-): FrontmatterModelReadResult {
+  key: FrontmatterKey,
+): FrontmatterKeyReadResult {
   const lines = splitLines(content);
   const range = findFrontmatterRange(lines);
   if (range === null) return { ok: false, error: "missing_frontmatter" };
-  const modelIndex = findModelLineIndex(lines, range);
-  if (modelIndex === null) return { ok: false, error: "missing_model_key" };
-  const match = MODEL_LINE_PATTERN.exec(lineBody(lines[modelIndex]!))!;
-  return { ok: true, model: unquoteYamlScalar(match[1]!) };
+  const index = findKeyLineIndex(lines, range, key);
+  return {
+    ok: true,
+    value: index === null ? null : keyValue(lines[index]!, key),
+  };
+}
+
+export function upsertFrontmatterKey(
+  content: string,
+  key: FrontmatterKey,
+  value: string,
+): FrontmatterKeyWriteResult {
+  const lines = splitLines(content);
+  const range = findFrontmatterRange(lines);
+  if (range === null) return { ok: false, error: "missing_frontmatter" };
+  const index = findKeyLineIndex(lines, range, key);
+  if (index !== null) {
+    lines[index] = `${key}: ${value}${lineTerminator(lines[index]!)}`;
+    return { ok: true, content: lines.join("") };
+  }
+  const modelIndex = findKeyLineIndex(lines, range, "model");
+  const insertAt = modelIndex === null ? range.end : modelIndex + 1;
+  const terminator = lineTerminator(lines[insertAt - 1]!);
+  lines.splice(insertAt, 0, `${key}: ${value}${terminator}`);
+  return { ok: true, content: lines.join("") };
+}
+
+export function readFrontmatterModel(
+  content: string,
+): FrontmatterModelReadResult {
+  const result = readFrontmatterKey(content, "model");
+  if (!result.ok) return result;
+  if (result.value === null) return { ok: false, error: "missing_model_key" };
+  return { ok: true, model: result.value };
 }
 
 export function replaceFrontmatterModel(
   content: string,
   model: string,
 ): FrontmatterModelWriteResult {
-  const lines = splitLines(content);
-  const range = findFrontmatterRange(lines);
-  if (range === null) return { ok: false, error: "missing_frontmatter" };
-  const modelIndex = findModelLineIndex(lines, range);
-  if (modelIndex === null) return { ok: false, error: "missing_model_key" };
-  const line = lines[modelIndex]!;
-  const terminator = line.slice(lineBody(line).length);
-  lines[modelIndex] = `model: ${model}${terminator}`;
-  return { ok: true, content: lines.join("") };
+  const current = readFrontmatterModel(content);
+  if (!current.ok) return current;
+  return upsertFrontmatterKey(content, "model", model);
 }
