@@ -1413,26 +1413,48 @@ Settings changes do not require a plugin reload.
 
 The builtin Workbench plugin adds composer shortcuts (spec check, bugfix,
 ask for review) and a nav panel for model routing, multi-model mode, the
-review provider, and spec file shortcuts. Model routing reads and writes the
-`model:` frontmatter key in each role's `~/.claude/agents/<role>.md` on the
-connected host, from the catalog of the provider whose models include a
-role's current value, or the first available provider otherwise. The
-"Multi-model mode" setting (`orchestratedMode`, kept for compatibility) asks
-agents to delegate reconnaissance, implementation, and review to the `scout`,
-`implementer`, and `reviewer` subagents on new sessions, and to request a
-cross-model review before reporting completion; it defaults to off. "Ask for
-review" spawns a child thread — same project and environment,
-`parentThreadId` set so it shows in the Subagents panel — on another
-provider, asked not to modify files and run at the lowest permission mode
-that provider supports. The `reviewProvider` setting picks that provider:
-`"auto"` (default) selects the first available provider that differs from
-the thread's own, or an explicit provider id. Configure these from the CLI:
+review provider, and spec file shortcuts. Model routing reads
+`~/.claude/ROUTING.md` on the connected host — the markdown role table whose
+first cell carries a bold label (Architect, Implementer, Scout, "Reviewer,
+кросс-вендорный", "Reviewer, внутри треда"), whose model cell is the
+provider id, a slash, and the model in backticks (optionally followed by
+"субагент:" and the subagent model in backticks), and whose last cell is the
+effort; unknown rows are ignored. The panel shows five roles: the
+architect (read-only), the `implementer`, `scout`, and `reviewer` subagents,
+and the cross-vendor reviewer. Subagent rows read and write the `model:` and
+`effort:` frontmatter keys in `~/.claude/agents/<role>.md` (Claude Code reads
+`effort` from agent frontmatter: `low`, `medium`, `high`, `xhigh`, `max`;
+the key is inserted after `model:` when missing), from the catalog of the
+provider whose models include a role's current value, or the first available
+provider otherwise. The picker never offers a model whose id or name contains
+"haiku", and offers "sonnet" models only to the scout; a disallowed current
+value stays visible and is marked, and a subagent whose model differs from
+ROUTING.md (the implementer compares against its `субагент:` model) gets a
+drift note. The "Multi-model mode" setting (`orchestratedMode`, kept for
+compatibility) asks agents to orchestrate as the architect, delegate
+reconnaissance, implementation, and in-thread verification to the `scout`,
+`implementer`, and `reviewer` subagents on new sessions, and to run
+`bb workbench review` for the cross-vendor review before reporting
+completion; it defaults to off. "Ask for review" spawns a child thread —
+same project and environment, `parentThreadId` set so it shows in the
+Subagents panel — asked not to modify files and run at the lowest permission
+mode that provider supports. The `reviewProvider` setting picks the target:
+`"auto"` (default) uses ROUTING.md's cross-vendor reviewer row when its
+provider is available on the thread's host and lists the model, then the
+in-thread reviewer row, then the first available provider that differs from
+the thread's own with its default model. An explicit provider id — the
+setting, the chevron menu next to the button (this request only), or
+`--provider` — uses the ROUTING.md model a row names for that provider, or
+its default model. The routed effort is passed as the thread's reasoning
+level when the model's catalog lists it, and omitted otherwise. Configure
+these from the CLI:
 
 ```bash
 bb workbench routing
 bb workbench routing set <role> <model>
+bb workbench routing effort <role> <low|medium|high|xhigh|max>
 bb workbench multimodel <on|off>
-bb workbench review <threadId>
+bb workbench review <threadId> [--provider <id>]
 bb plugin config workbench set reviewProvider <id|auto>
 ```
 
