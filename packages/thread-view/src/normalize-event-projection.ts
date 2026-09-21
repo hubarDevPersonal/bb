@@ -15,6 +15,7 @@ import type {
 } from "./event-projection-types.js";
 import { findLastTerminalTimelineMessage } from "./timeline-message-helpers.js";
 import { getProjectionSummaryCount } from "./apply-turn-message-detail.js";
+import { getProjectionEditedFiles } from "./turn-edited-files.js";
 
 interface MessageTimingSource {
   createdAt: number;
@@ -213,6 +214,7 @@ function buildSourceTurn(
   const turn: EventProjectionTurn = {
     ...sourceTurn,
     summaryCount: getProjectionSummaryCount(messages, terminalMessage),
+    editedFiles: getProjectionEditedFiles(messages, terminalMessage),
     messages,
   };
   delete turn.terminalMessage;

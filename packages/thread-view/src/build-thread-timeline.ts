@@ -39,7 +39,10 @@ import {
   durationToCompactString,
   getMessageStartedAt,
 } from "./format-helpers.js";
-import { getFileChangeDiffStats } from "./file-change-summary.js";
+import {
+  getProjectionFileChangeDiffStats,
+  relativizeTurnEditedFiles,
+} from "./turn-edited-files.js";
 import { getEventProjectionMessageScopeTurnId } from "./message-scope.js";
 import {
   buildEventProjection,
@@ -401,7 +404,7 @@ function toTimelineFileChange(
         ? null
         : relativizeWorkspacePath(change.movePath, workspaceRoot),
     diff: change.diff ?? null,
-    diffStats: getFileChangeDiffStats(change),
+    diffStats: { ...getProjectionFileChangeDiffStats(change) },
   };
 }
 
@@ -1118,15 +1121,21 @@ function materializeTimelinePlan(
   options: BuildTimelineRowsOptions,
 ): TimelineRow[] {
   if (item.kind === "message") return convertMessage(item.message, options);
+  const row = {
+    ...item.row,
+    editedFiles: relativizeTurnEditedFiles(item.row.editedFiles, (path) =>
+      relativizeWorkspacePath(path, options.workspaceRoot),
+    ),
+  };
   return [
     options.includeNestedRows
       ? {
-          ...item.row,
+          ...row,
           children: item.messages.flatMap((message) =>
             convertMessage(message, options),
           ),
         }
-      : item.row,
+      : row,
   ];
 }
 

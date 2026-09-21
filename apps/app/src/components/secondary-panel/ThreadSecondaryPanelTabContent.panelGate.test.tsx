@@ -71,6 +71,7 @@ describe("GitDiffTabContent panel gating", () => {
           environmentId={ENVIRONMENT_ID}
           target={TARGET}
           isPanelOpen={isPanelOpen}
+          visiblePaths={null}
           gitDiffPresentation={{
             view: "unified",
             overflow: "scroll",

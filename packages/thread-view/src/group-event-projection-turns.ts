@@ -15,6 +15,7 @@ import {
 } from "./apply-turn-message-detail.js";
 import { findLastTerminalTimelineMessage } from "./timeline-message-helpers.js";
 import { isExternalUserBoundaryForTurn } from "./external-user-boundaries.js";
+import { getProjectionEditedFiles } from "./turn-edited-files.js";
 
 export interface ThreadEventWithMeta {
   event: ThreadEvent;
@@ -112,6 +113,7 @@ function createProjectionTurn(
       completedAt: null,
       status: "pending",
       summaryCount: 0,
+      editedFiles: [],
     },
   };
 }
@@ -255,6 +257,7 @@ function createEventProjectionEntry(
       turnDraft.messages,
       terminalMessage,
     ),
+    editedFiles: getProjectionEditedFiles(turnDraft.messages, terminalMessage),
     messages: turnDraft.messages,
   };
   if (terminalMessage) {

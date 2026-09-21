@@ -594,11 +594,29 @@ export const timelineWorkRowSchema: z.ZodType<TimelineWorkRow> = z.union([
   timelineWorkflowWorkRowSchema,
 ]);
 
+export const timelineFileChangeActionValues = [
+  "created",
+  "deleted",
+  "renamed",
+  "edited",
+] as const;
+
+export const timelineTurnEditedFileSchema = z.object({
+  path: z.string(),
+  added: z.number().int().nonnegative(),
+  removed: z.number().int().nonnegative(),
+  kind: z.enum(timelineFileChangeActionValues),
+});
+export type TimelineTurnEditedFile = z.infer<
+  typeof timelineTurnEditedFileSchema
+>;
+
 export interface TimelineTurnRow extends TimelineRowBase {
   kind: "turn";
   turnId: string;
   status: TimelineRowStatus;
   summaryCount: number;
+  editedFiles: TimelineTurnEditedFile[];
   completedAt: number | null;
   children: TimelineRow[] | null;
 }
@@ -609,6 +627,7 @@ export const timelineTurnRowSchema: z.ZodType<TimelineTurnRow> = z.lazy(() =>
     turnId: z.string().min(1),
     status: timelineRowStatusSchema,
     summaryCount: z.number().int().nonnegative(),
+    editedFiles: z.array(timelineTurnEditedFileSchema),
     completedAt: z.number().nullable(),
     children: z.array(timelineRowSchema).nullable(),
   }),

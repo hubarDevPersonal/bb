@@ -73,7 +73,11 @@ describe("TaskDiffPanelContent navigation", () => {
     render(
       <Wrapper>
         <TooltipProvider delayDuration={0}>
-          <TaskDiffPanelContent threadId={THREAD_ID} isPanelOpen />
+          <TaskDiffPanelContent
+            threadId={THREAD_ID}
+            isPanelOpen
+            fileFilter={null}
+          />
         </TooltipProvider>
       </Wrapper>,
     );

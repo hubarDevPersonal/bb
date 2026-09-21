@@ -379,6 +379,7 @@ describe("timeline CLI rendering snapshots", () => {
       Patch the timeline output
 
       ── Worked for (10ms) ───────────────────────────────────────
+        Edited 1 file (+1 −1)
         ── Explored 1 search, researched 1 search query, edited 1 file
           ── Searched for timeline in packages/core-ui
           ── Ran web search: timeline rendering
@@ -491,6 +492,7 @@ describe("timeline CLI rendering snapshots", () => {
           kind: "turn",
           status: "completed",
           summaryCount: 0,
+          editedFiles: [],
           completedAt: null,
           children: null,
         } satisfies TimelineRow,
@@ -504,6 +506,40 @@ describe("timeline CLI rendering snapshots", () => {
     expect(text).toMatchInlineSnapshot(
       `"── Worked ──────────────────────────────────────────────────"`,
     );
+  });
+
+  it("renders the edited files summary line on a completed turn", () => {
+    const text = formatThreadTimelineText(
+      [
+        {
+          id: "thread-1:turn-1:turn",
+          threadId: "thread-1",
+          turnId: "turn-1",
+          sourceSeqStart: 1,
+          sourceSeqEnd: 1,
+          startedAt: 1,
+          createdAt: 1,
+          kind: "turn",
+          status: "completed",
+          summaryCount: 2,
+          editedFiles: [
+            { path: "src/app.ts", added: 12, removed: 3, kind: "edited" },
+            { path: "src/old.ts", added: 0, removed: 40, kind: "deleted" },
+          ],
+          completedAt: null,
+          children: null,
+        } satisfies TimelineRow,
+      ],
+      {
+        color: false,
+        verbose: false,
+      },
+    );
+
+    expect(text).toMatchInlineSnapshot(`
+      "── Worked ──────────────────────────────────────────────────
+        Edited 2 files (+12 −43)"
+    `);
   });
 
   it("shows an unacknowledged active-turn steer from the client request", () => {
@@ -2274,6 +2310,7 @@ describe("timeline CLI rendering snapshots", () => {
 
     expect(timeline.text).toMatchInlineSnapshot(`
       "── Worked for (6ms) ────────────────────────────────────────
+        Edited 3 files (+3 −3)
         ── Edited 4 files
           ── Created /repo/src/a.ts +1
             @@ -0,0 +1 @@
@@ -2319,6 +2356,7 @@ describe("timeline CLI rendering snapshots", () => {
 
     expect(timeline.text).toMatchInlineSnapshot(`
       "── Worked for (2ms) ────────────────────────────────────────
+        Edited 2 files (+2 −2)
         ── Edited 2 files
           ── Created /repo/src/created.ts +2
             first line

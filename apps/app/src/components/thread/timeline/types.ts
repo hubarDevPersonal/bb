@@ -80,6 +80,10 @@ export type ThreadTimelineUnreadDividerPlacement =
       kind: "before-first";
     };
 
+export type ThreadTimelineViewTurnChangesHandler = (
+  paths: readonly string[],
+) => void;
+
 export type UserAttachmentImageSrcResolver = (
   pathOrUrl: string,
   projectId?: string,
