@@ -1,26 +1,92 @@
 import {
   ModelRoutingSectionView,
   type ModelOption,
+  type ModelRoutingSectionViewProps,
   type ProviderOption,
 } from "./model-routing.js";
+import type { RoutingEntry } from "./routing.js";
 import { StoryCard, StoryRow } from "../../apps/app/.ladle/story-card.js";
 
 export default { title: "plugins/Workbench/Model routing" };
 
 const MODELS: readonly ModelOption[] = [
-  { id: "haiku", displayName: "Haiku" },
-  { id: "sonnet", displayName: "Sonnet" },
-  { id: "opus", displayName: "Opus" },
-];
-
-const ONE_PROVIDER: readonly ProviderOption[] = [
-  { id: "claude-code", name: "Claude Code" },
+  { id: "claude-haiku-4-5", displayName: "Haiku 4.5" },
+  { id: "claude-sonnet-5", displayName: "Sonnet 5" },
+  { id: "claude-opus-5", displayName: "Opus 5" },
+  { id: "claude-fable-5-1", displayName: "Fable 5.1" },
 ];
 
 const TWO_PROVIDERS: readonly ProviderOption[] = [
   { id: "claude-code", name: "Claude Code" },
   { id: "codex", name: "Codex" },
 ];
+
+const ROUTING_ENTRIES: readonly RoutingEntry[] = [
+  {
+    role: "architect",
+    providerId: "claude-code",
+    model: "claude-fable-5-1",
+    subagentModel: null,
+    effort: "high",
+  },
+  {
+    role: "implementer",
+    providerId: "claude-code",
+    model: "claude-opus-5[1m]",
+    subagentModel: "claude-opus-5",
+    effort: "high",
+  },
+  {
+    role: "scout",
+    providerId: "claude-code",
+    model: "claude-sonnet-5",
+    subagentModel: null,
+    effort: "medium",
+  },
+  {
+    role: "reviewer-cross-vendor",
+    providerId: "codex",
+    model: "gpt-5.6-sol",
+    subagentModel: null,
+    effort: "high",
+  },
+  {
+    role: "reviewer-subagent",
+    providerId: "claude-code",
+    model: "claude-fable-5-1",
+    subagentModel: null,
+    effort: "high",
+  },
+];
+
+const BASE: ModelRoutingSectionViewProps = {
+  routing: { ok: true, entries: ROUTING_ENTRIES },
+  rows: {
+    implementer: { ok: true, model: "claude-opus-5", effort: "high" },
+    scout: { ok: true, model: "claude-sonnet-5", effort: null },
+    reviewer: { ok: true, model: "claude-fable-5-1", effort: "high" },
+  },
+  reviewTarget: {
+    ok: true,
+    providerId: "codex",
+    providerName: "Codex",
+    model: "gpt-5.6-sol",
+    effort: "high",
+    reasoningLevel: "high",
+    source: "routing-cross-vendor",
+  },
+  reviewProvider: "auto",
+  models: MODELS,
+  providers: TWO_PROVIDERS,
+  providerId: "claude-code",
+  providerName: "Claude Code",
+  saving: null,
+  hostAvailable: true,
+  onSave: () => undefined,
+  onSaveEffort: () => undefined,
+  onReviewProviderChange: () => undefined,
+  onProviderChange: () => undefined,
+};
 
 export function AllRows() {
   return (
@@ -31,121 +97,94 @@ export function AllRows() {
             Model routing
           </h1>
         </div>
-        <StoryRow label="Resolved" hint="Every role has a model on the host.">
+        <StoryRow
+          label="Matches ROUTING.md"
+          hint="Five roles: architect and cross-vendor reviewer from ROUTING.md, subagents from frontmatter."
+        >
+          <ModelRoutingSectionView {...BASE} />
+        </StoryRow>
+        <StoryRow
+          label="Drift"
+          hint="The reviewer's frontmatter model differs from ROUTING.md."
+        >
           <ModelRoutingSectionView
-            hostAvailable
-            savingRole={null}
-            models={MODELS}
-            providers={ONE_PROVIDER}
-            providerId="claude-code"
-            providerName="Claude Code"
+            {...BASE}
             rows={{
-              scout: { ok: true, model: "haiku" },
-              implementer: { ok: true, model: "sonnet" },
-              reviewer: { ok: true, model: "opus" },
+              ...BASE.rows,
+              reviewer: { ok: true, model: "claude-opus-5", effort: "high" },
             }}
-            onSave={() => undefined}
-            onProviderChange={() => undefined}
+          />
+        </StoryRow>
+        <StoryRow
+          label="Disallowed current"
+          hint="A Haiku frontmatter value stays visible but is marked and never offered."
+        >
+          <ModelRoutingSectionView
+            {...BASE}
+            rows={{
+              ...BASE.rows,
+              scout: { ok: true, model: "claude-haiku-4-5", effort: null },
+            }}
           />
         </StoryRow>
         <StoryRow
           label="Saving"
           hint="A save request for implementer is in flight."
         >
-          <ModelRoutingSectionView
-            hostAvailable
-            savingRole="implementer"
-            models={MODELS}
-            providers={ONE_PROVIDER}
-            providerId="claude-code"
-            providerName="Claude Code"
-            rows={{
-              scout: { ok: true, model: "haiku" },
-              implementer: { ok: true, model: "sonnet" },
-              reviewer: { ok: true, model: "opus" },
-            }}
-            onSave={() => undefined}
-            onProviderChange={() => undefined}
-          />
+          <ModelRoutingSectionView {...BASE} saving="implementer" />
         </StoryRow>
         <StoryRow
-          label="Alias not in catalog"
-          hint="The raw frontmatter value stays selectable even when the live catalog doesn't list it."
+          label="Cross-vendor fallback"
+          hint="Codex is unavailable, so the review falls back to the in-thread reviewer row."
         >
           <ModelRoutingSectionView
-            hostAvailable
-            savingRole={null}
-            models={MODELS}
-            providers={ONE_PROVIDER}
-            providerId="claude-code"
-            providerName="Claude Code"
-            rows={{
-              scout: { ok: true, model: "claude-legacy-alias" },
-              implementer: { ok: true, model: "sonnet" },
-              reviewer: { ok: true, model: "opus" },
+            {...BASE}
+            providers={[{ id: "claude-code", name: "Claude Code" }]}
+            reviewTarget={{
+              ok: true,
+              providerId: "claude-code",
+              providerName: "Claude Code",
+              model: "claude-fable-5-1",
+              effort: "high",
+              reasoningLevel: "high",
+              source: "routing-subagent",
             }}
-            onSave={() => undefined}
-            onProviderChange={() => undefined}
           />
         </StoryRow>
         <StoryRow
           label="Errors"
-          hint="Typed errors show in place of the model."
+          hint="No ROUTING.md: typed agent-file errors show in place, and the review target depends on the thread."
         >
           <ModelRoutingSectionView
-            hostAvailable
-            savingRole={null}
-            models={MODELS}
-            providers={ONE_PROVIDER}
-            providerId="claude-code"
-            providerName="Claude Code"
+            {...BASE}
+            routing={{ ok: false, error: "missing_file" }}
             rows={{
-              scout: { ok: false, error: "missing_file" },
               implementer: { ok: false, error: "missing_model_key" },
-              reviewer: { ok: true, model: "opus" },
+              scout: { ok: false, error: "missing_file" },
+              reviewer: { ok: true, model: "claude-fable-5-1", effort: null },
             }}
-            onSave={() => undefined}
-            onProviderChange={() => undefined}
+            reviewTarget={{ ok: false, error: "thread_dependent" }}
           />
         </StoryRow>
         <StoryRow
           label="No host"
-          hint="No connected host to read agent files or resolve a model catalog from."
+          hint="No connected host to read ROUTING.md, agent files, or a model catalog from."
         >
           <ModelRoutingSectionView
+            {...BASE}
             hostAvailable={false}
-            savingRole={null}
+            routing={{ ok: false, error: "host_unavailable" }}
             models={[]}
             providers={[]}
             providerId={null}
             providerName={null}
+            reviewProvider={null}
+            reviewTarget={{ ok: false, error: "host_unavailable" }}
             rows={{
-              scout: { ok: false, error: "host_unavailable" },
               implementer: { ok: false, error: "host_unavailable" },
+              scout: { ok: false, error: "host_unavailable" },
               reviewer: { ok: false, error: "host_unavailable" },
             }}
-            onSave={() => undefined}
-            onProviderChange={() => undefined}
-          />
-        </StoryRow>
-        <StoryRow
-          label="Multiple providers"
-          hint="More than one available provider shows the provider switcher."
-        >
-          <ModelRoutingSectionView
-            hostAvailable
-            savingRole={null}
-            models={MODELS}
-            providers={TWO_PROVIDERS}
-            providerId="claude-code"
-            providerName="Claude Code"
-            rows={{
-              scout: { ok: true, model: "haiku" },
-              implementer: { ok: true, model: "sonnet" },
-              reviewer: { ok: true, model: "opus" },
-            }}
-            onSave={() => undefined}
-            onProviderChange={() => undefined}
           />
         </StoryRow>
       </StoryCard>

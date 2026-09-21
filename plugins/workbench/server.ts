@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   AGENT_MODEL_MAX_LENGTH,
   AGENT_ROLES,
+  agentEffortSchema,
   agentModelValueSchema,
   workbenchHostContract,
   type AgentRole,
@@ -13,6 +14,24 @@ import {
   WORKBENCH_SUBAGENTS_REALTIME_CHANNEL,
 } from "./realtime-channel.js";
 import {
+  REVIEW_TARGET_SOURCES,
+  THREAD_DEPENDENT_REVIEW_MESSAGE,
+  resolveReviewTarget,
+  resolveRoutedReviewTarget,
+  type ReviewTargetRequest,
+  type ReviewTargetResolution,
+} from "./review-target.js";
+import {
+  ROUTING_ROLES,
+  disallowedModelMessage,
+  isModelAllowedForRole,
+  parseRoutingTable,
+  routingDrift,
+  routingEntryFor,
+  routingEntryForAgent,
+  type RoutingEntry,
+} from "./routing.js";
+import {
   extractCreatedFilePaths,
   flattenFileChangeRows,
   isAbsoluteOutputPath,
@@ -21,12 +40,12 @@ import {
 } from "./subagents-data.js";
 
 const MULTI_MODEL_INSTRUCTIONS =
-  "Multi-model mode: orchestrate — delegate reconnaissance to the `scout` " +
-  "subagent, implementation of each task to `implementer`, and " +
-  "verification to `reviewer`, one subagent per task with the full " +
-  "context in its prompt. Before reporting completion, request a " +
-  "cross-model review by running `bb workbench review <this thread id>` " +
-  "(the agent's thread id is available via `bb status`) and address its " +
+  "Multi-model mode: orchestrate as the architect — delegate " +
+  "reconnaissance to the `scout` subagent, implementation of each task to " +
+  "`implementer`, and in-thread verification to `reviewer`, one subagent " +
+  "per task with the full context in its prompt. Before reporting " +
+  "completion, run `bb workbench review <this thread id>` (the thread id is " +
+  "available via `bb status`) for the cross-vendor review and address its " +
   "findings.";
 
 const REVIEW_PROVIDER_AUTO = "auto";
@@ -51,6 +70,50 @@ function lowestSupportedPermissionMode(
   return match ?? (permissionModes[0] as WorkbenchPermissionMode);
 }
 
+function appliedReasoningLevel<L extends string>(
+  effort: string | null,
+  supported: readonly { reasoningEffort: L }[],
+): L | null {
+  if (effort === null) return null;
+  return (
+    supported.find((entry) => entry.reasoningEffort === effort)
+      ?.reasoningEffort ?? null
+  );
+}
+
+const AGENT_DISPLAY_ORDER: readonly AgentRole[] = [
+  "implementer",
+  "scout",
+  "reviewer",
+];
+
+function describeRoutingEntry(entry: RoutingEntry): string {
+  const subagent =
+    entry.subagentModel === null ? "" : ` (subagent: ${entry.subagentModel})`;
+  const effort = entry.effort === null ? "" : ` · ${entry.effort}`;
+  return `${entry.providerId} / ${entry.model}${subagent}${effort}`;
+}
+
+function parseReviewArgs(
+  args: readonly string[],
+): { threadId: string; providerId: string | undefined } | null {
+  let threadId: string | undefined;
+  let providerId: string | undefined;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === "--provider") {
+      const value = args[index + 1];
+      if (value === undefined || value.startsWith("--")) return null;
+      providerId = value;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--") || threadId !== undefined) return null;
+    threadId = arg;
+  }
+  return threadId === undefined ? null : { threadId, providerId };
+}
+
 const reviewErrorSchema = z.enum([
   "host_unavailable",
   "no_provider_available",
@@ -60,25 +123,44 @@ const reviewErrorSchema = z.enum([
 ]);
 type ReviewError = z.infer<typeof reviewErrorSchema>;
 
-const reviewProviderResultSchema = z.discriminatedUnion("ok", [
-  z
-    .object({
-      ok: z.literal(true),
-      providerId: z.string(),
-      providerName: z.string(),
-    })
-    .strict(),
+const reviewTargetSchema = z
+  .object({
+    providerId: z.string(),
+    providerName: z.string(),
+    model: z.string(),
+    effort: z.string().nullable(),
+    reasoningLevel: z.string().nullable(),
+    source: z.enum(REVIEW_TARGET_SOURCES),
+  })
+  .strict();
+type ReviewTarget = z.infer<typeof reviewTargetSchema>;
+
+const reviewTargetResultSchema = z.discriminatedUnion("ok", [
+  reviewTargetSchema.extend({ ok: z.literal(true) }).strict(),
   z.object({ ok: z.literal(false), error: reviewErrorSchema }).strict(),
 ]);
 
-const requestReviewResultSchema = z.discriminatedUnion("ok", [
+const hostReviewTargetResultSchema = z.discriminatedUnion("ok", [
+  reviewTargetSchema.extend({ ok: z.literal(true) }).strict(),
   z
     .object({
-      ok: z.literal(true),
-      reviewThreadId: z.string(),
-      providerId: z.string(),
-      providerName: z.string(),
+      ok: z.literal(false),
+      error: z.enum([...reviewErrorSchema.options, "thread_dependent"]),
     })
+    .strict(),
+]);
+type HostReviewTargetResult = z.infer<typeof hostReviewTargetResultSchema>;
+
+const reviewPreviewSchema = z
+  .object({
+    target: reviewTargetResultSchema,
+    options: z.array(reviewTargetSchema),
+  })
+  .strict();
+
+const requestReviewResultSchema = z.discriminatedUnion("ok", [
+  reviewTargetSchema
+    .extend({ ok: z.literal(true), reviewThreadId: z.string() })
     .strict(),
   z.object({ ok: z.literal(false), error: reviewErrorSchema }).strict(),
 ]);
@@ -89,17 +171,52 @@ const routingErrorSchema = z.enum([
   "missing_frontmatter",
   "missing_model_key",
   "call_failed",
+  "not_allowed",
 ]);
 
 type RoutingError = z.infer<typeof routingErrorSchema>;
 type RoutingRow =
-  | { ok: true; model: string }
+  | { ok: true; model: string; effort: string | null }
   | { ok: false; error: RoutingError };
 
 const routingRowSchema = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true), model: z.string() }).strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      model: z.string(),
+      effort: z.string().nullable(),
+    })
+    .strict(),
   z.object({ ok: z.literal(false), error: routingErrorSchema }).strict(),
 ]) satisfies z.ZodType<RoutingRow>;
+
+const routingEntrySchema = z
+  .object({
+    role: z.enum(ROUTING_ROLES),
+    providerId: z.string(),
+    model: z.string(),
+    subagentModel: z.string().nullable(),
+    effort: z.string().nullable(),
+  })
+  .strict() satisfies z.ZodType<RoutingEntry>;
+
+const routingSourceErrorSchema = z.enum([
+  "host_unavailable",
+  "missing_file",
+  "no_table",
+  "call_failed",
+]);
+
+type RoutingSource =
+  | { ok: true; entries: RoutingEntry[] }
+  | { ok: false; error: z.infer<typeof routingSourceErrorSchema> };
+
+const routingSourceSchema = z.discriminatedUnion("ok", [
+  z
+    .object({ ok: z.literal(true), entries: z.array(routingEntrySchema) })
+    .strict(),
+  z.object({ ok: z.literal(false), error: routingSourceErrorSchema }).strict(),
+]) satisfies z.ZodType<RoutingSource>;
 
 const modelOptionSchema = z
   .object({ id: z.string(), displayName: z.string() })
@@ -109,10 +226,6 @@ const providerOptionSchema = z
   .object({ id: z.string(), name: z.string() })
   .strict();
 
-const reviewProviderOptionsSchema = z
-  .object({ value: z.string(), providers: z.array(providerOptionSchema) })
-  .strict();
-
 const routingViewSchema = z
   .object({
     hostId: z.string().nullable(),
@@ -120,9 +233,12 @@ const routingViewSchema = z
     providerId: z.string().nullable(),
     providerName: z.string().nullable(),
     models: z.array(modelOptionSchema),
+    routing: routingSourceSchema,
     scout: routingRowSchema,
     implementer: routingRowSchema,
     reviewer: routingRowSchema,
+    reviewProvider: z.string(),
+    reviewTarget: hostReviewTargetResultSchema,
   })
   .strict();
 
@@ -175,16 +291,17 @@ export const workbenchRpcContract = defineRpcContract({
     output: z.object({ command: z.string() }).strict(),
   },
   requestReview: {
-    input: z.object({ threadId: z.string().min(1) }).strict(),
+    input: z
+      .object({
+        threadId: z.string().min(1),
+        providerId: z.string().min(1).optional(),
+      })
+      .strict(),
     output: requestReviewResultSchema,
   },
   reviewProviderPreview: {
     input: z.object({ threadId: z.string().min(1) }).strict(),
-    output: reviewProviderResultSchema,
-  },
-  getReviewProviderOptions: {
-    input: z.null(),
-    output: reviewProviderOptionsSchema,
+    output: reviewPreviewSchema,
   },
   setReviewProviderOption: {
     input: z.object({ value: z.string().min(1) }).strict(),
@@ -208,6 +325,12 @@ export const workbenchRpcContract = defineRpcContract({
         role: z.enum(AGENT_ROLES),
         model: agentModelValueSchema,
       })
+      .strict(),
+    output: routingRowSchema,
+  },
+  setRoutingEffort: {
+    input: z
+      .object({ role: z.enum(AGENT_ROLES), effort: agentEffortSchema })
       .strict(),
     output: routingRowSchema,
   },
@@ -276,9 +399,10 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       type: "string",
       label: "Review provider",
       description:
-        '"Ask for review" provider: "auto" picks the first available ' +
-        "provider that differs from the thread's own provider, or an " +
-        "explicit provider id.",
+        '"Ask for review" provider: "auto" follows ~/.claude/ROUTING.md ' +
+        "(the cross-vendor reviewer, then the in-thread reviewer, then the " +
+        "first available provider that differs from the thread's own), or " +
+        "an explicit provider id.",
       default: REVIEW_PROVIDER_AUTO,
     },
   });
@@ -420,12 +544,136 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     }
   }
 
-  type ReviewProviderResolution =
+  async function readRoutingSource(
+    hostId: string | null,
+  ): Promise<RoutingSource> {
+    if (hostId === null) return { ok: false, error: "host_unavailable" };
+    let result;
+    try {
+      result = await host.call("readRouting", null, { hostId });
+    } catch {
+      return { ok: false, error: "call_failed" };
+    }
+    if (!result.ok) return result;
+    const entries = parseRoutingTable(result.markdown);
+    if (entries.length === 0) return { ok: false, error: "no_table" };
+    return { ok: true, entries };
+  }
+
+  interface ReviewProviderCandidate {
+    id: string;
+    displayName: string;
+    permissionModes: readonly string[];
+  }
+
+  async function availableReviewProviders(
+    hostId: string,
+  ): Promise<ReviewProviderCandidate[] | null> {
+    try {
+      return (await bb.sdk.providers.list({ hostId }))
+        .filter((provider) => provider.available)
+        .map((provider) => ({
+          id: provider.id,
+          displayName: provider.displayName,
+          permissionModes: provider.capabilities.permissionModes,
+        }));
+    } catch {
+      return null;
+    }
+  }
+
+  function catalogLoader(hostId: string) {
+    const cache = new Map<string, ReturnType<typeof bb.sdk.providers.models>>();
+    return async (providerId: string) => {
+      let pending = cache.get(providerId);
+      if (pending === undefined) {
+        pending = bb.sdk.providers.models({ hostId, providerId });
+        cache.set(providerId, pending);
+      }
+      return (await pending).models;
+    };
+  }
+
+  function reviewRequestFor(
+    providerOverride: string | undefined,
+  ): ReviewTargetRequest {
+    if (providerOverride !== undefined) {
+      return { kind: "provider", providerId: providerOverride };
+    }
+    return reviewProviderValue === REVIEW_PROVIDER_AUTO
+      ? { kind: "auto" }
+      : { kind: "provider", providerId: reviewProviderValue };
+  }
+
+  type CatalogModel = Awaited<
+    ReturnType<ReturnType<typeof catalogLoader>>
+  >[number];
+
+  interface TargetOnHostInput {
+    available: readonly ReviewProviderCandidate[];
+    entries: readonly RoutingEntry[];
+    request: ReviewTargetRequest;
+    loadModels: ReturnType<typeof catalogLoader>;
+  }
+
+  async function resolveTargetOnHost(
+    input: TargetOnHostInput & { threadProviderId: string },
+  ) {
+    const resolution = await resolveReviewTarget(input);
+    return resolution.ok ? targetFromResolution(resolution) : resolution;
+  }
+
+  function targetFromResolution(
+    resolution: Extract<
+      ReviewTargetResolution<ReviewProviderCandidate, CatalogModel>,
+      { ok: true }
+    >,
+  ) {
+    const reasoningLevel = appliedReasoningLevel(
+      resolution.effort,
+      resolution.model.supportedReasoningEfforts,
+    );
+    const target: ReviewTarget = {
+      providerId: resolution.provider.id,
+      providerName: resolution.provider.displayName,
+      model: resolution.model.model,
+      effort: resolution.effort,
+      reasoningLevel,
+      source: resolution.source,
+    };
+    return {
+      ok: true as const,
+      target,
+      reasoningLevel,
+      permissionMode: lowestSupportedPermissionMode(
+        resolution.provider.permissionModes,
+      ),
+    };
+  }
+
+  async function hostReviewTarget(
+    hostId: string | null,
+    routing: RoutingSource,
+  ): Promise<HostReviewTargetResult> {
+    if (hostId === null) return { ok: false, error: "host_unavailable" };
+    const available = await availableReviewProviders(hostId);
+    if (available === null) return { ok: false, error: "host_unavailable" };
+    const resolution = await resolveRoutedReviewTarget({
+      available,
+      entries: routing.ok ? routing.entries : [],
+      request: reviewRequestFor(undefined),
+      loadModels: catalogLoader(hostId),
+    });
+    if (resolution === null) return { ok: false, error: "thread_dependent" };
+    if (!resolution.ok) return resolution;
+    return { ok: true, ...targetFromResolution(resolution).target };
+  }
+
+  type ThreadReviewContext =
     | {
         ok: true;
         hostId: string;
         environmentId: string;
-        permissionMode: WorkbenchPermissionMode;
         thread: {
           id: string;
           projectId: string;
@@ -433,14 +681,14 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
           title: string | null;
           titleFallback: string | null;
         };
-        providerId: string;
-        providerName: string;
+        available: ReviewProviderCandidate[];
+        entries: RoutingEntry[];
       }
     | { ok: false; error: ReviewError };
 
-  async function resolveReviewProviderForThread(
+  async function threadReviewContext(
     threadId: string,
-  ): Promise<ReviewProviderResolution> {
+  ): Promise<ThreadReviewContext> {
     if (reviewThreadIds.has(threadId)) {
       return { ok: false, error: "review_of_review" };
     }
@@ -449,41 +697,13 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     if (environmentId === null) return { ok: false, error: "no_environment" };
     const hostId = await resolveHostIdForEnvironment(environmentId);
     if (hostId === null) return { ok: false, error: "host_unavailable" };
-    let available: {
-      id: string;
-      displayName: string;
-      permissionModes: readonly string[];
-    }[];
-    try {
-      available = (await bb.sdk.providers.list({ hostId }))
-        .filter((provider) => provider.available)
-        .map((provider) => ({
-          id: provider.id,
-          displayName: provider.displayName,
-          permissionModes: provider.capabilities.permissionModes,
-        }));
-    } catch {
-      return { ok: false, error: "host_unavailable" };
-    }
-    const requested = reviewProviderValue;
-    const candidate =
-      requested === REVIEW_PROVIDER_AUTO
-        ? available.find((provider) => provider.id !== thread.providerId)
-        : available.find((provider) => provider.id === requested);
-    if (candidate === undefined) {
-      return {
-        ok: false,
-        error:
-          requested === REVIEW_PROVIDER_AUTO
-            ? "no_provider_available"
-            : "provider_unavailable",
-      };
-    }
+    const available = await availableReviewProviders(hostId);
+    if (available === null) return { ok: false, error: "host_unavailable" };
+    const routing = await readRoutingSource(hostId);
     return {
       ok: true,
       hostId,
       environmentId,
-      permissionMode: lowestSupportedPermissionMode(candidate.permissionModes),
       thread: {
         id: thread.id,
         projectId: thread.projectId,
@@ -491,8 +711,34 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
         title: thread.title,
         titleFallback: thread.titleFallback,
       },
-      providerId: candidate.id,
-      providerName: candidate.displayName,
+      available,
+      entries: routing.ok ? routing.entries : [],
+    };
+  }
+
+  async function reviewPreview(threadId: string) {
+    const context = await threadReviewContext(threadId);
+    if (!context.ok) return { target: context, options: [] };
+    const loadModels = catalogLoader(context.hostId);
+    const resolveFor = (request: ReviewTargetRequest) =>
+      resolveTargetOnHost({
+        available: context.available,
+        entries: context.entries,
+        request,
+        threadProviderId: context.thread.providerId,
+        loadModels,
+      });
+    const resolved = await resolveFor(reviewRequestFor(undefined));
+    const options = await Promise.all(
+      context.available.map((provider) =>
+        resolveFor({ kind: "provider", providerId: provider.id }),
+      ),
+    );
+    return {
+      target: resolved.ok
+        ? { ok: true as const, ...resolved.target }
+        : resolved,
+      options: options.flatMap((option) => (option.ok ? [option.target] : [])),
     };
   }
 
@@ -690,43 +936,35 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
 
   async function requestReview(
     threadId: string,
+    providerOverride: string | undefined,
   ): Promise<z.infer<typeof requestReviewResultSchema>> {
-    const resolution = await resolveReviewProviderForThread(threadId);
-    if (!resolution.ok) return resolution;
-    const {
-      hostId,
-      environmentId,
-      permissionMode,
-      thread,
-      providerId,
-      providerName,
-    } = resolution;
+    const context = await threadReviewContext(threadId);
+    if (!context.ok) return context;
+    const { environmentId, thread } = context;
+    const resolved = await resolveTargetOnHost({
+      available: context.available,
+      entries: context.entries,
+      request: reviewRequestFor(providerOverride),
+      threadProviderId: thread.providerId,
+      loadModels: catalogLoader(context.hostId),
+    });
+    if (!resolved.ok) return resolved;
+    const { target, reasoningLevel, permissionMode } = resolved;
     const diffScope = await diffScopeForThread(environmentId);
-    let defaultModel: string | undefined;
-    try {
-      const catalog = await bb.sdk.providers.models({ hostId, providerId });
-      defaultModel = (
-        catalog.models.find((model) => model.isDefault) ?? catalog.models[0]
-      )?.model;
-    } catch {
-      defaultModel = undefined;
-    }
-    if (defaultModel === undefined) {
-      return { ok: false, error: "provider_unavailable" };
-    }
     const title = `Review: ${thread.title ?? thread.titleFallback ?? "thread"}`;
     const child = await bb.sdk.threads.spawn({
       projectId: thread.projectId,
       environment: { type: "reuse", environmentId },
       parentThreadId: threadId,
-      providerId,
-      model: defaultModel,
+      providerId: target.providerId,
+      model: target.model,
+      ...(reasoningLevel === null ? {} : { reasoningLevel }),
       permissionMode,
       title,
       prompt: buildReviewPrompt(diffScope.diffCommand),
     });
     await markReviewThread(child.id);
-    return { ok: true, reviewThreadId: child.id, providerId, providerName };
+    return { ok: true, reviewThreadId: child.id, ...target };
   }
 
   bb.rpc.register(workbenchRpcContract, {
@@ -740,35 +978,11 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       await sendUserMessage(threadId, command);
       return { command };
     },
-    requestReview({ threadId }) {
-      return requestReview(threadId);
+    requestReview({ threadId, providerId }) {
+      return requestReview(threadId, providerId);
     },
-    async reviewProviderPreview({ threadId }) {
-      const resolution = await resolveReviewProviderForThread(threadId);
-      if (!resolution.ok) return resolution;
-      return {
-        ok: true as const,
-        providerId: resolution.providerId,
-        providerName: resolution.providerName,
-      };
-    },
-    async getReviewProviderOptions() {
-      const hostId = await primaryHostId();
-      const providers =
-        hostId === null
-          ? []
-          : await bb.sdk.providers
-              .list({ hostId })
-              .then((list) =>
-                list
-                  .filter((provider) => provider.available)
-                  .map((provider) => ({
-                    id: provider.id,
-                    name: provider.displayName,
-                  })),
-              )
-              .catch(() => []);
-      return { value: reviewProviderValue, providers };
+    reviewProviderPreview({ threadId }) {
+      return reviewPreview(threadId);
     },
     async setReviewProviderOption({ value }) {
       await bb.sdk.plugins.updateSettings({
@@ -808,26 +1022,51 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     },
     async getRouting({ providerId: requestedProviderId }) {
       const hostId = await primaryHostId();
-      const [scout, implementer, reviewer] = await Promise.all([
+      const [scout, implementer, reviewer, routing] = await Promise.all([
         readRoutingRow("scout", hostId),
         readRoutingRow("implementer", hostId),
         readRoutingRow("reviewer", hostId),
+        readRoutingSource(hostId),
       ]);
       const roleModels = [scout, implementer, reviewer]
         .filter((row): row is Extract<RoutingRow, { ok: true }> => row.ok)
         .map((row) => row.model);
-      const catalog = await routingModelCatalog(
+      const [catalog, reviewTarget] = await Promise.all([
+        routingModelCatalog(hostId, requestedProviderId, roleModels),
+        hostReviewTarget(hostId, routing),
+      ]);
+      return {
         hostId,
-        requestedProviderId,
-        roleModels,
-      );
-      return { hostId, ...catalog, scout, implementer, reviewer };
+        ...catalog,
+        routing,
+        scout,
+        implementer,
+        reviewer,
+        reviewProvider: reviewProviderValue,
+        reviewTarget,
+      };
     },
     async setRouting({ role, model }): Promise<RoutingRow> {
+      if (!isModelAllowedForRole(role, { id: model, displayName: model })) {
+        return { ok: false, error: "not_allowed" };
+      }
       const hostId = await primaryHostId();
       if (hostId === null) return { ok: false, error: "host_unavailable" };
       try {
         return await host.call("writeAgentModel", { role, model }, { hostId });
+      } catch {
+        return { ok: false, error: "call_failed" };
+      }
+    },
+    async setRoutingEffort({ role, effort }): Promise<RoutingRow> {
+      const hostId = await primaryHostId();
+      if (hostId === null) return { ok: false, error: "host_unavailable" };
+      try {
+        return await host.call(
+          "writeAgentEffort",
+          { role, effort },
+          { hostId },
+        );
       } catch {
         return { ok: false, error: "call_failed" };
       }
@@ -922,8 +1161,10 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
     commands: [
       {
         name: "routing",
-        summary: "Print or set the role -> model routing",
-        usage: "bb workbench routing [set <role> <model>]",
+        summary:
+          "Print the ROUTING.md roles with subagent frontmatter, or set a subagent's model or effort",
+        usage:
+          "bb workbench routing [set <role> <model> | effort <role> <level>]",
       },
       {
         name: "multimodel",
@@ -933,7 +1174,7 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       {
         name: "review",
         summary: "Spawn a cross-model review thread for a thread",
-        usage: "bb workbench review <threadId>",
+        usage: "bb workbench review <threadId> [--provider <id>]",
       },
       {
         name: "subagents",
@@ -965,6 +1206,9 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
         if (!agentModelValueSchema.safeParse(model).success) {
           return { exitCode: 1, stderr: INVALID_MODEL_MESSAGE };
         }
+        if (!isModelAllowedForRole(role, { id: model, displayName: model })) {
+          return { exitCode: 1, stderr: disallowedModelMessage(role, model) };
+        }
         const hostId = await primaryHostId();
         if (hostId === null) {
           return { exitCode: 1, stderr: "No connected host available" };
@@ -979,13 +1223,91 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
         }
         return { exitCode: 0, stdout: `${role}: ${result.model}` };
       }
+      if (command === "routing" && rest[0] === "effort") {
+        const [role, effort] = rest.slice(1);
+        if (role === undefined || effort === undefined) {
+          return {
+            exitCode: 1,
+            stderr: "Usage: bb workbench routing effort <role> <level>",
+          };
+        }
+        if (!isAgentRole(role)) {
+          return {
+            exitCode: 1,
+            stderr: `Unknown role ${role}; expected one of ${AGENT_ROLES.join(", ")}`,
+          };
+        }
+        const level = agentEffortSchema.safeParse(effort);
+        if (!level.success) {
+          return {
+            exitCode: 1,
+            stderr: `Invalid effort ${effort}; expected one of ${agentEffortSchema.options.join(", ")}`,
+          };
+        }
+        const hostId = await primaryHostId();
+        if (hostId === null) {
+          return { exitCode: 1, stderr: "No connected host available" };
+        }
+        const result = await host.call(
+          "writeAgentEffort",
+          { role, effort: level.data },
+          { hostId },
+        );
+        if (!result.ok) {
+          return { exitCode: 1, stderr: result.error };
+        }
+        return { exitCode: 0, stdout: `${role}: effort ${result.effort}` };
+      }
       if (command === "routing" && rest.length === 0) {
         const hostId = await primaryHostId();
-        const lines = await Promise.all(
-          AGENT_ROLES.map(async (role) => {
-            const row = await readRoutingRow(role, hostId);
-            return `${role}: ${row.ok ? row.model : row.error}`;
-          }),
+        const [routing, rows] = await Promise.all([
+          readRoutingSource(hostId),
+          Promise.all(
+            AGENT_DISPLAY_ORDER.map(
+              async (role) =>
+                [role, await readRoutingRow(role, hostId)] as const,
+            ),
+          ),
+        ]);
+        const entries = routing.ok ? routing.entries : [];
+        const architect = routingEntryFor(entries, "architect");
+        const lines = [
+          `source: ~/.claude/ROUTING.md${routing.ok ? "" : ` (${routing.error})`}`,
+          `architect: ${architect === null ? "not in ROUTING.md" : describeRoutingEntry(architect)} (orchestrator thread, read-only)`,
+        ];
+        for (const [role, row] of rows) {
+          const entry = routingEntryForAgent(entries, role);
+          const parts = [
+            row.ok
+              ? `${row.model}${row.effort === null ? "" : ` · effort ${row.effort}`}`
+              : row.error,
+            `ROUTING.md: ${entry === null ? "none" : describeRoutingEntry(entry)}`,
+          ];
+          if (row.ok) {
+            if (
+              !isModelAllowedForRole(role, {
+                id: row.model,
+                displayName: row.model,
+              })
+            ) {
+              parts.push("not allowed by ROUTING.md");
+            }
+            const drift = routingDrift(role, row.model, entries);
+            if (drift !== null) {
+              parts.push(`differs from ROUTING.md (${drift})`);
+            }
+          }
+          lines.push(`${role}: ${parts.join(" | ")}`);
+        }
+        const reviewTarget = await hostReviewTarget(hostId, routing);
+        lines.push(
+          `cross-vendor reviewer: ${
+            reviewTarget.ok
+              ? `${reviewTarget.providerId} / ${reviewTarget.model}${reviewTarget.effort === null ? "" : ` · ${reviewTarget.effort}`} (source: ${reviewTarget.source})`
+              : reviewTarget.error === "thread_dependent"
+                ? THREAD_DEPENDENT_REVIEW_MESSAGE
+                : reviewTarget.error
+          } | setting: ${reviewProviderValue}`,
         );
         return { exitCode: 0, stdout: lines.join("\n") };
       }
@@ -1005,20 +1327,22 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
         };
       }
       if (command === "review") {
-        const threadId = rest[0];
-        if (threadId === undefined) {
+        const parsed = parseReviewArgs(rest);
+        if (parsed === null) {
           return {
             exitCode: 1,
-            stderr: "Usage: bb workbench review <threadId>",
+            stderr: "Usage: bb workbench review <threadId> [--provider <id>]",
           };
         }
-        const result = await requestReview(threadId);
+        const result = await requestReview(parsed.threadId, parsed.providerId);
         if (!result.ok) {
           return { exitCode: 1, stderr: result.error };
         }
+        const level =
+          result.reasoningLevel === null ? "" : `, ${result.reasoningLevel}`;
         return {
           exitCode: 0,
-          stdout: `Started review thread ${result.reviewThreadId} with ${result.providerName}`,
+          stdout: `Started review thread ${result.reviewThreadId} with ${result.providerName} (${result.model}${level}) [${result.source}]`,
         };
       }
       if (command === "subagents") {
@@ -1059,7 +1383,7 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       return {
         exitCode: 1,
         stderr:
-          "Usage: bb workbench <routing|routing set|multimodel|review|subagents|outputs> [args]",
+          "Usage: bb workbench <routing|routing set|routing effort|multimodel|review|subagents|outputs> [args]",
       };
     },
   });

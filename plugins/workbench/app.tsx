@@ -18,13 +18,6 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { Button } from "@bb/shared-ui/button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@bb/shared-ui/select";
 import { Switch } from "@bb/shared-ui/switch";
 import {
   Tooltip,
@@ -44,11 +37,22 @@ import {
   workbenchSubagentsSignalParentThreadId,
 } from "./realtime-channel.js";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@bb/shared-ui/dropdown-menu";
+import {
   ModelRoutingSectionView,
+  multiModelSummaryRows,
   type ModelOption,
   type ProviderOption,
+  type ReviewTargetView,
   type RoutingRoleId,
   type RoutingRowView,
+  type RoutingSavingId,
+  type RoutingSourceView,
 } from "./model-routing.js";
 import {
   SubagentsDoneCardView,
@@ -241,11 +245,14 @@ function reviewErrorMessage(error: string): string {
 
 const REVIEW_ACTION_CONFIRMATION_MS = 2_000;
 
+type ReviewTargetOption = Extract<ReviewTargetView, { ok: true }>;
+
 function ReviewAction() {
   const threadId = useThreadId();
   const rpc = useRpc<typeof workbenchRpcContract>();
   const navigate = useBbNavigate();
-  const [providerName, setProviderName] = useState<string | null>(null);
+  const [target, setTarget] = useState<ReviewTargetOption | null>(null);
+  const [options, setOptions] = useState<readonly ReviewTargetOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -256,7 +263,9 @@ function ReviewAction() {
     void rpc
       .call("reviewProviderPreview", { threadId })
       .then((result) => {
-        if (active && result.ok) setProviderName(result.providerName);
+        if (!active) return;
+        setTarget(result.target.ok ? result.target : null);
+        setOptions(result.options.map((option) => ({ ok: true, ...option })));
       })
       .catch(() => undefined);
     return () => {
@@ -267,7 +276,34 @@ function ReviewAction() {
   if (threadId === null) return null;
 
   const label =
-    providerName === null ? "Ask for review" : `Ask ${providerName} for review`;
+    target === null
+      ? "Ask for review"
+      : `Ask ${target.providerName} (${target.model}) for review`;
+
+  const run = (providerId: string | null) => {
+    setBusy(true);
+    setError(null);
+    setSent(false);
+    void rpc
+      .call(
+        "requestReview",
+        providerId === null ? { threadId } : { threadId, providerId },
+      )
+      .then((result) => {
+        if (result.ok) {
+          setSent(true);
+          window.setTimeout(
+            () => setSent(false),
+            REVIEW_ACTION_CONFIRMATION_MS,
+          );
+          navigate.openThreadPanel({ actionId: SUBAGENTS_PANEL_ACTION_ID });
+        } else {
+          setError(reviewErrorMessage(result.error));
+        }
+      })
+      .catch((sendError) => setError(errorMessage(sendError)))
+      .finally(() => setBusy(false));
+  };
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -280,37 +316,48 @@ function ReviewAction() {
           }
         }}
       >
-        <TooltipTrigger asChild>
-          <ComposerActionButton
-            icon="SecurityCheck"
-            label={label}
-            disabled={busy}
-            iconColorClassName="text-palette-purple"
-            onClick={() => {
-              setBusy(true);
-              setError(null);
-              setSent(false);
-              void rpc
-                .call("requestReview", { threadId })
-                .then((result) => {
-                  if (result.ok) {
-                    setSent(true);
-                    window.setTimeout(
-                      () => setSent(false),
-                      REVIEW_ACTION_CONFIRMATION_MS,
-                    );
-                    navigate.openThreadPanel({
-                      actionId: SUBAGENTS_PANEL_ACTION_ID,
-                    });
-                  } else {
-                    setError(reviewErrorMessage(result.error));
-                  }
-                })
-                .catch((sendError) => setError(errorMessage(sendError)))
-                .finally(() => setBusy(false));
-            }}
-          />
-        </TooltipTrigger>
+        <div className="flex items-center">
+          <TooltipTrigger asChild>
+            <ComposerActionButton
+              icon="SecurityCheck"
+              label={label}
+              disabled={busy}
+              iconColorClassName="text-palette-purple"
+              onClick={() => run(null)}
+            />
+          </TooltipTrigger>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild disabled={busy}>
+              <button
+                type="button"
+                title="Choose the review provider"
+                aria-label="Choose the review provider"
+                className="flex h-6.5 w-4 items-center justify-center rounded-md text-muted-foreground hover:bg-state-hover hover:text-foreground disabled:opacity-50"
+              >
+                <Icon name="ChevronDown" className="size-3" aria-hidden />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                disabled={target === null}
+                onSelect={() => run(null)}
+              >
+                {target === null
+                  ? "Default — unavailable"
+                  : `Default — ${target.providerName} · ${target.model}`}
+              </DropdownMenuItem>
+              {options.length === 0 ? null : <DropdownMenuSeparator />}
+              {options.map((option) => (
+                <DropdownMenuItem
+                  key={option.providerId}
+                  onSelect={() => run(option.providerId)}
+                >
+                  {`${option.providerName} · ${option.model}`}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         {error !== null ? (
           <TooltipContent className="text-destructive-text">
             {error}
@@ -323,31 +370,19 @@ function ReviewAction() {
   );
 }
 
+interface MultiModelRouting {
+  routing: RoutingSourceView;
+  rows: Record<RoutingRoleId, RoutingRowView>;
+  reviewTarget: ReviewTargetView;
+}
+
 function MultiModelRoutingSummary({
   routing,
 }: {
-  routing: {
-    scout: RoutingRowView;
-    implementer: RoutingRowView;
-    reviewer: RoutingRowView;
-    reviewProviderName: string | null;
-  } | null;
+  routing: MultiModelRouting | null;
 }) {
   if (routing === null) return <p className="text-xs">Loading routing…</p>;
-  const rows: [string, string][] = [
-    ["Scout", routing.scout.ok ? routing.scout.model : routing.scout.error],
-    [
-      "Implementer",
-      routing.implementer.ok
-        ? routing.implementer.model
-        : routing.implementer.error,
-    ],
-    [
-      "Reviewer",
-      routing.reviewer.ok ? routing.reviewer.model : routing.reviewer.error,
-    ],
-    ["Final review", routing.reviewProviderName ?? "unavailable"],
-  ];
+  const rows = multiModelSummaryRows(routing);
   return (
     <div className="space-y-1 text-xs">
       <p className="text-subtle-foreground">Applies to new sessions.</p>
@@ -366,12 +401,7 @@ function MultiModelPill() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [routing, setRouting] = useState<{
-    scout: RoutingRowView;
-    implementer: RoutingRowView;
-    reviewer: RoutingRowView;
-    reviewProviderName: string | null;
-  } | null>(null);
+  const [routing, setRouting] = useState<MultiModelRouting | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -401,12 +431,13 @@ function MultiModelPill() {
       .then(([routingResult, reviewResult]) => {
         if (!active) return;
         setRouting({
-          scout: routingResult.scout,
-          implementer: routingResult.implementer,
-          reviewer: routingResult.reviewer,
-          reviewProviderName: reviewResult.ok
-            ? reviewResult.providerName
-            : null,
+          routing: routingResult.routing,
+          rows: {
+            scout: routingResult.scout,
+            implementer: routingResult.implementer,
+            reviewer: routingResult.reviewer,
+          },
+          reviewTarget: reviewResult.target,
         });
       })
       .catch(() => undefined);
@@ -597,79 +628,6 @@ function MultiModelModeRow() {
   );
 }
 
-function ReviewProviderRow() {
-  const rpc = useRpc<typeof workbenchRpcContract>();
-  const [value, setValue] = useState<string | null>(null);
-  const [providers, setProviders] = useState<readonly ProviderOption[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void rpc
-      .call("getReviewProviderOptions", null)
-      .then((result) => {
-        if (!active) return;
-        setValue(result.value);
-        setProviders(result.providers);
-      })
-      .catch((loadError) => {
-        if (active) setError(errorMessage(loadError));
-      });
-    return () => {
-      active = false;
-    };
-  }, [rpc]);
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between gap-3 rounded-md bg-surface-raised px-2 py-2">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">Review provider</p>
-          <p className="text-xs text-subtle-foreground">
-            Provider "Ask for review" spawns a review thread on.
-          </p>
-        </div>
-        <Select
-          value={value ?? undefined}
-          disabled={value === null || saving}
-          onValueChange={(next) => {
-            setSaving(true);
-            const previous = value;
-            setValue(next);
-            setError(null);
-            void rpc
-              .call("setReviewProviderOption", { value: next })
-              .catch((saveError) => {
-                setValue((current) => (current === next ? previous : current));
-                setError(errorMessage(saveError));
-              })
-              .finally(() => setSaving(false));
-          }}
-        >
-          <SelectTrigger
-            aria-label="Review provider"
-            className="h-7 w-32 text-xs"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="auto">Auto</SelectItem>
-            {providers.map((provider) => (
-              <SelectItem key={provider.id} value={provider.id}>
-                {provider.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {error === null ? null : (
-        <p className="px-2 text-xs text-destructive-text">{error}</p>
-      )}
-    </div>
-  );
-}
-
 interface SpecFileRow {
   name: string;
   path: string;
@@ -796,19 +754,33 @@ function ModelRoutingSection() {
     RoutingRoleId,
     RoutingRowView
   > | null>(null);
-  const [savingRole, setSavingRole] = useState<RoutingRoleId | null>(null);
+  const [routing, setRouting] = useState<RoutingSourceView>({
+    ok: false,
+    error: "host_unavailable",
+  });
+  const [reviewTarget, setReviewTarget] = useState<ReviewTargetView>({
+    ok: false,
+    error: "host_unavailable",
+  });
+  const [reviewProvider, setReviewProvider] = useState<string | null>(null);
+  const [saving, setSaving] = useState<RoutingSavingId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const currentProviderId = useRef<string | null>(null);
 
   const load = useCallback(
     async (requestedProviderId: string | null) => {
       const result = await rpc.call("getRouting", {
         providerId: requestedProviderId,
       });
+      currentProviderId.current = result.providerId;
       setHostId(result.hostId);
       setModels(result.models);
       setProviders(result.providers);
       setProviderId(result.providerId);
       setProviderName(result.providerName);
+      setRouting(result.routing);
+      setReviewTarget(result.reviewTarget);
+      setReviewProvider(result.reviewProvider);
       setRows({
         scout: result.scout,
         implementer: result.implementer,
@@ -828,15 +800,31 @@ function ModelRoutingSection() {
     );
   }
 
+  const saveRow = (role: RoutingRoleId, request: Promise<RoutingRowView>) => {
+    setSaving(role);
+    setError(null);
+    void request
+      .then((row) => {
+        setRows((current) =>
+          current === null ? current : { ...current, [role]: row },
+        );
+      })
+      .catch((saveError) => setError(errorMessage(saveError)))
+      .finally(() => setSaving(null));
+  };
+
   return (
     <div className="space-y-1">
       <ModelRoutingSectionView
+        routing={routing}
         rows={rows}
+        reviewTarget={reviewTarget}
+        reviewProvider={reviewProvider}
         models={models}
         providers={providers}
         providerId={providerId}
         providerName={providerName}
-        savingRole={savingRole}
+        saving={saving}
         hostAvailable={hostId !== null}
         onProviderChange={(nextProviderId) => {
           setError(null);
@@ -844,18 +832,20 @@ function ModelRoutingSection() {
             setError(errorMessage(loadError)),
           );
         }}
-        onSave={(role, model) => {
-          setSavingRole(role);
+        onSave={(role, model) =>
+          saveRow(role, rpc.call("setRouting", { role, model }))
+        }
+        onSaveEffort={(role, effort) =>
+          saveRow(role, rpc.call("setRoutingEffort", { role, effort }))
+        }
+        onReviewProviderChange={(value) => {
+          setSaving("review");
           setError(null);
           void rpc
-            .call("setRouting", { role, model })
-            .then((row) => {
-              setRows((current) =>
-                current === null ? current : { ...current, [role]: row },
-              );
-            })
+            .call("setReviewProviderOption", { value })
+            .then(() => load(currentProviderId.current))
             .catch((saveError) => setError(errorMessage(saveError)))
-            .finally(() => setSavingRole(null));
+            .finally(() => setSaving(null));
         }}
       />
       {error === null ? null : (
@@ -1118,7 +1108,6 @@ function WorkbenchNavPanel(_props: PluginNavPanelProps) {
     <div className="space-y-4 p-3">
       <ModelRoutingSection />
       <MultiModelModeRow />
-      <ReviewProviderRow />
       <SpecsSection />
     </div>
   );
