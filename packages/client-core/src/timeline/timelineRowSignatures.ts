@@ -372,6 +372,11 @@ function computeTimelineRowRenderSignature(row: ThreadTimelineViewRow): string {
         baseSignature,
         row.status,
         row.summaryCount,
+        row.editedFiles
+          .map(
+            (file) => `${file.path}:${file.added}:${file.removed}:${file.kind}`,
+          )
+          .join("|"),
         row.completedAt,
         row.children ? timelineRowsSignature(row.children) : null,
       ]);

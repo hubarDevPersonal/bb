@@ -1,4 +1,5 @@
 import type { ActiveThinking } from "@bb/domain";
+import type { TimelineTurnEditedFile } from "@bb/server-contract";
 import type { AcceptedClientRequestContext } from "./accepted-client-request-context.js";
 import type {
   BuildEventProjectionMessagesOptions,
@@ -55,6 +56,7 @@ export interface EventProjectionTurn {
   completedAt: number | null;
   status: EventProjectionTurnStatus;
   summaryCount: number;
+  editedFiles: TimelineTurnEditedFile[];
   externalUserBoundarySeqs?: number[];
   terminalMessage?: EventProjectionMessage;
   messages?: EventProjectionMessage[];

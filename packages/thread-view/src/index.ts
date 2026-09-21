@@ -49,6 +49,7 @@ export {
   isPatchMetadataLine,
 } from "./file-change-summary.js";
 export type { FileChangeAction } from "./file-change-summary.js";
+export { buildTurnEditedFiles } from "./turn-edited-files.js";
 export {
   buildThreadTimelineFromEvents,
   buildThreadTimelineTurnDetailsFromEvents,

@@ -22,9 +22,11 @@ import {
   type ThreadTimelineLocalFileLink,
   type ThreadTimelineLocalFileLinkHandler,
   type ThreadTimelineOpenPluginPanelHandler,
+  type ThreadTimelineViewTurnChangesHandler,
   type TimelineTitleActionResolver,
   useThreadTimelineController,
 } from "@/components/thread/timeline";
+import { useTaskDiffTurnFilter } from "./useTaskDiffTurnFilter";
 import { serializePluginPanelParams } from "@/lib/plugin-json-value";
 import { ThreadProviderContext } from "@/components/thread/thread-provider-context";
 import {
@@ -589,6 +591,15 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
   const isSecondaryPanelOpen = renderSecondaryPanelAsDrawer
     ? secondaryPanelDrawerVisibility.isDrawerVisible
     : isPersistedSecondaryPanelOpen;
+  const {
+    apply: applyTaskDiffTurnFilter,
+    clear: clearTaskDiffTurnFilter,
+    fileFilter: taskDiffFileFilter,
+  } = useTaskDiffTurnFilter({
+    isTaskDiffActive:
+      isSecondaryPanelOpen && activeFixedSecondaryTab?.kind === "task-diff",
+    threadId,
+  });
   const touchFixedPanelTabsState = useTouchFixedPanelTabsState(
     threadId,
     threadId,
@@ -1511,9 +1522,10 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
   const handleSecondaryPanelChange = useCallback<SecondaryPanelChangeHandler>(
     (panel) => {
       clearActiveFileTabs();
+      clearTaskDiffTurnFilter();
       openSecondaryPanel(panel);
     },
-    [clearActiveFileTabs, openSecondaryPanel],
+    [clearActiveFileTabs, clearTaskDiffTurnFilter, openSecondaryPanel],
   );
   const resolveMentionLink = useCallback<PromptMentionLinkResolver>(
     (resource) => {
@@ -2136,6 +2148,15 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
     },
     [openSecondaryPanelDiffFile, handleOpenTimelinePluginPanel, threadId],
   );
+  const handleViewTurnChanges =
+    useCallback<ThreadTimelineViewTurnChangesHandler>(
+      (paths) => {
+        if (openSecondaryPanel("task-diff")) {
+          applyTaskDiffTurnFilter(paths);
+        }
+      },
+      [applyTaskDiffTurnFilter, openSecondaryPanel],
+    );
   const metadataStorage = useMemo(
     () => ({
       controller: storageBrowserController,
@@ -2355,6 +2376,7 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
               <LazyTaskDiffPanelContent
                 threadId={threadId}
                 isPanelOpen={isSecondaryPanelOpen}
+                fileFilter={taskDiffFileFilter}
                 workspaceRootPath={environment?.path}
                 onOpenFileInEditor={handleOpenFileInEditor}
                 onOpenFilePreview={handleOpenFilePreview}
@@ -2381,6 +2403,7 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
       handleSecondaryPanelChange,
       handleSelectionAddToChat,
       isSecondaryPanelOpen,
+      taskDiffFileFilter,
       threadFixedViewTabs,
       threadId,
     ],
@@ -2993,6 +3016,9 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
               onOpenLocalFileLink: handleOpenTimelineLocalFileLink,
               onOpenPluginPanel: handleOpenTimelinePluginPanel,
               onTitleAction: handleTimelineTitleAction,
+              onViewTurnChanges: canUseGitUi
+                ? handleViewTurnChanges
+                : undefined,
               projectId,
               resolveMentionLink,
               showOngoingIndicator:

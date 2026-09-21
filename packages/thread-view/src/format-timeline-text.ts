@@ -4,6 +4,7 @@ import type {
   TimelineRowStatus,
 } from "@bb/server-contract";
 import { assertNever } from "./assert-never.js";
+import { formatDiffCount, plural } from "./format-helpers.js";
 import {
   buildTimelineWorkSummaryLabel,
   buildTimelineViewRows,
@@ -416,20 +417,45 @@ function formatRow(
       return formatWorkSummary(row, context);
     case "turn": {
       const label = formatTurnTitle(row, context);
+      const editedFilesLine = formatTurnEditedFilesLine(row, context);
       if (!row.children || row.children.length === 0) {
-        return rowHeader(label, context);
+        return [rowHeader(label, context), editedFilesLine]
+          .filter((line): line is string => line !== null)
+          .join("\n");
       }
       return [
         rowHeader(label, context),
+        editedFilesLine,
         indentBlock(
           formatRows(row.children, nestedContext(context, null)),
           "  ",
         ),
-      ].join("\n");
+      ]
+        .filter((line): line is string => line !== null)
+        .join("\n");
     }
     default:
       return assertNever(row);
   }
+}
+
+function formatTurnEditedFilesLine(
+  row: TimelineViewTurnRow,
+  context: TimelineTextFormatContext,
+): string | null {
+  if (row.editedFiles.length === 0) {
+    return null;
+  }
+  let added = 0;
+  let removed = 0;
+  for (const file of row.editedFiles) {
+    added += file.added;
+    removed += file.removed;
+  }
+  return dim(
+    `  Edited ${plural(row.editedFiles.length, "file")} (+${formatDiffCount(added)} −${formatDiffCount(removed)})`,
+    context.color,
+  );
 }
 
 function formatRows(

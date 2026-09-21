@@ -10,6 +10,7 @@ import type {
   TimelineSourceRow,
   TimelineSystemOperationKind,
   TimelineSystemRow,
+  TimelineTurnEditedFile,
   TimelineTurnRow,
   TimelineUserConversationRow,
   TimelineWorkflowWorkRow,
@@ -39,7 +40,10 @@ import {
   durationToCompactString,
   getMessageStartedAt,
 } from "./format-helpers.js";
-import { getFileChangeDiffStats } from "./file-change-summary.js";
+import {
+  getProjectionFileChangeDiffStats,
+  relativizeTurnEditedFiles,
+} from "./turn-edited-files.js";
 import { getEventProjectionMessageScopeTurnId } from "./message-scope.js";
 import {
   buildEventProjection,
@@ -155,6 +159,7 @@ interface TimelineMessageBounds {
 
 interface BuildTurnSummaryRowArgs {
   completedAt: number | null;
+  editedFiles: TimelineTurnEditedFile[];
   includeNestedRows: boolean;
   rowIdPrefix: string;
   segmentIndex: number | null;
@@ -437,7 +442,7 @@ function toTimelineFileChange(
         ? null
         : relativizeWorkspacePath(change.movePath, workspaceRoot),
     diff: change.diff ?? null,
-    diffStats: getFileChangeDiffStats(change),
+    diffStats: { ...getProjectionFileChangeDiffStats(change) },
   };
 }
 
@@ -1085,6 +1090,7 @@ function getTurnBounds(turn: EventProjectionTurn): TimelineMessageBounds {
 
 function buildTurnSummaryRow({
   completedAt,
+  editedFiles,
   includeNestedRows,
   rowIdPrefix,
   segmentIndex,
@@ -1120,6 +1126,7 @@ function buildTurnSummaryRow({
     kind: "turn",
     status: turn.status,
     summaryCount,
+    editedFiles,
     completedAt: resolvedCompletedAt,
     children: includeNestedRows ? sourceRows : null,
   };
@@ -1156,6 +1163,9 @@ function buildCompletedTurnSummaryRows({
       : [];
     const turnRow = buildTurnSummaryRow({
       completedAt: item.completedAt,
+      editedFiles: relativizeTurnEditedFiles(item.editedFiles, (path) =>
+        relativizeWorkspacePath(path, workspaceRoot),
+      ),
       includeNestedRows,
       rowIdPrefix,
       segmentIndex: item.segmentIndex,

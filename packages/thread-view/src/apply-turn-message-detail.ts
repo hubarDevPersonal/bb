@@ -11,6 +11,7 @@ import {
   isTimelineTerminalMessage,
   isTimelineUngroupableMessage,
 } from "./timeline-message-helpers.js";
+import { getProjectionEditedFiles } from "./turn-edited-files.js";
 
 function getProjectionMessageSummaryCount(
   message: EventProjectionMessage,
@@ -120,6 +121,7 @@ function applyTurnMessageDetail(
     completedAt: turn.completedAt,
     status: turn.status,
     summaryCount,
+    editedFiles: getProjectionEditedFiles(messages, terminalMessage),
     ...(turn.externalUserBoundarySeqs
       ? { externalUserBoundarySeqs: turn.externalUserBoundarySeqs }
       : {}),

@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { WorkspaceDiffTarget } from "@bb/domain";
 import type {
   EnvironmentDiffFilesResponse,
@@ -85,7 +91,11 @@ describe("TaskDiffPanelContent", () => {
     render(
       <Wrapper>
         <TooltipProvider delayDuration={0}>
-          <TaskDiffPanelContent threadId={THREAD_ID} isPanelOpen />
+          <TaskDiffPanelContent
+            threadId={THREAD_ID}
+            isPanelOpen
+            fileFilter={null}
+          />
         </TooltipProvider>
       </Wrapper>,
     );
@@ -124,7 +134,11 @@ describe("TaskDiffPanelContent", () => {
     render(
       <Wrapper>
         <TooltipProvider delayDuration={0}>
-          <TaskDiffPanelContent threadId={THREAD_ID} isPanelOpen />
+          <TaskDiffPanelContent
+            threadId={THREAD_ID}
+            isPanelOpen
+            fileFilter={null}
+          />
         </TooltipProvider>
       </Wrapper>,
     );
@@ -132,5 +146,46 @@ describe("TaskDiffPanelContent", () => {
     await waitFor(() => {
       expect(screen.getByText("0 / 1 files")).not.toBeNull();
     });
+  });
+
+  it("limits the files to the turn filter and clears it from Show all", async () => {
+    vi.mocked(sdk.threads.taskDiff).mockResolvedValue(taskDiffResponse);
+    vi.mocked(sdk.environments.diffFiles).mockResolvedValue({
+      ...diffFilesResponse,
+      files: [
+        ...diffFilesResponse.files,
+        {
+          path: "README.md",
+          previousPath: null,
+          changeKind: "modified",
+          additions: 1,
+          deletions: 0,
+          binary: false,
+          origin: "tracked",
+          loadMode: "auto",
+        },
+      ],
+    });
+    const onClear = vi.fn();
+    const { wrapper: Wrapper } = createQueryClientTestHarness();
+
+    render(
+      <Wrapper>
+        <TooltipProvider delayDuration={0}>
+          <TaskDiffPanelContent
+            threadId={THREAD_ID}
+            isPanelOpen
+            fileFilter={{ paths: new Set(["README.md"]), onClear }}
+          />
+        </TooltipProvider>
+      </Wrapper>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("0 / 1 files")).not.toBeNull();
+    });
+    expect(screen.getByText("Showing 1 file from this turn")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+    expect(onClear).toHaveBeenCalledTimes(1);
   });
 });

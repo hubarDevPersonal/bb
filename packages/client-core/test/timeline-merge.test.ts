@@ -96,6 +96,7 @@ function turnSummaryRow(args: TimelineTurnTestRowArgs): TimelineTurnRow {
     kind: "turn",
     status: "completed",
     summaryCount: 1,
+    editedFiles: [],
     completedAt: args.sequence,
     children: args.children ?? null,
   };

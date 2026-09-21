@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import type { DiffPresentation } from "@/components/code/code-rendering";
 import type { WorkspaceDiffTarget } from "@bb/domain";
 import type { DiffFileEntry } from "@bb/server-contract";
@@ -50,6 +50,7 @@ interface GitDiffTabContentProps {
   onOpenFilePreview?: (path: string) => void;
   onSelectionAddToChat?: (text: string) => void;
   pendingGitDiffScrollPath?: string | null;
+  visiblePaths: ReadonlySet<string> | null;
   workspaceRootPath?: string | null;
 }
 
@@ -151,6 +152,7 @@ export function GitDiffTabContent({
   onOpenFilePreview,
   onSelectionAddToChat,
   pendingGitDiffScrollPath,
+  visiblePaths,
   workspaceRootPath,
 }: GitDiffTabContentProps) {
   const isQueryEnabled =
@@ -188,11 +190,21 @@ export function GitDiffTabContent({
     clearDiffFileCardStates(diffIdentity);
   }, [diffIdentity]);
 
+  const availableFiles =
+    diffFilesResponse?.outcome === "available" ? diffFilesResponse.files : null;
+  const visibleFiles = useMemo(
+    () =>
+      availableFiles === null || visiblePaths === null
+        ? availableFiles
+        : availableFiles.filter((file) => visiblePaths.has(file.path)),
+    [availableFiles, visiblePaths],
+  );
+
   useEffect(() => {
-    if (diffFilesResponse?.outcome === "available") {
-      onFilesChange?.(diffFilesResponse.files);
+    if (visibleFiles !== null) {
+      onFilesChange?.(visibleFiles);
     }
-  }, [diffFilesResponse, onFilesChange]);
+  }, [visibleFiles, onFilesChange]);
 
   const isPreparing =
     isQueryEnabled &&
@@ -252,7 +264,7 @@ export function GitDiffTabContent({
     );
   }
 
-  if (diffFilesResponse.files.length === 0) {
+  if (visibleFiles === null || visibleFiles.length === 0) {
     return (
       <div className={cn(PANEL_SCROLL_SLOT_CLASS, "px-4 pb-3")}>
         <EmptyStatePanel className="rounded-lg">
@@ -287,7 +299,7 @@ export function GitDiffTabContent({
         environmentId={environmentId}
         target={target}
         diffIdentity={diffIdentity}
-        files={diffFilesResponse.files}
+        files={visibleFiles}
         initialPatches={diffFilesResponse.initialPatches}
         filesUpdatedAt={diffFilesUpdatedAt}
         presentation={gitDiffPresentation}

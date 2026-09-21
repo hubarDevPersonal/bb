@@ -77,6 +77,7 @@ describe("timeline response helpers", () => {
         createdAt: 1,
         status: "completed",
         summaryCount: 1,
+        editedFiles: [],
         completedAt: null,
         children: [ASSISTANT_ROW],
       },

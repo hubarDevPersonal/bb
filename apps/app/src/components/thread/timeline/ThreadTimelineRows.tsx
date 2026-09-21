@@ -63,8 +63,11 @@ import type {
   ThreadTimelineConsumerMessageAction,
   ThreadTimelinePluginMessageAction,
   ThreadTimelineUnreadDividerPlacement,
+  ThreadTimelineViewTurnChangesHandler,
   UserAttachmentImageSrcResolver,
 } from "./types.js";
+import { TurnEditedFilesSummary } from "./TurnEditedFilesCard.js";
+import { collectCompletedTurnEditedFilesAnchors } from "./turn-edited-files.js";
 import { ConversationMessageContent } from "./ConversationMessageContent.js";
 import {
   MessageColumnWidthContext,
@@ -159,6 +162,7 @@ export interface ThreadTimelineRowsProps {
   onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
   onOpenPluginPanel?: ThreadTimelineOpenPluginPanelHandler;
   onTitleAction?: TimelineTitleActionResolver;
+  onViewTurnChanges?: ThreadTimelineViewTurnChangesHandler;
   projectId?: string;
   resolveMentionLink?: PromptMentionLinkResolver;
   resolveImageViewSrc?: ThreadTimelineImageViewSrcResolver;
@@ -198,6 +202,7 @@ interface TimelineRendererStaticContextValue {
   onOpenLocalFileLink: ThreadTimelineLocalFileLinkHandler | undefined;
   onOpenPluginPanel: ThreadTimelineOpenPluginPanelHandler | undefined;
   onTitleAction: TimelineTitleActionResolver | undefined;
+  onViewTurnChanges: ThreadTimelineViewTurnChangesHandler | undefined;
   projectId: string | undefined;
   resolveImageViewSrc: ThreadTimelineImageViewSrcResolver | undefined;
   resolveMentionLink: PromptMentionLinkResolver | undefined;
@@ -1798,8 +1803,15 @@ function TimelineRowsList({
   unreadDividerAutoScroll,
   unreadDividerPlacement,
 }: TimelineRowsListProps) {
-  const { threadId } = useTimelineRendererStaticContext();
+  const { onViewTurnChanges, threadId } = useTimelineRendererStaticContext();
   const isCompactViewport = useIsCompactViewport();
+  const turnEditedFilesAnchors = useMemo(
+    () =>
+      spacing === "top-level" && onViewTurnChanges !== undefined
+        ? collectCompletedTurnEditedFilesAnchors(rows)
+        : null,
+    [onViewTurnChanges, rows, spacing],
+  );
   const bottomAnchor = useBottomAnchoredScroll();
   const scrollRestoreRowId = useContext(TimelineScrollRestoreRowIdContext);
   const detailScrollRoot = useContext(TimelineWindowingScrollRootContext);
@@ -1933,6 +1945,9 @@ function TimelineRowsList({
                   </div>
                 );
               }
+              const editedFilesAnchor = turnEditedFilesAnchors?.get(
+                item.row.id,
+              );
               return (
                 <TimelineRowItemWrapper
                   key={item.row.id}
@@ -1948,6 +1963,14 @@ function TimelineRowsList({
                       showAssistantMessageActions={showAssistantMessageActions}
                       spacing={spacing}
                       compactActivityIntents={compactActivityIntents}
+                    />
+                  ) : null}
+                  {windowedState.isRealized &&
+                  editedFilesAnchor !== undefined &&
+                  onViewTurnChanges !== undefined ? (
+                    <TurnEditedFilesSummary
+                      anchor={editedFilesAnchor}
+                      onViewChanges={onViewTurnChanges}
                     />
                   ) : null}
                 </TimelineRowItemWrapper>
@@ -2153,6 +2176,7 @@ function ThreadTimelineRowsForTimelineView(props: ThreadTimelineRowsProps) {
       onOpenLocalFileLink: props.onOpenLocalFileLink,
       onOpenPluginPanel: props.onOpenPluginPanel,
       onTitleAction: props.onTitleAction,
+      onViewTurnChanges: props.onViewTurnChanges,
       projectId,
       resolveImageViewSrc: props.resolveImageViewSrc,
       resolveMentionLink: props.resolveMentionLink,
@@ -2180,6 +2204,7 @@ function ThreadTimelineRowsForTimelineView(props: ThreadTimelineRowsProps) {
       props.onOpenLocalFileLink,
       props.onOpenPluginPanel,
       props.onTitleAction,
+      props.onViewTurnChanges,
       projectId,
       props.resolveImageViewSrc,
       props.resolveMentionLink,

@@ -836,6 +836,7 @@ export function ThreadSecondaryPanel({
               onOpenFilePreview={onOpenFilePreview}
               onSelectionAddToChat={onSelectionAddToChat}
               pendingGitDiffScrollPath={pendingGitDiffScrollPath}
+              visiblePaths={null}
               workspaceRootPath={workspaceRootPath}
             />
           ) : activeSurfaceFixedTab?.tab.kind === "thread-info" ? (
