@@ -802,6 +802,7 @@ describe("resolveSystemExecutionOptions", () => {
         expect(response.models.map((model) => model.model)).toEqual([
           "claude-fable-5-1",
           "claude-fable-5",
+          "claude-opus-5-5[1m]",
           "claude-opus-5[1m]",
           "claude-opus-4-8[1m]",
           "claude-opus-4-7[1m]",
@@ -935,6 +936,7 @@ describe("resolveSystemExecutionOptions", () => {
       expect(response.models.map((model) => model.model)).toEqual([
         "claude-fable-5-1",
         "claude-fable-5",
+        "claude-opus-5-5[1m]",
         "claude-opus-5[1m]",
         "claude-opus-4-8[1m]",
         "claude-opus-4-7[1m]",
@@ -944,7 +946,7 @@ describe("resolveSystemExecutionOptions", () => {
         response.models
           .filter((model) => model.isDefault)
           .map((model) => model.model),
-      ).toEqual(["claude-opus-5[1m]"]);
+      ).toEqual(["claude-opus-5-5[1m]"]);
     });
   });
 
