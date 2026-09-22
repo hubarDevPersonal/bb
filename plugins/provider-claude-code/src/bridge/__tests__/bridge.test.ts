@@ -2493,7 +2493,7 @@ describe("bridge", () => {
     expect(models.filter((model) => model.isDefault)).toEqual([
       expect.objectContaining({
         model: "claude-opus-5-5[1m]",
-        displayName: "Opus 5 (1M)",
+        displayName: "Opus 5.5 (1M)",
       }),
     ]);
     expect(selectedOnlyModels.map((model) => model.model)).toEqual([
