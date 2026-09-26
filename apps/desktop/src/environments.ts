@@ -20,7 +20,7 @@ const DEFAULT_START_COMMAND = "systemctl --user start bb.service";
 const DEFAULT_RULES_TARGET = "~/Dev/claude-agent";
 const DEFAULT_RULES_INSTALL = "sh install-agent.sh";
 const DEFAULT_UPDATE_COMMAND =
-  "cd ~/Dev/bb && git pull --ff-only && pnpm install --frozen-lockfile && pnpm build && systemctl --user restart bb.service";
+  'export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH" && cd ~/Dev/bb && git pull --ff-only && pnpm install --frozen-lockfile && pnpm build && systemctl --user restart bb.service';
 
 const portSchema = z.number().int().min(1).max(65_535);
 const environmentIdSchema = z
