@@ -15,6 +15,7 @@ import {
 } from "@/lib/bb-desktop";
 import { useDesktopWindowState } from "@/hooks/useDesktopWindowState";
 import { SidebarHistoryNavigationControls } from "./SidebarHistoryNavigationControls";
+import { DesktopEnvironmentPill } from "./DesktopEnvironmentPill";
 
 const BROWSER_HEADER_SLOT_START_CLASS =
   "pl-[calc(env(safe-area-inset-left)_+_12px_+_var(--bb-sidebar-control-size)_-_4px)]";
@@ -51,6 +52,9 @@ export function SidebarTopReserveRow({
           ? MACOS_TRAFFIC_LIGHT_HEADER_SLOT_START_CLASS
           : BROWSER_HEADER_SLOT_START_CLASS,
       )}
+      <DesktopEnvironmentPill
+        className={cn(usesDesktopChrome && MACOS_CHROME_CONTROL_NO_DRAG_CLASS)}
+      />
       <SidebarHistoryNavigationControls
         onNavigate={closeOnMobile}
         className={cn(

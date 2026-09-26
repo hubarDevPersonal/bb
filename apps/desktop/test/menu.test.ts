@@ -75,6 +75,23 @@ function findDesktopSettingsServerSubmenu(
 }
 
 describe("application menu", () => {
+  it("adds an Environments menu before Window only when environments are wired", () => {
+    const without = buildApplicationMenuTemplate(menuArgs(() => {}));
+    expect(without.some((item) => item.label === "Environments")).toBe(false);
+
+    const environmentMenu: MenuItemConstructorOptions[] = [
+      { label: "VPS", type: "radio", checked: true },
+    ];
+    const template = buildApplicationMenuTemplate(
+      menuArgs(() => {}, { environmentMenu }),
+    );
+    const labels = template.map((item) => item.label);
+    expect(labels.indexOf("Environments")).toBe(labels.indexOf("Window") - 1);
+    expect(
+      template.find((item) => item.label === "Environments")?.submenu,
+    ).toBe(environmentMenu);
+  });
+
   it("reopens the last closed tab from the File menu", () => {
     const reopenClosedTab = vi.fn();
     const template = buildApplicationMenuTemplate(

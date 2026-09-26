@@ -169,6 +169,81 @@ the app drops the credential and asks the local server again.
 A remote server has no realtime link for keybindings and theme. The app re-reads
 them when it starts, when it becomes active, and every five minutes.
 
+## Switch between environments
+
+An environment is a complete bb of its own — its server, its machines, its
+signed-in agent accounts — that the desktop app can switch to. Typical setup:
+this laptop plus one or more VPSes, each logged in to its own Claude Code and
+Codex subscription. Unlike execution machines, environments share nothing but
+the rules you sync to them; switching one reloads the window onto that bb.
+
+List them in `environments.json` in the desktop app's data folder (next to
+`server-target.json`); **Environments → Set Up Environments…** writes a
+template there and opens it. The app reloads the file when it changes.
+
+```json
+{
+  "shared": {
+    "rulesSource": "~/Dev/claude-dotfiles/agent",
+    "rulesTarget": "~/Dev/claude-agent",
+    "rulesInstall": "sh install-agent.sh"
+  },
+  "environments": [
+    { "id": "mac", "name": "MacBook", "color": "blue" },
+    {
+      "id": "vps",
+      "name": "workstation",
+      "color": "green",
+      "ssh": {
+        "destination": "artem@203.0.113.10",
+        "identityFile": "~/.ssh/id_ed25519",
+        "remotePort": 38886,
+        "localPort": 38901
+      },
+      "actions": [
+        {
+          "id": "logs",
+          "label": "Tail bb logs",
+          "command": "ssh \"$BB_ENV_SSH_DESTINATION\" journalctl --user -fu bb"
+        }
+      ]
+    }
+  ]
+}
+```
+
+- An entry without `ssh` is this computer (at most one); it selects the
+  built-in server.
+- For an `ssh` entry the app runs
+  `ssh -N -L 127.0.0.1:<localPort>:127.0.0.1:<remotePort> <destination>`
+  itself (key-based, `BatchMode=yes`), waits for bb to answer through it, and
+  restarts the tunnel with backoff if it drops. If the tunnel is up but nothing
+  answers, it runs `startCommand` on the host once (default
+  `systemctl --user start bb.service`; `null` disables it). An existing
+  listener on `localPort` that answers as bb is reused as is. Tunnels close
+  when the app quits.
+- `localPort` must be unique per environment. `color` is one of `blue`,
+  `green`, `orange`, `purple`, `yellow`, `pink`.
+- Switch from the **Environments** menu (`Cmd+Ctrl+1…9`) or the pill at the
+  top of the sidebar, which also shows which Claude Code and Codex account the
+  current environment is signed in to.
+- **<Environment> Actions** open in Terminal: **Sync Shared Rules** copies
+  `shared.rulesSource` to `rulesTarget` on the host (rsync, no deletes) and
+  runs `rulesInstall` there — or runs it in place for this computer; **Update
+  bb on Environment** runs `ssh.updateCommand` (default: pull, install, build,
+  restart `bb.service` in `~/Dev/bb`; `null` hides it); **Log In to Claude
+  Code… / Codex…** run the provider's login over `ssh -t` (Codex with its
+  `1455` callback port forwarded); **Open SSH Shell**; plus your own `actions`,
+  which see `BB_ENV_ID`, `BB_ENV_NAME` and `BB_ENV_SSH_DESTINATION`.
+  **Sync Shared Rules to All** runs the sync for every environment.
+- `"syncRules": false` on an environment leaves it out of rule syncing. Use it
+  where your installer would overwrite files you keep by hand (for example a
+  laptop `~/.claude/CLAUDE.md` with its own rules).
+
+Per-environment specifics stay on each host: its own `~/.claude` (hooks,
+permissions, the host card your rules installer drops in), its own bb settings
+and plugins, and its own provider logins.
+
 ## Add an execution machine
 
 Open Settings → Machines and choose Add a machine. Run the generated one-line

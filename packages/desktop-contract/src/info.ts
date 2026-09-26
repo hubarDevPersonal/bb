@@ -1,5 +1,9 @@
 import { z } from "zod";
 import type { BbDesktopBrowserApi } from "./browser.js";
+import type {
+  BbDesktopEnvironment,
+  BbDesktopEnvironmentChangeHandler,
+} from "./environment.js";
 import type { BbDesktopWindowFindRequest } from "./find.js";
 import { bbDesktopVersionFeedPlatformSchema } from "./version-feed.js";
 import type { AppCommandId } from "@bb/domain";
@@ -56,6 +60,11 @@ export interface BbDesktopApi extends BbDesktopInfo {
   checkForUpdates(): Promise<BbDesktopInfo>;
   getInfo(): Promise<BbDesktopInfo>;
   getWindowState?(): Promise<BbDesktopWindowState>;
+  getEnvironment?(): Promise<BbDesktopEnvironment | null>;
+  onEnvironmentChange?(
+    listener: BbDesktopEnvironmentChangeHandler,
+  ): BbDesktopInfoUnsubscribe;
+  openEnvironmentMenu?(position: { x: number; y: number }): void;
   installUpdate(): Promise<void>;
   onChange(listener: BbDesktopInfoChangeHandler): BbDesktopInfoUnsubscribe;
   onWindowStateChange?(
