@@ -219,13 +219,21 @@ import {
   BB_DESKTOP_SET_SPLIT_NAVIGATION_ENABLED_CHANNEL,
   BB_DESKTOP_CLOSE_WINDOW_REQUEST_CHANNEL,
   BB_DESKTOP_CLOSE_WINDOW_RESPONSE_CHANNEL,
+  BB_DESKTOP_ENVIRONMENT_CHANGED_CHANNEL,
+  BB_DESKTOP_GET_ENVIRONMENT_CHANNEL,
   BB_DESKTOP_GET_WINDOW_STATE_CHANNEL,
+  BB_DESKTOP_OPEN_ENVIRONMENT_MENU_CHANNEL,
   BB_DESKTOP_OPEN_NEW_TAB_CHANNEL,
   BB_DESKTOP_OPEN_DATA_DIRECTORY_CHANNEL,
   BB_DESKTOP_OPEN_SERVER_DAEMON_LOGS_CHANNEL,
   BB_DESKTOP_WINDOW_STATE_CHANGED_CHANNEL,
   CLOSE_WINDOW_REQUEST_TIMEOUT_MS,
 } from "./desktop-window-command-ipc.js";
+import {
+  createEnvironmentController,
+  type EnvironmentController,
+} from "./environment-controller.js";
+import type { EnsureTunnelResult } from "./ssh-tunnel.js";
 import {
   BB_BROWSER_PARTITION,
   createDesktopBrowserViewManager,
@@ -432,6 +440,7 @@ let stoppingForQuit = false;
 let appImageRelaunchPath: string | null = null;
 let quitting = false;
 let serverTargetStore: ServerTargetStore | null = null;
+let environmentController: EnvironmentController | null = null;
 let connectServerSync: ConnectServerSync | null = null;
 let connectCredentialCache: ConnectCredentialCache | null = null;
 let cachedConnectCredential: ConnectCredential | null = null;
@@ -613,6 +622,19 @@ function reloadApplicationWindow(
   }
 }
 
+function sendEnvironmentChanged(): void {
+  const environment = environmentController?.current() ?? null;
+  for (const browserWindow of BrowserWindow.getAllWindows()) {
+    if (applicationWindowWebContentsIds.has(browserWindow.webContents.id)) {
+      sendToApplicationRenderer(
+        browserWindow,
+        BB_DESKTOP_ENVIRONMENT_CHANGED_CHANNEL,
+        environment,
+      );
+    }
+  }
+}
+
 function sendDesktopInfoChanged(): void {
   const info = getCurrentDesktopInfo();
   if (info === null) {
@@ -767,12 +789,24 @@ function listMenuConnectServers(): ConnectServerRef[] {
   return servers;
 }
 
+function isManagedEnvironmentServerUrl(url: string): boolean {
+  return environmentController?.isManagedServerUrl(url) === true;
+}
+
 function listServerChoices() {
-  return buildDesktopServerChoices(serverTargetStore, listMenuConnectServers());
+  return buildDesktopServerChoices(
+    serverTargetStore,
+    listMenuConnectServers(),
+    isManagedEnvironmentServerUrl,
+  );
 }
 
 function buildMenuServerItems(connectServers: ConnectServerRef[]) {
-  return buildDesktopServerChoices(serverTargetStore, connectServers).map(
+  return buildDesktopServerChoices(
+    serverTargetStore,
+    connectServers,
+    isManagedEnvironmentServerUrl,
+  ).map(
     ({ active, id, name }) => ({ checked: active, id, name }),
   );
 }
@@ -831,6 +865,7 @@ function refreshApplicationMenu(): void {
   }
   installApplicationMenu({
     ...buildServerMenuArgs(),
+    environmentMenu: environmentController?.buildMenu({ accelerators: true }),
     accelerators: currentApplicationMenuAccelerators,
     isMac: process.platform === "darwin",
     createNewWindow() {
@@ -1935,12 +1970,64 @@ async function applyServerTarget(): Promise<void> {
     }
   } else {
     stopServerMovedWatcher();
-    await loadRemoteServerTarget(target.url, isCurrent);
+    const tunnel = await ensureEnvironmentTunnel(target.url, isCurrent);
+    if (!isCurrent()) {
+      return;
+    }
+    if (tunnel !== null && !tunnel.ok) {
+      await loadStartupError({
+        actions: [
+          { id: "retry", label: "Try again" },
+          { id: "choose-server", label: "Choose server…" },
+        ],
+        details: tunnel.reason,
+        logs: "",
+        title: "Could not reach this environment",
+      });
+    } else {
+      await loadRemoteServerTarget(target.url, isCurrent);
+    }
     if (!isCurrent()) {
       return;
     }
   }
   refreshApplicationMenu();
+  sendEnvironmentChanged();
+}
+
+const ENVIRONMENT_CONNECTING_VIEW_DELAY_MS = 400;
+
+async function ensureEnvironmentTunnel(
+  serverUrl: string,
+  isCurrent: () => boolean,
+): Promise<EnsureTunnelResult | null> {
+  const environment =
+    environmentController?.environmentForServerUrl(serverUrl) ?? null;
+  if (environmentController === null || environment === null) {
+    return null;
+  }
+  const pending = environmentController.ensureServerUrl(serverUrl);
+  const settledQuickly = await Promise.race([
+    pending.then(() => true),
+    new Promise<false>((resolve) => {
+      setTimeout(() => resolve(false), ENVIRONMENT_CONNECTING_VIEW_DELAY_MS);
+    }),
+  ]);
+  if (!settledQuickly && isCurrent()) {
+    bbAppLoaded = false;
+    await loadWindowUrl({
+      url: createLocalViewUrl({
+        viewModel: {
+          kind: "loading",
+          message: environment.destination
+            ? `Opening an SSH tunnel to ${environment.destination} and waiting for bb to answer.`
+            : "Waiting for bb to answer.",
+          title: `Connecting to ${environment.name}`,
+        },
+      }),
+    });
+  }
+  return pending;
 }
 
 async function loadRemoteServerTarget(
@@ -2328,6 +2415,7 @@ function handleBeforeQuit(event: Event): void {
 
 async function finishQuit(): Promise<void> {
   stopServerMovedWatcher();
+  environmentController?.dispose();
   desktopBrowserBrokerClient?.stop();
   desktopBrowserBroker?.dispose();
   stopSystemConfigSync();
@@ -2396,6 +2484,29 @@ function registerDesktopUpdateIpc(): void {
   ipcMain.handle(BB_DESKTOP_GET_WINDOW_STATE_CHANNEL, (event) => {
     return getSenderDesktopWindowState(event);
   });
+  ipcMain.handle(BB_DESKTOP_GET_ENVIRONMENT_CHANNEL, () => {
+    return environmentController?.current() ?? null;
+  });
+  ipcMain.on(
+    BB_DESKTOP_OPEN_ENVIRONMENT_MENU_CHANNEL,
+    (event, payload: unknown) => {
+      const browserWindow = BrowserWindow.fromWebContents(event.sender);
+      if (browserWindow === null || environmentController === null) {
+        return;
+      }
+      const position = z
+        .object({ x: z.number().finite(), y: z.number().finite() })
+        .safeParse(payload);
+      Menu.buildFromTemplate(
+        environmentController.buildMenu({ accelerators: false }),
+      ).popup({
+        window: browserWindow,
+        ...(position.success
+          ? { x: Math.round(position.data.x), y: Math.round(position.data.y) }
+          : {}),
+      });
+    },
+  );
   ipcMain.handle(BB_DESKTOP_OPEN_SERVER_DAEMON_LOGS_CHANNEL, async () => {
     await openLocalLogs();
   });
@@ -2988,6 +3099,28 @@ async function runDesktopApp(): Promise<void> {
   });
   await serverTargetStore.load();
   await serverTargetStore.adoptConnectServers(listMenuConnectServers());
+  environmentController = createEnvironmentController({
+    userDataPath,
+    getTarget: () => serverTargetStore?.getTarget() ?? { kind: "builtin" },
+    selectBuiltin: selectBuiltinServer,
+    async selectServerUrl(url) {
+      if (serverTargetStore === null) return;
+      await serverTargetStore.setCustomServerUrl(url);
+      await applyServerTarget();
+    },
+    openPath: (path) => shell.openPath(path),
+    showError(title, message) {
+      dialog.showErrorBox(title, message);
+    },
+    onEnvironmentsChanged() {
+      refreshApplicationMenu();
+      sendEnvironmentChanged();
+    },
+    log(message) {
+      desktopLogger.info(message);
+    },
+  });
+  await environmentController.load();
   const dataDir = resolveDataDirFromEnv({
     env: process.env,
     homeDir: homedir(),

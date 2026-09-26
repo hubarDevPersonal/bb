@@ -23,6 +23,7 @@ import {
   bbDesktopBrowserTargetSchema,
   bbDesktopBrowserControlStateSchema,
   bbDesktopBrowserRevealRequestSchema,
+  bbDesktopEnvironmentSchema,
   type BbDesktopBrowserControlState,
   type BbDesktopClipboardContent,
   type BbDesktopBrowserRevealRequest,
@@ -43,6 +44,8 @@ import {
   type BbDesktopBrowserUnsubscribe,
   type BbDesktopBrowserViewBounds,
   type BbDesktopCloseWindowRequestHandler,
+  type BbDesktopEnvironment,
+  type BbDesktopEnvironmentChangeHandler,
   type BbDesktopInfo,
   type BbDesktopInfoChangeHandler,
   type BbDesktopInfoUnsubscribe,
@@ -106,7 +109,10 @@ import {
   BB_DESKTOP_CLOSE_WINDOW_REQUEST_CHANNEL,
   BB_DESKTOP_CLOSE_WINDOW_RESPONSE_CHANNEL,
   BB_DESKTOP_FOCUS_WINDOW_CHANNEL,
+  BB_DESKTOP_ENVIRONMENT_CHANGED_CHANNEL,
+  BB_DESKTOP_GET_ENVIRONMENT_CHANNEL,
   BB_DESKTOP_GET_WINDOW_STATE_CHANNEL,
+  BB_DESKTOP_OPEN_ENVIRONMENT_MENU_CHANNEL,
   BB_DESKTOP_OPEN_NEW_TAB_CHANNEL,
   BB_DESKTOP_OPEN_DATA_DIRECTORY_CHANNEL,
   BB_DESKTOP_OPEN_SERVER_DAEMON_LOGS_CHANNEL,
@@ -144,6 +150,7 @@ const serverChoiceListeners = new Set<
 const listeners = new Set<BbDesktopInfoChangeHandler>();
 const appCommandListeners = new Set<BbDesktopAppCommandHandler>();
 const windowStateListeners = new Set<BbDesktopWindowStateChangeHandler>();
+const environmentListeners = new Set<BbDesktopEnvironmentChangeHandler>();
 let currentInfo = createInitialDesktopInfo();
 let currentWindowState = createInitialDesktopWindowState();
 
@@ -476,6 +483,30 @@ const bbDesktopApi: BbDesktopApi = {
   getWindowState() {
     return invokeDesktopWindowState();
   },
+  async getEnvironment(): Promise<BbDesktopEnvironment | null> {
+    try {
+      const parsed = bbDesktopEnvironmentSchema
+        .nullable()
+        .safeParse(
+          await ipcRenderer.invoke(BB_DESKTOP_GET_ENVIRONMENT_CHANNEL),
+        );
+      return parsed.success ? parsed.data : null;
+    } catch {
+      return null;
+    }
+  },
+  onEnvironmentChange(
+    listener: BbDesktopEnvironmentChangeHandler,
+  ): BbDesktopInfoUnsubscribe {
+    return addListener(environmentListeners, listener);
+  },
+  openEnvironmentMenu(position): void {
+    const zoomFactor = webFrame.getZoomFactor();
+    ipcRenderer.send(BB_DESKTOP_OPEN_ENVIRONMENT_MENU_CHANNEL, {
+      x: position.x * zoomFactor,
+      y: position.y * zoomFactor,
+    });
+  },
   installUpdate() {
     return invokeInstallUpdate();
   },
@@ -564,6 +595,12 @@ forwardParsed(
   BB_DESKTOP_APP_COMMAND_CHANNEL,
   appCommandIdSchema,
   appCommandListeners,
+);
+
+forwardParsed(
+  BB_DESKTOP_ENVIRONMENT_CHANGED_CHANNEL,
+  bbDesktopEnvironmentSchema.nullable(),
+  environmentListeners,
 );
 
 ipcRenderer.on(BB_DESKTOP_CLOSE_WINDOW_REQUEST_CHANNEL, () => {

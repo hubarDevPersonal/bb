@@ -20,6 +20,7 @@ import {
 import { useDesktopWindowState } from "@/hooks/useDesktopWindowState";
 import { SidebarHistoryNavigationControls } from "./SidebarHistoryNavigationControls";
 import { useSidebarNavigationPlacement } from "./sidebarNavigationProvider";
+import { DesktopEnvironmentPill } from "./DesktopEnvironmentPill";
 
 const FRAMED_CARD_TOP_BORDER_OFFSET_CLASS = "-mt-px";
 
@@ -89,6 +90,9 @@ export function SidebarTopReserveRow({
           {headerSlot}
         </div>
       )}
+      <DesktopEnvironmentPill
+        className={cn(usesDesktopChrome && MACOS_CHROME_CONTROL_NO_DRAG_CLASS)}
+      />
       {isFramed ? null : (
         <SidebarHistoryNavigationControls
           onNavigate={closeOnMobile}
