@@ -136,6 +136,7 @@ describe("ThreadDetailHeader", () => {
           isSecondaryPanelOpen
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[]}
           threadId={THREAD_ID}
           threadTitle="Panel state"
@@ -584,6 +585,7 @@ describe("ThreadDetailHeader", () => {
           isSecondaryPanelOpen={false}
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[]}
           threadId={threadId}
           threadTitle={threadTitle}
@@ -605,10 +607,7 @@ describe("ThreadDetailHeader", () => {
     fireEvent.doubleClick(screen.getByText("Other thread"));
     expect(
       await screen.findByRole("textbox", { name: "Thread name" }),
-    ).toHaveProperty(
-      "value",
-      "Other thread",
-    );
+    ).toHaveProperty("value", "Other thread");
   });
 
   it("keeps the draft visible while a header rename saves after click-away", async () => {
@@ -625,6 +624,7 @@ describe("ThreadDetailHeader", () => {
           isSecondaryPanelOpen={false}
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[]}
           threadId={THREAD_ID}
           threadTitle="Focused thread"
@@ -649,10 +649,7 @@ describe("ThreadDetailHeader", () => {
     );
     expect(
       screen.getByRole<HTMLInputElement>("textbox", { name: "Thread name" }),
-    ).toHaveProperty(
-      "value",
-      "Renamed thread",
-    );
+    ).toHaveProperty("value", "Renamed thread");
     expect(input.hasAttribute("readonly")).toBe(true);
     expect(screen.getByRole("status", { name: "Saving name" })).not.toBeNull();
     expect(screen.queryByText("Focused thread")).toBeNull();
@@ -679,6 +676,7 @@ describe("ThreadDetailHeader", () => {
           isSecondaryPanelOpen={false}
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
+          taskActions={makeThreadTaskActions()}
           threadHeaderGitActions={[]}
           threadId={THREAD_ID}
           threadTitle="Focused thread"

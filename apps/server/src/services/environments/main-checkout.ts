@@ -3,7 +3,8 @@ import {
   getProjectSourceByHost,
   type DbConnection,
 } from "@bb/db";
-import type { Environment, TaskDiffTarget } from "@bb/domain";
+import type { EnvironmentRow } from "@bb/db";
+import type { TaskDiffTarget } from "@bb/domain";
 
 interface ResolveMainCheckoutEnvironmentArgs {
   hostId: string;
@@ -13,7 +14,7 @@ interface ResolveMainCheckoutEnvironmentArgs {
 export function resolveMainCheckoutEnvironment(
   deps: { db: DbConnection },
   args: ResolveMainCheckoutEnvironmentArgs,
-): Environment | null {
+): EnvironmentRow | null {
   const source = getProjectSourceByHost(deps.db, args.projectId, args.hostId);
   if (!source) {
     return null;
@@ -35,13 +36,13 @@ export function resolveMainCheckoutEnvironment(
 }
 
 interface ResolveApplicableTaskDiffTargetArgs {
-  environment: Pick<Environment, "hostId" | "isWorktree" | "projectId">;
+  environment: Pick<EnvironmentRow, "hostId" | "isWorktree" | "projectId">;
   targetInfo: Pick<TaskDiffTarget, "branchName" | "kind">;
 }
 
 export interface ApplicableTaskDiffTarget {
   branchName: string;
-  mainCheckoutEnvironment: Environment;
+  mainCheckoutEnvironment: EnvironmentRow;
 }
 
 export function resolveApplicableTaskDiffTarget(

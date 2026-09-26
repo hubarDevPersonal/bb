@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import {
   createEnvironment,
   createQueuedThreadMessage,
+  environments,
   deriveStoredEventItemFields,
   getLatestThreadSequence,
   hasStoredTurnStarted,
@@ -155,13 +156,14 @@ export function seedEnvironment(
     environmentProviderSelection?: EnvironmentProviderSelection;
     providerOwnsPath?: boolean;
     isGitRepo?: boolean;
+    isWorktree?: boolean;
     branchName?: string | null;
     baseBranch?: string | null;
     defaultBranch?: string | null;
     mergeBaseBranch?: string | null;
   },
 ) {
-  return createEnvironment(deps.db, deps.hub, {
+  const environment = createEnvironment(deps.db, deps.hub, {
     providerOwnsPath: args.providerOwnsPath ?? false,
     projectId: args.projectId,
     hostId: args.hostId,
@@ -187,6 +189,15 @@ export function seedEnvironment(
       args.defaultBranch !== undefined ? args.defaultBranch : "main",
     mergeBaseBranch: args.mergeBaseBranch ?? null,
   });
+  if (!args.isWorktree) {
+    return environment;
+  }
+  return deps.db
+    .update(environments)
+    .set({ isWorktree: true })
+    .where(eq(environments.id, environment.id))
+    .returning()
+    .get();
 }
 
 export function seedThread(

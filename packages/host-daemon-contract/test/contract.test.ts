@@ -2853,7 +2853,6 @@ describe("host-daemon command schemas", () => {
         environmentId: "env_123",
         workspaceContext: {
           workspacePath: "/tmp/workspace",
-          workspaceProvisionType: "unmanaged",
         },
         sourceBranch: "feature lock",
       }).success,

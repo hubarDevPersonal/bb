@@ -75,10 +75,3 @@ export const sidebarCollapsedThreadSectionsAtom = createSyncedPreferenceAtom(
 export const sidebarCollapsedMachinesAtom = createSyncedPreferenceAtom(
   "sidebar.collapsedMachines",
 );
-
-export const sidebarCollapsedStateGroupsAtom = atomWithStorage<string[]>(
-  COLLAPSED_STATE_GROUPS_STORAGE_KEY,
-  [],
-  createJsonLocalStorage<string[]>(),
-  { getOnInit: true },
-);

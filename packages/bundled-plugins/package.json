@@ -23,9 +23,9 @@
     "bb-plugin-github": "workspace:*",
     "bb-plugin-inline-vis": "workspace:*",
     "bb-plugin-keep-awake": "workspace:*",
-    "bb-plugin-navigation": "workspace:*",
     "bb-plugin-memory": "workspace:*",
     "bb-plugin-monaco-editor": "workspace:*",
+    "bb-plugin-navigation": "workspace:*",
     "bb-plugin-pdf-preview": "workspace:*",
     "bb-plugin-plugin-api-docs": "workspace:*",
     "bb-plugin-plugin-api-tester": "workspace:*",
@@ -43,6 +43,7 @@
     "bb-plugin-tasks": "workspace:*",
     "bb-plugin-theme-preview": "workspace:*",
     "bb-plugin-thread-list": "workspace:*",
+    "bb-plugin-workbench": "workspace:*",
     "bb-plugin-workflows": "workspace:*"
   }
 }

@@ -22,6 +22,7 @@ export function subagentStatus(
     case "idle":
     case "error":
       return "done";
+    case "pending":
     case "starting":
     case "active":
     case "stopping":

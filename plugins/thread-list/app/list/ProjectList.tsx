@@ -1689,7 +1689,8 @@ function ProjectListComponent({
         sectionId={sectionId}
         onNewThread={
           hostId
-            ? () => openRootComposeForProject(personalProjectId, undefined, hostId)
+            ? () =>
+                openRootComposeForProject(personalProjectId, undefined, hostId)
             : handleCreateProjectlessThread
         }
         open={openSidebarMenu === menuId}

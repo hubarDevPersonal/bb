@@ -72,7 +72,7 @@ describe("public thread task diff", () => {
   it("returns a branch-kind diff target for a worktree environment", async () => {
     await withTestHarness(async (harness) => {
       const { environment, thread } = seedThreadWithEnvironment(harness, {
-        workspaceProvisionType: "managed-worktree",
+        isWorktree: true,
       });
 
       const responsePromise = harness.app.request(
@@ -99,7 +99,7 @@ describe("public thread task diff", () => {
   it("returns a working-tree diff target for a non-worktree environment", async () => {
     await withTestHarness(async (harness) => {
       const { environment, thread } = seedThreadWithEnvironment(harness, {
-        workspaceProvisionType: "unmanaged",
+        isWorktree: false,
       });
 
       const responsePromise = harness.app.request(
@@ -138,7 +138,7 @@ describe("public thread task diff", () => {
       const environment = seedEnvironment(harness.deps, {
         hostId: host.id,
         projectId: project.id,
-        workspaceProvisionType: "managed-worktree",
+        isWorktree: true,
       });
       const thread = seedThread(harness.deps, {
         environmentId: environment.id,
@@ -163,7 +163,6 @@ describe("public thread task diff", () => {
   it("returns not_applicable for a non-git environment", async () => {
     await withTestHarness(async (harness) => {
       const { thread } = seedThreadWithEnvironment(harness, {
-        workspaceProvisionType: "unmanaged",
         isGitRepo: false,
       });
 
@@ -181,7 +180,7 @@ describe("public thread task diff", () => {
   it("reuses the cached result and invalidates it on thread status-changed", async () => {
     await withTestHarness(async (harness) => {
       const { environment, thread } = seedThreadWithEnvironment(harness, {
-        workspaceProvisionType: "unmanaged",
+        isWorktree: false,
       });
 
       const firstPromise = harness.app.request(

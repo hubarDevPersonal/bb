@@ -12,6 +12,7 @@ import type {
 } from "@bb/server-contract";
 import type { EnvironmentStatusResponse } from "@bb/server-contract";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
+import { makeThreadResponse as makeSharedThreadResponse } from "@/test/fixtures/thread-responses";
 import {
   environmentWorkStatusQueryKey,
   environmentWorkStatusQueryKeyPrefix,
@@ -65,6 +66,7 @@ function makeThreadResponse(
   overrides: Partial<ThreadResponse> = {},
 ): ThreadResponse {
   return {
+    ...makeSharedThreadResponse(),
     activeBackgroundAgentCount: 0,
     archivedAt: null,
     canSpawnChild: true,

@@ -161,6 +161,7 @@ Read the installed SDK declarations for the exact current signatures.
 - `ExperimentalSidebarNavigationRegistration`
 - `ExperimentalSidebarHeaderRegistration`
 - `PluginSidebarThreadIndicator`
+- `PluginSidebarTaskDiffStats`
 - `PluginSidebarThreadActivity`
 - `PluginSidebarThread`
 - `PluginSidebarPullRequest`

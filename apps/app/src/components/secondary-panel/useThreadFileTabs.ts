@@ -198,6 +198,7 @@ function isReopenableSecondaryPanelTab(
       return true;
     case "thread-info":
     case "git-diff":
+    case "task-diff":
     case "plugin-page-fixed":
     case "new-tab":
     case "terminal":

@@ -71,6 +71,7 @@ describe("palette hover preview", () => {
       "solarized",
       "gruvbox",
       "catppuccin",
+      "codex-desktop",
       "mine",
       "plugin:pack:ocean",
     ]);

@@ -23,6 +23,7 @@ const hostCommandWakePolicy = {
   "project.clone": "work",
   "environment.attach.cancel": "never",
   "workspace.commit": "work",
+  "workspace.apply_branch": "work",
   "workspace.pull_request_action": "work",
   "desktop.browser.list_instances": "work",
   "desktop.browser.list_tabs": "work",
