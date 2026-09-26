@@ -45,7 +45,7 @@ describe("public thread review route", () => {
   it("creates a review child thread with a branch-scoped prompt", async () => {
     await withTestHarness(async (harness) => {
       const { environment, thread } = seedReviewSource(harness, {
-        workspaceProvisionType: "managed-worktree",
+        isWorktree: true,
       });
 
       const response = await harness.app.request(
@@ -67,9 +67,7 @@ describe("public thread review route", () => {
 
   it("creates a review child thread with a plain prompt for a working-tree kind", async () => {
     await withTestHarness(async (harness) => {
-      const { thread } = seedReviewSource(harness, {
-        workspaceProvisionType: "unmanaged",
-      });
+      const { thread } = seedReviewSource(harness, { isWorktree: false });
 
       const response = await harness.app.request(
         `/api/v1/threads/${thread.id}/review`,
@@ -88,7 +86,6 @@ describe("public thread review route", () => {
   it("returns 409 not_applicable for a non-git source environment", async () => {
     await withTestHarness(async (harness) => {
       const { thread } = seedReviewSource(harness, {
-        workspaceProvisionType: "unmanaged",
         isGitRepo: false,
       });
 

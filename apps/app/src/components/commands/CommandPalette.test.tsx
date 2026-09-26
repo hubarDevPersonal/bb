@@ -323,6 +323,7 @@ function makeThread(
     environmentWorkspaceDisplayKind: "other",
     runtime: { displayStatus: "idle" },
     queuedWork: "none",
+    taskDiffStats: null,
     ...overrides,
   };
 }

@@ -60,6 +60,7 @@ function threadOnMachine(
     updatedAt: 1,
     lastReadAt: 1,
     latestAttentionAt: 1,
+    experimental_taskDiffStats: null,
   };
 }
 

@@ -326,6 +326,7 @@ Read the installed declarations for exact current signatures.
 - `PluginSidebarProject`
 - `PluginSidebarSplitPane`
 - `PluginSidebarThread`
+- `PluginSidebarTaskDiffStats`
 - `PluginSidebarThreadActivity`
 - `PluginSidebarThreadIndicator`
 - `PluginSidebarThreadSplit`

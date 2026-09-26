@@ -1,7 +1,6 @@
-import { getEnvironment, getThread } from "@bb/db";
+import { getEnvironment, getThread, type EnvironmentRow } from "@bb/db";
 import {
   resolveTaskDiffTarget,
-  type Environment,
   type PromptInput,
   type Thread,
 } from "@bb/domain";
@@ -32,7 +31,7 @@ function requireReviewSourceThread(
 function requireReviewSourceEnvironment(
   deps: Pick<ThreadReviewDeps, "db">,
   sourceThread: Thread,
-): Environment {
+): EnvironmentRow {
   const environment =
     sourceThread.environmentId === null
       ? null
@@ -72,7 +71,7 @@ function isTooDeepParentThreadError(error: unknown): boolean {
   return details?.reason === "too_deep";
 }
 
-function buildReviewPromptInput(environment: Environment): PromptInput[] {
+function buildReviewPromptInput(environment: EnvironmentRow): PromptInput[] {
   const targetInfo = resolveTaskDiffTarget(environment);
   const prompt =
     targetInfo.kind === "branch" && targetInfo.branchName !== null

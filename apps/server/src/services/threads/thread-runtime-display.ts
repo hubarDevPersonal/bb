@@ -8,6 +8,7 @@ import {
   listOpenTurnInputAcceptedRowsByThreadIds,
   listStoredClientTurnRequestRowsByKeys,
   type DbConnection,
+  type EnvironmentRow,
   type HostDaemonSessionRow,
   type StoredEventRow,
   type ThreadClientTurnRequestKey,
@@ -18,7 +19,6 @@ import {
   resolveTaskDiffTarget,
 } from "@bb/domain";
 import type {
-  Environment,
   TaskDiffStats,
   TaskDiffTarget,
   Thread,
@@ -76,6 +76,7 @@ type ToThreadListEntryResponsesDeps = ThreadPromptBannerDeps &
     AppDeps,
     | "config"
     | "lifecycleDedupers"
+    | "logger"
     | "machineAuth"
     | "pluginHostArtifacts"
     | "aiServices"
@@ -123,12 +124,12 @@ interface ToThreadListEntryResponseFromLatestSessionArgs {
 }
 
 interface ResolveThreadListEntryTaskDiffStatsArgs {
-  environment: Environment | null;
+  environment: EnvironmentRow | null;
   thread: ThreadWithPendingInteractionState;
 }
 
 interface TaskDiffReloadGroup {
-  environment: Environment;
+  environment: EnvironmentRow;
   key: string;
   servedStats: TaskDiffStats | null;
   targetInfo: TaskDiffTarget;

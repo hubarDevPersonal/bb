@@ -185,6 +185,7 @@ Read the installed SDK declarations for the exact current signatures.
 - `ExperimentalSidebarFooterDisclosureController`
 - `ExperimentalSidebarFooter`
 - `PluginSidebarThreadIndicator`
+- `PluginSidebarTaskDiffStats`
 - `PluginSidebarThreadActivity`
 - `PluginSidebarThread`
 - `PluginSidebarProject`

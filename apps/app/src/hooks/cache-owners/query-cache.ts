@@ -489,6 +489,7 @@ export function optimisticallyInsertThread(
     hasPendingInteraction: false,
     pinSortKey: null,
     queuedWork,
+    taskDiffStats: null,
   };
   const upsertThread = (threads: ThreadListEntry[]): ThreadListEntry[] => {
     const existingIndex = threads.findIndex(

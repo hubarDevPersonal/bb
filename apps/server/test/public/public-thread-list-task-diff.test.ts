@@ -237,7 +237,7 @@ describe("public thread list task diff", () => {
         projectId: project.id,
       });
       const archiveResponse = await harness.app.request(
-        `/api/v1/threads/${archivedThread.id}/archive`,
+        `/api/v1/threads/${archivedThread.id}/archive-all`,
         { method: "POST" },
       );
       expect(archiveResponse.status).toBe(200);

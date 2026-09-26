@@ -194,6 +194,7 @@ export function makeThreadListEntry(
     environmentIsWorktree: null,
     environmentWorkspaceDisplayKind: "other",
     queuedWork: "none",
+    taskDiffStats: null,
   };
   return {
     ...entry,

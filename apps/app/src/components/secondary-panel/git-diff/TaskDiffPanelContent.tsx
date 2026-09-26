@@ -174,9 +174,9 @@ function TaskDiffAvailableContent({
       <GitDiffTabContent
         environmentId={taskDiff.environmentId}
         target={taskDiff.target}
-        isDiffPanelActive
         isPanelOpen={isPanelOpen}
         gitDiffPresentation={TASK_DIFF_PRESENTATION}
+        fileFilter=""
         onClearPendingGitDiffIntent={handleScrolledToPath}
         onFilesChange={handleFilesChange}
         onOpenFileInEditor={onOpenFileInEditor}

@@ -8,6 +8,7 @@ import {
   createProject,
   createQueuedThreadMessage,
   createThread,
+  environments,
   hostDaemonSessions,
   listQueuedThreadMessages,
   listThreadsWithPendingInteractionState,
@@ -46,6 +47,7 @@ import {
 } from "../../../src/services/threads/thread-runtime-display.js";
 import type { ServerRuntimeConfig } from "../../../src/types.js";
 import { NotificationHub } from "../../../src/ws/hub.js";
+import { testLogger } from "../../helpers/test-app.js";
 import { createTestProviderRegistry } from "../../helpers/provider-registry.js";
 
 const providerRegistry = await createTestProviderRegistry();
@@ -155,6 +157,7 @@ function taskDiffTestDeps(base: {
     ...base,
     config: {} as ServerRuntimeConfig,
     lifecycleDedupers: createLifecycleDedupers(),
+    logger: testLogger,
     machineAuth: {} as MachineAuthService,
     pluginHostArtifacts: new PluginHostArtifactRegistry(),
     aiServices: createAiServiceRegistry(),
@@ -223,7 +226,7 @@ function createThreadWithEnvironment(args: CreateThreadWithEnvironmentArgs) {
       path: `/tmp/${args.hostId}/project/${suffix}`,
     },
   });
-  const environment = createEnvironment(args.db, noopNotifier, {
+  const createdEnvironment = createEnvironment(args.db, noopNotifier, {
     providerOwnsPath: false,
     hostId: args.hostId,
     projectId: project.id,
@@ -241,8 +244,15 @@ function createThreadWithEnvironment(args: CreateThreadWithEnvironmentArgs) {
             },
           },
     isGitRepo: args.isGitRepo ?? false,
-    isWorktree: args.isWorktree ?? false,
   });
+  const environment = args.isWorktree
+    ? args.db
+        .update(environments)
+        .set({ isWorktree: true })
+        .where(eq(environments.id, createdEnvironment.id))
+        .returning()
+        .get()
+    : createdEnvironment;
   const thread = createThread(args.db, noopNotifier, {
     projectId: project.id,
     environmentId: environment.id,
@@ -442,7 +452,7 @@ describe("thread runtime display", () => {
     const providerIdByThreadId = new Map(
       [provided, checkout].flatMap(({ project }) =>
         toThreadListEntryResponses(
-          { db, hub, providerRegistry },
+          taskDiffTestDeps({ db, hub, providerRegistry }),
           {
             now: 1_000,
             threads: listThreadsWithPendingInteractionState(db, {
@@ -481,7 +491,7 @@ describe("thread runtime display", () => {
     });
 
     const [entry] = toThreadListEntryResponses(
-      { db, hub, providerRegistry },
+      taskDiffTestDeps({ db, hub, providerRegistry }),
       {
         threads: listThreadsWithPendingInteractionState(db, {
           projectId: project.id,
@@ -582,7 +592,7 @@ describe("thread runtime display", () => {
     });
 
     const entries = toThreadListEntryResponses(
-      { db, hub, providerRegistry },
+      taskDiffTestDeps({ db, hub, providerRegistry }),
       {
         now: 1_000,
         threads: [empty.thread, waiting.thread, failed.thread].map((thread) =>

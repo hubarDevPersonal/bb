@@ -67,7 +67,6 @@ describe("workspace command dispatch", () => {
         environmentId: "env-1",
         workspaceContext: {
           workspacePath: "/tmp/env-1",
-          workspaceProvisionType: "unmanaged",
         },
         sourceBranch: "bb/feature-123",
       },

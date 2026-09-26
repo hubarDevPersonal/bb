@@ -1,4 +1,5 @@
-import type { Environment, TaskDiffStats, TaskDiffTarget } from "@bb/domain";
+import type { EnvironmentRow } from "@bb/db";
+import type { TaskDiffStats, TaskDiffTarget } from "@bb/domain";
 import type { WorkspaceResolutionFailure } from "@bb/host-daemon-contract/workspace";
 import {
   COMMAND_TIMEOUT_MS,
@@ -13,7 +14,7 @@ export type TaskDiffStatsResult =
   | { outcome: "unavailable"; failure: WorkspaceResolutionFailure };
 
 interface LoadTaskDiffStatsResultArgs {
-  environment: Environment;
+  environment: EnvironmentRow;
   targetInfo: TaskDiffTarget;
 }
 

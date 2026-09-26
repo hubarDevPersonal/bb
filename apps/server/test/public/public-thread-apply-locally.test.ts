@@ -35,7 +35,7 @@ function seedApplyLocallySource(
   const environment = seedEnvironment(harness.deps, {
     hostId: host.id,
     projectId: project.id,
-    workspaceProvisionType: "managed-worktree",
+    isWorktree: true,
     ...environmentArgs,
   });
   const thread = seedThread(harness.deps, {
@@ -64,9 +64,7 @@ async function answerCleanStatus(
 describe("public thread apply-locally route", () => {
   it("returns 409 not_applicable for a non-worktree source environment", async () => {
     await withTestHarness(async (harness) => {
-      const { thread } = seedApplyLocallySource(harness, {
-        workspaceProvisionType: "unmanaged",
-      });
+      const { thread } = seedApplyLocallySource(harness, { isWorktree: false });
 
       const response = await harness.app.request(
         `/api/v1/threads/${thread.id}/apply-locally`,
