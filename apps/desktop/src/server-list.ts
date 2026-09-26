@@ -14,6 +14,7 @@ export function buildDesktopServerChoices(
   store: ServerTargetStore | null,
   connectServers: readonly ConnectServerRef[],
   builtinServerUrl: string,
+  isHiddenCustomUrl: (url: string) => boolean = () => false,
 ): BbDesktopServerChoice[] {
   const target = store?.getTarget() ?? { kind: "builtin" };
   const customUrls = store?.getCustomServerUrls() ?? [];
@@ -42,7 +43,9 @@ export function buildDesktopServerChoices(
       active:
         target.kind === "connect" && target.server.handle === server.handle,
     })),
-    ...(store?.getCustomServers() ?? []).map(({ url, name }) => ({
+    ...(store?.getCustomServers() ?? [])
+      .filter(({ url }) => !isHiddenCustomUrl(url))
+      .map(({ url, name }) => ({
       id: customServerId(url),
       name: name ?? new URL(url).host,
       origin: new URL(url).origin,

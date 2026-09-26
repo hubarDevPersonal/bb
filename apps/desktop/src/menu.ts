@@ -27,6 +27,7 @@ const RELOAD_ACCELERATOR = "CommandOrControl+R";
 const FORCE_RELOAD_ACCELERATOR = "CommandOrControl+Shift+R";
 const DESKTOP_SETTINGS_MENU_LABEL = "Desktop Settings";
 const SERVER_MENU_LABEL = "Server";
+export const ENVIRONMENTS_MENU_LABEL = "Environments";
 const DESKTOP_SETTINGS_SERVER_MENU_ITEM_ID = "bb-desktop-settings-server-menu";
 const WINDOW_SERVER_MENU_ITEM_ID = "bb-server-menu";
 const SERVER_MENU_ITEM_IDS = [
@@ -70,6 +71,7 @@ export interface InstallApplicationMenuArgs {
   signInToConnect(): void;
   addServer(): void;
   onServerMenuWillShow?: () => void;
+  environmentMenu?: MenuItemConstructorOptions[];
   servers: ApplicationMenuServerItem[];
   connectServersSkipReason: ConnectServerSyncSkipReason | null;
 }
@@ -320,6 +322,9 @@ export function buildApplicationMenuTemplate(
         ...createLocalLogsMenuItems(args),
       ],
     },
+    ...(args.environmentMenu === undefined
+      ? []
+      : [{ label: ENVIRONMENTS_MENU_LABEL, submenu: args.environmentMenu }]),
     {
       label: "Window",
       submenu: [

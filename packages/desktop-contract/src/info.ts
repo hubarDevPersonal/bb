@@ -1,6 +1,10 @@
 import type { BbDesktopServerChoice } from "./servers.js";
 import { z } from "zod";
 import type { BbDesktopBrowserApi } from "./browser.js";
+import type {
+  BbDesktopEnvironment,
+  BbDesktopEnvironmentChangeHandler,
+} from "./environment.js";
 import type { BbDesktopWindowFindRequest } from "./find.js";
 import { bbDesktopVersionFeedPlatformSchema } from "./version-feed.js";
 import type { AppCommandId } from "@bb/domain";
@@ -80,6 +84,11 @@ export interface BbDesktopApi extends BbDesktopInfo {
   focusWindow?(): void;
   setAttentionThreads?(threads: BbDesktopAttentionThreads): void;
   getWindowState?(): Promise<BbDesktopWindowState>;
+  getEnvironment?(): Promise<BbDesktopEnvironment | null>;
+  onEnvironmentChange?(
+    listener: BbDesktopEnvironmentChangeHandler,
+  ): BbDesktopInfoUnsubscribe;
+  openEnvironmentMenu?(position: { x: number; y: number }): void;
   installUpdate(): Promise<void>;
   macosTrafficLightInset?: number;
   macosTrafficLightTopInset?: number;
