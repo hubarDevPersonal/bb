@@ -231,7 +231,8 @@ template there and opens it. The app reloads the file when it changes.
   `shared.rulesSource` to `rulesTarget` on the host (rsync, no deletes) and
   runs `rulesInstall` there — or runs it in place for this computer; **Update
   bb on Environment** runs `ssh.updateCommand` (default: pull, install, build,
-  restart `bb.service` in `~/Dev/bb`; `null` hides it); **Log In to Claude
+  restart `bb.service` in `~/Dev/bb`, with `~/.local/bin` and `~/.npm-global/bin`
+  on `PATH` because non-interactive ssh skips your profile; `null` hides it); **Log In to Claude
   Code… / Codex…** run the provider's login over `ssh -t` (Codex with its
   `1455` callback port forwarded); **Open SSH Shell**; plus your own `actions`,
   which see `BB_ENV_ID`, `BB_ENV_NAME` and `BB_ENV_SSH_DESTINATION`.
