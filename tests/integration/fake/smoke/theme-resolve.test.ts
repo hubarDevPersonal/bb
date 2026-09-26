@@ -48,7 +48,7 @@ describe.sequential("theme resolve integration", () => {
       });
 
       const catalog = await (await harness.api.settings.themes.$get({})).json();
-      expect(catalog.active.themeId).toBe("default");
+      expect(catalog.active.themeId).toBe("codex-desktop");
     }));
 
   it("rejects unknown and malformed theme ids", () =>

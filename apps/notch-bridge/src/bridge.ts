@@ -1,4 +1,7 @@
-import type { PendingInteraction, PendingInteractionResolution } from "@bb/domain";
+import type {
+  PendingInteraction,
+  PendingInteractionResolution,
+} from "@bb/domain";
 import type { BbSdk } from "@bb/sdk";
 import type { HookEvent, HookResponse, NotchClient } from "./notch-client.js";
 
@@ -58,7 +61,10 @@ export class NotchBridge {
       event: "thread:changed",
       callback: () => this.scheduleRefresh(),
     });
-    this.pollTimer = setInterval(() => this.scheduleRefresh(), this.pollIntervalMs);
+    this.pollTimer = setInterval(
+      () => this.scheduleRefresh(),
+      this.pollIntervalMs,
+    );
   }
 
   stop(): void {
@@ -91,16 +97,22 @@ export class NotchBridge {
           id: thread.id,
           title: thread.title ?? null,
           status: thread.runtime?.displayStatus ?? "idle",
-          attention: thread.latestAttentionAt !== null && thread.latestAttentionAt !== undefined,
+          attention:
+            thread.latestAttentionAt !== null &&
+            thread.latestAttentionAt !== undefined,
         });
       }
       if (!args.initial) await this.announceFinishedTurns(next);
       this.threads = next;
       // Notch outages must not stop interaction forwarding, and vice versa.
-      await this.pushStatus().catch((error) => this.log.warn(`status push failed: ${String(error)}`));
+      await this.pushStatus().catch((error) =>
+        this.log.warn(`status push failed: ${String(error)}`),
+      );
       await this.forwardPendingInteractions();
     } catch (error) {
-      this.log.warn(`refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.log.warn(
+        `refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     } finally {
       this.refreshing = false;
       if (this.refreshQueued) {
@@ -113,10 +125,17 @@ export class NotchBridge {
   // A thread that just went busy → idle finished a turn: surface its answer
   // the way the Claude Code Stop hook did, so the notch can show a summary or
   // flip to "needs attention" when the answer ends in a question.
-  private async announceFinishedTurns(next: Map<string, ThreadSnapshot>): Promise<void> {
+  private async announceFinishedTurns(
+    next: Map<string, ThreadSnapshot>,
+  ): Promise<void> {
     for (const [id, before] of this.threads) {
       const after = next.get(id);
-      if (!after || !BUSY_STATUSES.has(before.status) || BUSY_STATUSES.has(after.status)) continue;
+      if (
+        !after ||
+        !BUSY_STATUSES.has(before.status) ||
+        BUSY_STATUSES.has(after.status)
+      )
+        continue;
       try {
         const output = await this.sdk.threads.output({ threadId: id });
         const text = (output.output ?? "").trim();
@@ -129,18 +148,26 @@ export class NotchBridge {
         });
         this.log.info(`turn finished: ${after.title ?? id}`);
       } catch (error) {
-        this.log.warn(`announce failed for ${id}: ${error instanceof Error ? error.message : String(error)}`);
+        this.log.warn(
+          `announce failed for ${id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   }
 
   private async pushStatus(): Promise<void> {
-    const busy = [...this.threads.values()].some((thread) => BUSY_STATUSES.has(thread.status));
+    const busy = [...this.threads.values()].some((thread) =>
+      BUSY_STATUSES.has(thread.status),
+    );
     const status: NotchStatus = busy ? "working" : "idle";
     if (status === this.lastStatus) return;
     // Mark as delivered only after the write succeeded: when NotchAgent is
     // not up yet, the next refresh must try again instead of going quiet.
-    await this.notch.send({ id: `status-${Date.now()}`, type: "Status", message: status });
+    await this.notch.send({
+      id: `status-${Date.now()}`,
+      type: "Status",
+      message: status,
+    });
     this.lastStatus = status;
   }
 
@@ -152,13 +179,19 @@ export class NotchBridge {
     for (const thread of candidates) {
       let interactions: PendingInteraction[];
       try {
-        interactions = await this.sdk.threads.interactions.list({ threadId: thread.id });
+        interactions = await this.sdk.threads.interactions.list({
+          threadId: thread.id,
+        });
       } catch {
         continue;
       }
       for (const interaction of interactions) {
         if (interaction.status === "pending") stillPending.add(interaction.id);
-        if (interaction.status !== "pending" || this.inFlight.has(interaction.id)) continue;
+        if (
+          interaction.status !== "pending" ||
+          this.inFlight.has(interaction.id)
+        )
+          continue;
         const event = toHookEvent(interaction, thread);
         if (!event) continue;
         this.inFlight.add(interaction.id);
@@ -185,15 +218,21 @@ export class NotchBridge {
     thread: ThreadSnapshot,
   ): Promise<void> {
     try {
-      this.log.info(`asking notch: ${event.tool_name} for ${thread.title ?? thread.id}`);
+      this.log.info(
+        `asking notch: ${event.tool_name} for ${thread.title ?? thread.id}`,
+      );
       const response = await this.notch.ask(event, this.decisionTimeoutMs);
       if (!response) {
-        this.log.info(`notch gave no decision for ${interaction.id}; leaving it to bb UI`);
+        this.log.info(
+          `notch gave no decision for ${interaction.id}; leaving it to bb UI`,
+        );
         return;
       }
       const resolution = toResolution(interaction, response);
       if (!resolution) {
-        this.log.warn(`could not map notch answer ${JSON.stringify(response)} for ${interaction.id}`);
+        this.log.warn(
+          `could not map notch answer ${JSON.stringify(response)} for ${interaction.id}`,
+        );
         return;
       }
       await this.sdk.threads.interactions.resolve({
@@ -201,9 +240,13 @@ export class NotchBridge {
         interactionId: interaction.id,
         resolution,
       });
-      this.log.info(`resolved ${interaction.id}: ${response.action}${response.message ? ` (${response.message})` : ""}`);
+      this.log.info(
+        `resolved ${interaction.id}: ${response.action}${response.message ? ` (${response.message})` : ""}`,
+      );
     } catch (error) {
-      this.log.warn(`resolve failed for ${interaction.id}: ${error instanceof Error ? error.message : String(error)}`);
+      this.log.warn(
+        `resolve failed for ${interaction.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     } finally {
       // Let the id be forwarded again only if bb still reports it pending on a
       // later refresh — e.g. the notch timed out but the human never answered.
@@ -212,7 +255,10 @@ export class NotchBridge {
   }
 }
 
-export function toHookEvent(interaction: PendingInteraction, thread: ThreadSnapshot): HookEvent | null {
+export function toHookEvent(
+  interaction: PendingInteraction,
+  thread: ThreadSnapshot,
+): HookEvent | null {
   const payload = interaction.payload;
   const base = { id: interaction.id, session_id: thread.id };
   switch (payload.kind) {
@@ -220,13 +266,37 @@ export function toHookEvent(interaction: PendingInteraction, thread: ThreadSnaps
       const subject = payload.subject;
       switch (subject.kind) {
         case "command":
-          return { ...base, type: "PermissionRequest", tool_name: "Bash", tool_input: subject.command, message: payload.reason ?? undefined };
+          return {
+            ...base,
+            type: "PermissionRequest",
+            tool_name: "Bash",
+            tool_input: subject.command,
+            message: payload.reason ?? undefined,
+          };
         case "file_change":
-          return { ...base, type: "PermissionRequest", tool_name: "Edit", tool_input: subject.writeScope ?? "workspace", message: payload.reason ?? undefined };
+          return {
+            ...base,
+            type: "PermissionRequest",
+            tool_name: "Edit",
+            tool_input: subject.writeScope ?? "workspace",
+            message: payload.reason ?? undefined,
+          };
         case "permission_grant":
-          return { ...base, type: "PermissionRequest", tool_name: subject.toolName ?? "Permission", tool_input: describePermissions(subject.permissions), message: payload.reason ?? undefined };
+          return {
+            ...base,
+            type: "PermissionRequest",
+            tool_name: subject.toolName ?? "Permission",
+            tool_input: describePermissions(subject.permissions),
+            message: payload.reason ?? undefined,
+          };
         case "plan":
-          return { ...base, type: "PermissionRequest", tool_name: "Plan", tool_input: subject.plan.slice(0, 300), message: payload.reason ?? undefined };
+          return {
+            ...base,
+            type: "PermissionRequest",
+            tool_name: "Plan",
+            tool_input: subject.plan.slice(0, 300),
+            message: payload.reason ?? undefined,
+          };
         default:
           return null;
       }
@@ -240,7 +310,10 @@ export function toHookEvent(interaction: PendingInteraction, thread: ThreadSnaps
         ...base,
         type: "PermissionRequest",
         tool_name: "AskUserQuestion",
-        message: payload.questions.length > 1 ? `${question.prompt} (1/${payload.questions.length})` : question.prompt,
+        message:
+          payload.questions.length > 1
+            ? `${question.prompt} (1/${payload.questions.length})`
+            : question.prompt,
         choices,
       };
     }
@@ -256,19 +329,34 @@ export function toResolution(
   const payload = interaction.payload;
   if (payload.kind === "approval") {
     if (response.action === "deny") return { decision: "deny" };
-    const forSession = response.action === "always_allow" && payload.availableDecisions.includes("allow_for_session");
-    return { decision: forSession ? "allow_for_session" : "allow_once", grantedPermissions: null };
+    const forSession =
+      response.action === "always_allow" &&
+      payload.availableDecisions.includes("allow_for_session");
+    return {
+      decision: forSession ? "allow_for_session" : "allow_once",
+      grantedPermissions: null,
+    };
   }
   if (payload.kind === "user_question") {
     if (response.action === "deny") return null;
     const question = payload.questions[0];
     if (!question) return null;
-    const chosen = (question.options ?? []).find((option) => option.label === response.message);
+    const chosen = (question.options ?? []).find(
+      (option) => option.label === response.message,
+    );
     if (chosen) {
-      return { kind: "user_answer", answers: { [question.id]: { selected: [chosen.value] } } };
+      return {
+        kind: "user_answer",
+        answers: { [question.id]: { selected: [chosen.value] } },
+      };
     }
     if (question.allowFreeText && response.message) {
-      return { kind: "user_answer", answers: { [question.id]: { selected: [], freeText: response.message } } };
+      return {
+        kind: "user_answer",
+        answers: {
+          [question.id]: { selected: [], freeText: response.message },
+        },
+      };
     }
     return null;
   }
