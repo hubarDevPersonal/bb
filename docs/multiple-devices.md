@@ -227,6 +227,12 @@ template there and opens it. The app reloads the file when it changes.
 - Switch from the **Environments** menu (`Cmd+Ctrl+1…9`) or the pill at the
   top of the sidebar, which also shows which Claude Code and Codex account the
   current environment is signed in to.
+- **Environments → Open in New Window** (`Cmd+Shift+Ctrl+1…9`) opens an
+  environment in a window of its own, next to windows on other environments.
+  Such a window stays on its environment when you switch the others, its title
+  and sidebar pill name it, and its pill menu acts on its environment. The app
+  keeps that environment's tunnel up while any of its windows is open. After a
+  restart these windows reopen on the main environment.
 - **<Environment> Actions** open in Terminal: **Sync Shared Rules** copies
   `shared.rulesSource` to `rulesTarget` on the host (rsync, no deletes) and
   runs `rulesInstall` there — or runs it in place for this computer; **Update

@@ -40,6 +40,7 @@ import {
   bbDesktopBrowserImportCookiesRequestSchema,
   bbDesktopThemeSchema,
   type BbDesktopInfo,
+  type BbDesktopEnvironment,
   type BbDesktopWindowState,
 } from "@bb/desktop-contract";
 import {
@@ -423,6 +424,7 @@ let stoppingForQuit = false;
 let quitting = false;
 let serverTargetStore: ServerTargetStore | null = null;
 let environmentController: EnvironmentController | null = null;
+const pinnedEnvironmentByWebContentsId = new Map<number, string>();
 let connectServerSync: ConnectServerSync | null = null;
 let connectCredentialCache: ConnectCredentialCache | null = null;
 let cachedConnectCredential: ConnectCredential | null = null;
@@ -596,9 +598,78 @@ function registerApplicationRendererReloadShortcut(
   });
 }
 
+function environmentForWebContents(
+  webContentsId: number,
+): BbDesktopEnvironment | null {
+  const pinnedId = pinnedEnvironmentByWebContentsId.get(webContentsId);
+  return pinnedId === undefined
+    ? (environmentController?.current() ?? null)
+    : (environmentController?.describe(pinnedId) ?? null);
+}
+
+async function openEnvironmentInNewWindow(
+  environmentId: string,
+): Promise<void> {
+  const controller = environmentController;
+  const environment = controller?.describe(environmentId) ?? null;
+  if (controller === null || environment === null) {
+    return;
+  }
+  let url: string;
+  if (environment.kind === "local") {
+    if (!(await ensureBuiltinRuntimeAttached())) {
+      dialog.showErrorBox(
+        `Could not open ${environment.name}`,
+        "The local bb server on this computer did not start.",
+      );
+      return;
+    }
+    await controller.retain(environmentId);
+    url = resolveDesktopWindowUrl({
+      env: process.env,
+      serverUrl: currentRuntime?.serverUrl ?? builtinServerUrl,
+    });
+  } else {
+    const tunnel = await controller.retain(environmentId);
+    if (tunnel === null || !tunnel.ok) {
+      controller.release(environmentId);
+      dialog.showErrorBox(
+        `Could not reach ${environment.name}`,
+        tunnel === null ? "Unknown environment." : tunnel.reason,
+      );
+      return;
+    }
+    url = tunnel.serverUrl;
+  }
+  const browserWindow = await createApplicationWindow({
+    initialUrl: null,
+    stateKey: null,
+  });
+  if (browserWindow === null) {
+    controller.release(environmentId);
+    return;
+  }
+  const webContentsId = browserWindow.webContents.id;
+  pinnedEnvironmentByWebContentsId.set(webContentsId, environmentId);
+  browserWindow.on("closed", () => {
+    pinnedEnvironmentByWebContentsId.delete(webContentsId);
+    environmentController?.release(environmentId);
+  });
+  try {
+    await browserWindow.loadURL(url);
+  } catch (error) {
+    desktopLogger.warn(
+      `[desktop] could not load ${environment.name} in a new window: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 function sendEnvironmentChanged(): void {
   const environment = environmentController?.current() ?? null;
   for (const browserWindow of BrowserWindow.getAllWindows()) {
+    if (pinnedEnvironmentByWebContentsId.has(browserWindow.webContents.id)) {
+      continue;
+    }
     if (applicationWindowWebContentsIds.has(browserWindow.webContents.id)) {
       sendToApplicationRenderer(
         browserWindow,
@@ -1161,6 +1232,19 @@ function registerApplicationWindow(browserWindow: DesktopBrowserWindow): void {
     (browserWindow as BrowserWindow).webContents,
   );
   registerDesktopContextMenu({ webContents: browserWindow.webContents });
+  (browserWindow as BrowserWindow).webContents.on(
+    "page-title-updated",
+    (event, title) => {
+      const environment = environmentForWebContents(webContentsId);
+      if (environment === null) {
+        return;
+      }
+      event.preventDefault();
+      (browserWindow as BrowserWindow).setTitle(
+        `${title} — ${environment.name}`,
+      );
+    },
+  );
   browserWindow.on("enter-full-screen", () => {
     sendDesktopWindowStateChanged(browserWindow);
   });
@@ -1776,9 +1860,7 @@ async function selectBuiltinServer(): Promise<void> {
   await applyServerTarget();
 }
 
-async function loadServerMovedView(
-  move: DesktopServerMove,
-): Promise<void> {
+async function loadServerMovedView(move: DesktopServerMove): Promise<void> {
   await loadActionView({
     actions: [
       { id: "open-moved-server", label: `Open ${move.toHostName}` },
@@ -2196,7 +2278,11 @@ async function loadWindowUrl(args: LoadWindowUrlArgs): Promise<void> {
     return;
   }
 
-  await desktopWindowFactory.loadUrl({ url: args.url });
+  await desktopWindowFactory.loadUrl({
+    url: args.url,
+    skipWindow: (browserWindow) =>
+      pinnedEnvironmentByWebContentsId.has(browserWindow.webContents.id),
+  });
 }
 
 async function loadLoadingView(): Promise<void> {
@@ -2337,8 +2423,8 @@ function registerDesktopUpdateIpc(): void {
   ipcMain.handle(BB_DESKTOP_GET_WINDOW_STATE_CHANNEL, (event) => {
     return getSenderDesktopWindowState(event);
   });
-  ipcMain.handle(BB_DESKTOP_GET_ENVIRONMENT_CHANNEL, () => {
-    return environmentController?.current() ?? null;
+  ipcMain.handle(BB_DESKTOP_GET_ENVIRONMENT_CHANNEL, (event) => {
+    return environmentForWebContents(event.sender.id);
   });
   ipcMain.on(
     BB_DESKTOP_OPEN_ENVIRONMENT_MENU_CHANNEL,
@@ -2351,7 +2437,11 @@ function registerDesktopUpdateIpc(): void {
         .object({ x: z.number().finite(), y: z.number().finite() })
         .safeParse(payload);
       Menu.buildFromTemplate(
-        environmentController.buildMenu({ accelerators: false }),
+        environmentController.buildMenu({
+          accelerators: false,
+          pinnedEnvironmentId:
+            pinnedEnvironmentByWebContentsId.get(event.sender.id) ?? null,
+        }),
       ).popup({
         window: browserWindow,
         ...(position.success
@@ -2979,6 +3069,9 @@ async function runDesktopApp(): Promise<void> {
     onEnvironmentsChanged() {
       refreshApplicationMenu();
       sendEnvironmentChanged();
+    },
+    openInNewWindow(environmentId) {
+      void openEnvironmentInNewWindow(environmentId);
     },
     log(message) {
       desktopLogger.info(message);

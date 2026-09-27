@@ -43,19 +43,32 @@ export interface EnvironmentControllerDeps {
   openPath(path: string): Promise<string>;
   showError(title: string, message: string): void;
   onEnvironmentsChanged(): void;
+  openInNewWindow(environmentId: string): void;
   log(message: string): void;
+  tunnels?: EnvironmentTunnels;
 }
+
+export type EnvironmentTunnels = Pick<
+  SshTunnelManager,
+  "ensure" | "stop" | "stopAll"
+>;
 
 export interface EnvironmentController {
   load(): Promise<void>;
   dispose(): void;
   current(): BbDesktopEnvironment | null;
+  describe(environmentId: string): BbDesktopEnvironment | null;
   environmentForServerUrl(url: string): BbDesktopEnvironment | null;
+  retain(environmentId: string): Promise<EnsureTunnelResult | null>;
+  release(environmentId: string): void;
   list(): readonly DesktopEnvironment[];
   ensureServerUrl(url: string): Promise<EnsureTunnelResult | null>;
   select(environmentId: string): Promise<void>;
   isManagedServerUrl(url: string): boolean;
-  buildMenu(options: { accelerators: boolean }): MenuItemConstructorOptions[];
+  buildMenu(options: {
+    accelerators: boolean;
+    pinnedEnvironmentId?: string | null;
+  }): MenuItemConstructorOptions[];
 }
 
 function wrapChild(child: ReturnType<typeof spawn>): SshChildProcess {
@@ -132,19 +145,23 @@ export function createEnvironmentController(
   let loadProblem: string | null = null;
   let fileExists = false;
   let watching = false;
-  const tunnels = new SshTunnelManager({
-    spawn: (command, args) =>
-      wrapChild(
-        spawn(command, [...args], { stdio: ["ignore", "ignore", "pipe"] }),
-      ),
-    probe: async (serverUrl) =>
-      (await probeBbServer({ serverUrl, timeoutMs: PROBE_TIMEOUT_MS })).kind ===
-      "compatible",
-    runRemote: runToCompletion,
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-    now: () => Date.now(),
-    log: deps.log,
-  });
+  const retained = new Map<string, number>();
+  let activeTunnelId: string | null = null;
+  const tunnels: EnvironmentTunnels =
+    deps.tunnels ??
+    new SshTunnelManager({
+      spawn: (command, args) =>
+        wrapChild(
+          spawn(command, [...args], { stdio: ["ignore", "ignore", "pipe"] }),
+        ),
+      probe: async (serverUrl) =>
+        (await probeBbServer({ serverUrl, timeoutMs: PROBE_TIMEOUT_MS }))
+          .kind === "compatible",
+      runRemote: runToCompletion,
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      now: () => Date.now(),
+      log: deps.log,
+    });
 
   async function reload(): Promise<void> {
     const result = await loadEnvironments(path);
@@ -217,13 +234,32 @@ export function createEnvironmentController(
     }
   }
 
+  function stopUnusedTunnels(): void {
+    for (const environment of state.environments) {
+      if (
+        environment.id !== activeTunnelId &&
+        (retained.get(environment.id) ?? 0) === 0
+      ) {
+        tunnels.stop(environment.id);
+      }
+    }
+  }
+
+  function findEnvironment(environmentId: string): DesktopEnvironment | null {
+    return (
+      state.environments.find((candidate) => candidate.id === environmentId) ??
+      null
+    );
+  }
+
   async function select(environmentId: string): Promise<void> {
     const environment = state.environments.find(
       (candidate) => candidate.id === environmentId,
     );
     if (environment === undefined) return;
     if (environment.kind === "local") {
-      tunnels.stopAll();
+      activeTunnelId = null;
+      stopUnusedTunnels();
       await deps.selectBuiltin();
       return;
     }
@@ -263,34 +299,65 @@ export function createEnvironmentController(
     },
     async ensureServerUrl(url) {
       const environment = findEnvironmentForServerUrl(state.environments, url);
-      for (const other of state.environments) {
-        if (other.id !== environment?.id) tunnels.stop(other.id);
-      }
+      activeTunnelId = environment?.id ?? null;
+      stopUnusedTunnels();
       if (environment === null) return null;
       return tunnels.ensure(environment);
+    },
+    describe(environmentId) {
+      const environment = findEnvironment(environmentId);
+      return environment === null ? null : toBridgeEnvironment(environment);
+    },
+    async retain(environmentId) {
+      const environment = findEnvironment(environmentId);
+      if (environment === null) return null;
+      retained.set(environmentId, (retained.get(environmentId) ?? 0) + 1);
+      if (environment.kind === "local") return null;
+      return tunnels.ensure(environment);
+    },
+    release(environmentId) {
+      const count = (retained.get(environmentId) ?? 0) - 1;
+      if (count > 0) {
+        retained.set(environmentId, count);
+      } else {
+        retained.delete(environmentId);
+      }
+      stopUnusedTunnels();
     },
     select,
     isManagedServerUrl(url) {
       return findEnvironmentForServerUrl(state.environments, url) !== null;
     },
-    buildMenu({ accelerators }) {
-      const current = currentEnvironment();
-      const items: MenuItemConstructorOptions[] = state.environments.map(
-        (environment, index) => ({
-          type: "radio" as const,
-          label:
-            environment.kind === "ssh"
-              ? `${environment.name}  —  ${environment.ssh?.destination ?? ""}`
-              : environment.name,
-          checked: current?.id === environment.id,
-          ...(accelerators
-            ? { accelerator: `CommandOrControl+Control+${index + 1}` }
-            : {}),
-          click() {
-            void select(environment.id);
-          },
-        }),
-      );
+    buildMenu({ accelerators, pinnedEnvironmentId = null }) {
+      const pinned =
+        pinnedEnvironmentId === null
+          ? null
+          : findEnvironment(pinnedEnvironmentId);
+      const current = pinned ?? currentEnvironment();
+      const items: MenuItemConstructorOptions[] = [];
+      if (pinned !== null) {
+        items.push({
+          enabled: false,
+          label: `This window: ${pinned.name}`,
+        });
+      } else {
+        items.push(
+          ...state.environments.map((environment, index) => ({
+            type: "radio" as const,
+            label:
+              environment.kind === "ssh"
+                ? `${environment.name}  —  ${environment.ssh?.destination ?? ""}`
+                : environment.name,
+            checked: current?.id === environment.id,
+            ...(accelerators
+              ? { accelerator: `CommandOrControl+Control+${index + 1}` }
+              : {}),
+            click() {
+              void select(environment.id);
+            },
+          })),
+        );
+      }
       if (loadProblem !== null) {
         items.push({
           enabled: false,
@@ -299,6 +366,19 @@ export function createEnvironmentController(
       } else if (state.environments.length === 0) {
         items.push({ enabled: false, label: "No environments yet" });
       }
+      items.push({
+        label: "Open in New Window",
+        enabled: state.environments.length > 0,
+        submenu: state.environments.map((environment, index) => ({
+          label: environment.name,
+          ...(accelerators
+            ? { accelerator: `CommandOrControl+Control+Shift+${index + 1}` }
+            : {}),
+          click() {
+            deps.openInNewWindow(environment.id);
+          },
+        })),
+      });
       items.push({ type: "separator" });
       if (current !== null) {
         const plans = planEnvironmentActions(current, state.shared);

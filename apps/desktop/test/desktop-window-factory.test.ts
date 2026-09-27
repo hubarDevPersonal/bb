@@ -296,6 +296,50 @@ describe("desktop window factory", () => {
     ]);
   });
 
+  it("reloads every window except the ones the caller skips", async () => {
+    const tempDir = await createTempDir();
+    const createdWindows: FakeDesktopWindow[] = [];
+    const factory = createDesktopWindowFactory({
+      browserWindowCreator: {
+        create(options) {
+          const browserWindow = new FakeDesktopWindow({ options });
+          createdWindows.push(browserWindow);
+          return browserWindow;
+        },
+      },
+      createWindowStateKey: () => `window-${createdWindows.length}`,
+      displayWorkAreas: [{ height: 900, width: 1440, x: 0, y: 0 }],
+      icon: undefined,
+      isMac: true,
+      isLinuxTransparent: false,
+      isLinuxFrameless: false,
+      isQuitting: () => false,
+      openExternalUrl() {},
+      preloadPath: "/tmp/preload.cjs",
+      userDataPath: tempDir.path,
+    });
+    const followsTarget = await factory.createWindow({
+      initialUrl: "http://127.0.0.1:38901",
+      stateKey: null,
+    });
+    const pinned = await factory.createWindow({
+      initialUrl: "http://127.0.0.1:38902",
+      stateKey: null,
+    });
+
+    await factory.loadUrl({
+      url: "http://127.0.0.1:38886",
+      skipWindow: (browserWindow) => browserWindow === pinned,
+    });
+
+    expect(followsTarget).not.toBe(pinned);
+    expect(createdWindows[0]?.loadedUrls).toEqual([
+      "http://127.0.0.1:38901",
+      "http://127.0.0.1:38886",
+    ]);
+    expect(createdWindows[1]?.loadedUrls).toEqual(["http://127.0.0.1:38902"]);
+  });
+
   it("allocates distinct state keys for concurrent implicit windows", async () => {
     const tempDir = await createTempDir();
     const createdWindows: FakeDesktopWindow[] = [];
