@@ -135,6 +135,7 @@ interface RestoreDesktopWindowsArgs {
 
 interface LoadDesktopWindowsUrlArgs {
   url: string;
+  skipWindow?: (browserWindow: DesktopBrowserWindow) => boolean;
 }
 
 export interface DesktopWindowFactory {
@@ -449,6 +450,9 @@ export function createDesktopWindowFactory(
   async function loadUrl(args: LoadDesktopWindowsUrlArgs): Promise<void> {
     const loadPromises: Promise<void>[] = [];
     for (const browserWindow of activeWindows.values()) {
+      if (args.skipWindow?.(browserWindow) === true) {
+        continue;
+      }
       loadPromises.push(
         loadUrlIntoWindow({
           browserWindow,
