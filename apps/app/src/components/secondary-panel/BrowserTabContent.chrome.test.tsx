@@ -163,6 +163,26 @@ describe("BrowserTabContent persistent navigation", () => {
     expect(harness.goBack).toHaveBeenCalledWith("browser:test");
   });
 
+  it("toggles developer tools for the tab when the desktop API supports it", () => {
+    const harness = createBrowserChromeHarness();
+    const toggleDevTools = vi.fn();
+    harness.api.toggleDevTools = toggleDevTools;
+    renderBrowserChrome(harness, "https://example.com/docs");
+
+    fireEvent.click(screen.getByRole("button", { name: "Developer tools" }));
+    expect(toggleDevTools).toHaveBeenCalledWith("browser:test");
+  });
+
+  it("hides the developer tools action when the desktop API lacks it", () => {
+    const harness = createBrowserChromeHarness();
+    renderBrowserChrome(harness, "https://example.com/docs");
+    expectChromeVisible();
+
+    expect(
+      screen.queryByRole("button", { name: "Developer tools" }),
+    ).toBeNull();
+  });
+
   it.each(["Stop", "Take over"])(
     "releases native control with %s",
     async (action) => {

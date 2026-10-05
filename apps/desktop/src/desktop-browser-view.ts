@@ -6,6 +6,7 @@ import {
   WebContentsView,
   session,
   type BrowserWindowConstructorOptions,
+  type Input,
   type Session,
   type WebContents,
   type WebPreferences,
@@ -113,6 +114,35 @@ function isAllowedPopupNavigationUrl(url: string): boolean {
     parsed.protocol === "https:" ||
     (parsed.protocol === "http:" && isLoopbackHostname(parsed.hostname))
   );
+}
+
+export function isBrowserDevToolsShortcut(
+  input: Pick<Input, "alt" | "code" | "control" | "key" | "meta" | "shift">,
+  platform: NodeJS.Platform,
+): boolean {
+  if (input.key === "F12") {
+    return true;
+  }
+  if (input.code !== "KeyI") {
+    return false;
+  }
+  return platform === "darwin"
+    ? input.meta && input.alt && !input.control && !input.shift
+    : input.control && input.shift && !input.alt && !input.meta;
+}
+
+function openBrowserDevTools(webContents: WebContents): void {
+  if (!webContents.isDevToolsOpened()) {
+    webContents.openDevTools({ mode: "detach", activate: true });
+  }
+}
+
+function toggleBrowserDevTools(webContents: WebContents): void {
+  if (webContents.isDevToolsOpened()) {
+    webContents.closeDevTools();
+    return;
+  }
+  openBrowserDevTools(webContents);
 }
 
 function popupWindowTitle(url: string | null): string {
@@ -305,6 +335,7 @@ export interface DesktopBrowserViewManager {
   goForward(args: HostScopedTabArgs): void;
   reload(args: HostScopedTabArgs): void;
   stop(args: HostScopedTabArgs): void;
+  toggleDevTools(args: HostScopedTabArgs): void;
   setBounds(
     args: HostScopedRequestArgs<BbDesktopBrowserSetBoundsRequest>,
   ): void;
@@ -703,6 +734,11 @@ export function createDesktopBrowserViewManager(
       if (input.type !== "keyDown" || input.isAutoRepeat || input.isComposing) {
         return;
       }
+      if (isBrowserDevToolsShortcut(input, process.platform)) {
+        event.preventDefault();
+        toggleBrowserDevTools(webContents);
+        return;
+      }
       const command = args.resolveAppCommand(
         {
           altKey: input.alt,
@@ -796,6 +832,17 @@ export function createDesktopBrowserViewManager(
         {
           role: "selectAll",
           enabled: editFlags.canSelectAll,
+        },
+        { type: "separator" },
+        {
+          label: "Inspect Element",
+          click() {
+            if (webContents.isDestroyed()) {
+              return;
+            }
+            openBrowserDevTools(webContents);
+            webContents.inspectElement(params.x, params.y);
+          },
         },
       ]);
       menu.popup();
@@ -1275,6 +1322,11 @@ export function createDesktopBrowserViewManager(
     stop({ hostWindow, tabId }) {
       withEntry({ hostWindow, tabId }, (entry) => {
         entry.webContents.stop();
+      });
+    },
+    toggleDevTools({ hostWindow, tabId }) {
+      withEntry({ hostWindow, tabId }, (entry) => {
+        toggleBrowserDevTools(entry.webContents);
       });
     },
     setBounds({ hostWindow, request }) {

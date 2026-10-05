@@ -37,6 +37,7 @@ import {
   BB_DESKTOP_BROWSER_STATE_CHANNEL,
   BB_DESKTOP_BROWSER_STOP_CHANNEL,
   BB_DESKTOP_BROWSER_STOP_FIND_IN_PAGE_CHANNEL,
+  BB_DESKTOP_BROWSER_TOGGLE_DEV_TOOLS_CHANNEL,
 } from "../src/desktop-browser-ipc.js";
 import {
   BB_DESKTOP_APP_COMMAND_CHANNEL,
@@ -234,6 +235,7 @@ describe("desktop preload browser API", () => {
       "setVisibleWithoutFocus",
       "stop",
       "stopFindInPage",
+      "toggleDevTools",
     ]);
     expect(api.browser).not.toHaveProperty("send");
     expect(api.browser).not.toHaveProperty("invoke");
@@ -245,6 +247,7 @@ describe("desktop preload browser API", () => {
     api.browser.goForward("browser:a");
     api.browser.reload("browser:a");
     api.browser.stop("browser:a");
+    api.browser.toggleDevTools?.("browser:a");
     api.browser.focus?.("browser:a");
     api.browser.setBounds(boundsRequest);
     api.browser.setVisible(visibleRequest);
@@ -282,6 +285,10 @@ describe("desktop preload browser API", () => {
       },
       {
         channel: BB_DESKTOP_BROWSER_STOP_CHANNEL,
+        payload: { tabId: "browser:a" },
+      },
+      {
+        channel: BB_DESKTOP_BROWSER_TOGGLE_DEV_TOOLS_CHANNEL,
         payload: { tabId: "browser:a" },
       },
       {

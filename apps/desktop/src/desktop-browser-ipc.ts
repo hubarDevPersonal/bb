@@ -14,6 +14,8 @@ export const BB_DESKTOP_BROWSER_GO_FORWARD_CHANNEL =
   "bb-desktop:browser:go-forward";
 export const BB_DESKTOP_BROWSER_RELOAD_CHANNEL = "bb-desktop:browser:reload";
 export const BB_DESKTOP_BROWSER_STOP_CHANNEL = "bb-desktop:browser:stop";
+export const BB_DESKTOP_BROWSER_TOGGLE_DEV_TOOLS_CHANNEL =
+  "bb-desktop:browser:toggle-dev-tools";
 export const BB_DESKTOP_BROWSER_FOCUS_CHANNEL = "bb-desktop:browser:focus";
 export const BB_DESKTOP_BROWSER_SET_BOUNDS_CHANNEL =
   "bb-desktop:browser:set-bounds";
