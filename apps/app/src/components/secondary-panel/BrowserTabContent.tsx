@@ -103,6 +103,7 @@ interface BrowserChromeProps {
   onForward: () => void;
   onReloadOrStop: () => void;
   onOpenExternal: () => void;
+  onToggleDevTools: (() => void) | null;
   locationShortcut: AppShortcutPresentation | null;
   reloadShortcut: AppShortcutPresentation | null;
   pluginActions: ReactNode;
@@ -207,6 +208,7 @@ function BrowserChrome({
   onForward,
   onReloadOrStop,
   onOpenExternal,
+  onToggleDevTools,
   locationShortcut,
   reloadShortcut,
   pluginActions,
@@ -298,6 +300,14 @@ function BrowserChrome({
           </div>
         </form>
         {pluginActions}
+        {onToggleDevTools !== null ? (
+          <BrowserChromeIconButton
+            icon="Code"
+            label="Developer tools"
+            disabled={currentUrl.length === 0}
+            onClick={onToggleDevTools}
+          />
+        ) : null}
         <BrowserChromeIconButton
           icon="ExternalLink"
           label="Open in external browser"
@@ -950,6 +960,17 @@ export function BrowserTabContent({
     getBbDesktopInfo()?.openExternalUrl(currentUrl);
   }, [currentUrl]);
 
+  const toggleDevTools = desktopBrowser?.toggleDevTools;
+  const handleToggleDevTools = useMemo(
+    () =>
+      toggleDevTools === undefined
+        ? null
+        : () => {
+            toggleDevTools(tabId);
+          },
+    [tabId, toggleDevTools],
+  );
+
   if (desktopBrowser === null) {
     return <BrowserUnavailable />;
   }
@@ -975,6 +996,7 @@ export function BrowserTabContent({
         }}
         onReloadOrStop={handleReloadOrStop}
         onOpenExternal={handleOpenExternal}
+        onToggleDevTools={handleToggleDevTools}
         locationShortcut={locationShortcut}
         reloadShortcut={reloadShortcut}
         pluginActions={
