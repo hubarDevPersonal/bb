@@ -34,7 +34,8 @@ interface BrowserChromeIconButtonProps {
     | "ChevronDown"
     | "RotateCcw"
     | "X"
-    | "ExternalLink";
+    | "ExternalLink"
+    | "Code";
   label: string;
   disabled?: boolean;
   onClick: () => void;

@@ -29,6 +29,7 @@ import {
   BB_DESKTOP_BROWSER_SET_VISIBLE_WITHOUT_FOCUS_CHANNEL,
   BB_DESKTOP_BROWSER_STOP_CHANNEL,
   BB_DESKTOP_BROWSER_STOP_FIND_IN_PAGE_CHANNEL,
+  BB_DESKTOP_BROWSER_TOGGLE_DEV_TOOLS_CHANNEL,
 } from "./desktop-browser-ipc.js";
 import type { DesktopBrowserViewManager } from "./desktop-browser-view.js";
 
@@ -142,6 +143,12 @@ export function registerDesktopBrowserIpc(
     bbDesktopBrowserTabRefSchema,
     ({ hostWindow, request }) =>
       manager.stop({ hostWindow, tabId: request.tabId }),
+  );
+  registerRequestCommand(
+    BB_DESKTOP_BROWSER_TOGGLE_DEV_TOOLS_CHANNEL,
+    bbDesktopBrowserTabRefSchema,
+    ({ hostWindow, request }) =>
+      manager.toggleDevTools({ hostWindow, tabId: request.tabId }),
   );
   ipcMain.handle(
     BB_DESKTOP_BROWSER_EVALUATE_CHANNEL,

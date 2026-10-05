@@ -27,6 +27,7 @@ import {
   BB_DESKTOP_BROWSER_SET_VISIBLE_WITHOUT_FOCUS_CHANNEL,
   BB_DESKTOP_BROWSER_STOP_CHANNEL,
   BB_DESKTOP_BROWSER_STOP_FIND_IN_PAGE_CHANNEL,
+  BB_DESKTOP_BROWSER_TOGGLE_DEV_TOOLS_CHANNEL,
 } from "../src/desktop-browser-ipc.js";
 import { registerDesktopBrowserIpc } from "../src/desktop-browser-main-ipc.js";
 import type {
@@ -176,6 +177,7 @@ class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
   }
   public readonly setVisibleWithoutFocusCalls: SetVisibleCall[] = [];
   public readonly stopCalls: TabCommandCall[] = [];
+  public readonly toggleDevToolsCalls: TabCommandCall[] = [];
 
   attach(args: AttachCall): void {
     this.attachCalls.push(args);
@@ -243,6 +245,10 @@ class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
 
   stop(args: TabCommandCall): void {
     this.stopCalls.push(args);
+  }
+
+  toggleDevTools(args: TabCommandCall): void {
+    this.toggleDevToolsCalls.push(args);
   }
 }
 
@@ -598,6 +604,7 @@ describe("registerDesktopBrowserIpc", () => {
       BB_DESKTOP_BROWSER_GO_FORWARD_CHANNEL,
       BB_DESKTOP_BROWSER_RELOAD_CHANNEL,
       BB_DESKTOP_BROWSER_STOP_CHANNEL,
+      BB_DESKTOP_BROWSER_TOGGLE_DEV_TOOLS_CHANNEL,
     ]) {
       sendBrowserIpc({
         channel,
@@ -626,6 +633,11 @@ describe("registerDesktopBrowserIpc", () => {
       payload: { tabId: "browser:a" },
       sender: renderer.sender,
     });
+    sendBrowserIpc({
+      channel: BB_DESKTOP_BROWSER_TOGGLE_DEV_TOOLS_CHANNEL,
+      payload: { tabId: "browser:a" },
+      sender: renderer.sender,
+    });
 
     expect(manager.setBoundsCalls).toEqual([
       { hostWindow: renderer.hostWindow, request: boundsRequest },
@@ -646,6 +658,9 @@ describe("registerDesktopBrowserIpc", () => {
       { hostWindow: renderer.hostWindow, tabId: "browser:a" },
     ]);
     expect(manager.stopCalls).toEqual([
+      { hostWindow: renderer.hostWindow, tabId: "browser:a" },
+    ]);
+    expect(manager.toggleDevToolsCalls).toEqual([
       { hostWindow: renderer.hostWindow, tabId: "browser:a" },
     ]);
   });

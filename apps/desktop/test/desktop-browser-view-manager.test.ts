@@ -31,6 +31,7 @@ import {
 import type { DesktopBrowserCdpPage } from "../src/desktop-browser-cdp.js";
 import {
   browserPageEvaluationSource,
+  isBrowserDevToolsShortcut,
   createDesktopBrowserViewManager as createProductionDesktopBrowserViewManager,
   type CreateDesktopBrowserViewManagerArgs,
   type DesktopBrowserViewManager,
@@ -1101,6 +1102,52 @@ function requireFakeView(
   }
   return view;
 }
+
+describe("isBrowserDevToolsShortcut", () => {
+  const noModifiers = {
+    alt: false,
+    code: "KeyI",
+    control: false,
+    key: "i",
+    meta: false,
+    shift: false,
+  };
+
+  it.each([
+    { platform: "darwin", input: { meta: true, alt: true }, expected: true },
+    {
+      platform: "darwin",
+      input: { control: true, shift: true },
+      expected: false,
+    },
+    { platform: "darwin", input: { meta: true }, expected: false },
+    {
+      platform: "darwin",
+      input: { meta: true, alt: true, shift: true },
+      expected: false,
+    },
+    {
+      platform: "linux",
+      input: { control: true, shift: true },
+      expected: true,
+    },
+    {
+      platform: "win32",
+      input: { control: true, shift: true },
+      expected: true,
+    },
+    { platform: "linux", input: { meta: true, alt: true }, expected: false },
+    { platform: "darwin", input: { key: "F12", code: "F12" }, expected: true },
+    { platform: "linux", input: { key: "F12", code: "F12" }, expected: true },
+  ] as const)(
+    "matches $input on $platform as $expected",
+    ({ platform, input, expected }) => {
+      expect(
+        isBrowserDevToolsShortcut({ ...noModifiers, ...input }, platform),
+      ).toBe(expected);
+    },
+  );
+});
 
 describe("browser page scripts", () => {
   it("awaits JSON values and binds the isolated bridge to the request channel", async () => {
