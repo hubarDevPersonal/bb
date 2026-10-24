@@ -1598,6 +1598,12 @@
         "$TURBO_ROOT$/packages/plugin-registry/flavors/**"
       ]
     },
+    "bb-plugin-autopilot#typecheck": {
+      "dependsOn": ["@get-bb/plugin-sdk#build:types", "topo"]
+    },
+    "bb-plugin-autopilot#test": {
+      "dependsOn": ["@get-bb/plugin-sdk#build", "topo"]
+    },
     "bb-plugin-workbench#typecheck": {
       "dependsOn": ["@get-bb/plugin-sdk#build:types", "topo"]
     },

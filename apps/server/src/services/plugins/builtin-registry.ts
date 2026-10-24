@@ -235,6 +235,11 @@ export const BUILTIN_PLUGINS = [
     pluginId: "workbench",
     defaultEnabled: true,
   },
+  {
+    name: "autopilot",
+    pluginId: "autopilot",
+    defaultEnabled: true,
+  },
 ].map((plugin): BundledPluginDefinition => ({
   ...plugin,
   autoInstall: true,
