@@ -1515,6 +1515,9 @@ importers:
       bb-plugin-automations:
         specifier: workspace:*
         version: link:../../plugins/automations
+      bb-plugin-autopilot:
+        specifier: workspace:*
+        version: link:../../plugins/autopilot
       bb-plugin-bb-guide:
         specifier: workspace:*
         version: link:../../plugins/bb-guide
@@ -21268,9 +21271,7 @@ snapshots:
       metro-runtime: 0.84.5
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.79.6': {}
 
