@@ -666,6 +666,7 @@ describe("desktop window factory", () => {
       isMac: true,
       isLinuxTransparent: false,
       isLinuxFrameless: false,
+      shouldUseDarkColors: () => true,
       isQuitting: () => false,
       openExternalUrl() {},
       preloadPath: "/tmp/preload.cjs",

@@ -759,7 +759,7 @@ export default async function workbenchPlugin(bb: BbPluginApi): Promise<void> {
       });
       changes.push(...flattenFileChangeRows(timeline.rows).reverse());
       const olderCursor = timeline.timelinePage.olderCursor;
-      if (!timeline.timelinePage.hasOlderRows || olderCursor === null) break;
+      if (olderCursor === null) break;
       beforeAnchorSeq = String(olderCursor.anchorSeq);
       beforeAnchorId = olderCursor.anchorId;
     }

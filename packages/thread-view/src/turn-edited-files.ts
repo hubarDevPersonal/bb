@@ -75,7 +75,10 @@ function collectRowEntries(
         break;
       case "work":
         if (row.workKind === "delegation") {
-          collectRowEntries(row.childRows, entries);
+          // Deferred delegation children (null) have not been loaded yet.
+          if (row.childRows !== null) {
+            collectRowEntries(row.childRows, entries);
+          }
         } else if (
           row.workKind === "file-change" &&
           row.status === "completed" &&

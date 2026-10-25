@@ -165,6 +165,7 @@ describe("timeline source ownership", () => {
             status: "completed",
             completedAt: 10,
             summaryCount: 1,
+            editedFiles: [],
             children: [{ ...timeline.rows[0], id: message.id }],
           },
         ],

@@ -78,6 +78,7 @@ function providerState(
     canInstall: false,
     canUpdate: false,
     loginCommand: null,
+    localLoginCommand: null,
     ...overrides,
   };
 }

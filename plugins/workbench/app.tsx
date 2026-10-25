@@ -9,12 +9,12 @@ import {
 import {
   definePluginApp,
   useBbNavigate,
-  useComposerView,
+  useComposer,
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
+  type ExperimentalThreadActionTabProps,
   type PluginNavPanelProps,
-  type PluginThreadPanelProps,
 } from "@get-bb/plugin-sdk/app";
 import { Button } from "@bb/shared-ui/button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
@@ -102,7 +102,7 @@ const ComposerActionButton = forwardRef<
 });
 
 function useThreadId(): string | null {
-  const view = useComposerView();
+  const view = useComposer();
   return view.scope.kind === "thread" ? view.scope.threadId : null;
 }
 
@@ -496,7 +496,7 @@ function MultiModelPill() {
 }
 
 function SpecInitBanner() {
-  const view = useComposerView();
+  const view = useComposer();
   if (view.scope.kind !== "thread") return null;
   return (
     <SpecInitBannerForThread
@@ -1039,7 +1039,7 @@ function useSubagentsPanelData(threadId: string): {
   return { state };
 }
 
-function SubagentsThreadPanel({ threadId }: PluginThreadPanelProps) {
+function SubagentsThreadPanel({ threadId }: ExperimentalThreadActionTabProps) {
   const { state } = useSubagentsPanelData(threadId);
   const navigate = useBbNavigate();
   const now = useNow(SUBAGENTS_NOW_TICK_MS);
@@ -1070,7 +1070,7 @@ function SubagentsThreadPanel({ threadId }: PluginThreadPanelProps) {
 }
 
 function SubagentsDoneBanner() {
-  const view = useComposerView();
+  const view = useComposer();
   if (view.scope.kind !== "thread") return null;
   return (
     <SubagentsDoneBannerForThread
@@ -1139,7 +1139,9 @@ export default definePluginApp((app) => {
     path: "workbench",
     component: WorkbenchNavPanel,
   });
-  app.slots.threadPanelAction({
+  app.slots.experimental_tab({
+    context: { kind: "thread" },
+    availability: "action",
     id: SUBAGENTS_PANEL_ACTION_ID,
     title: "Subagents",
     icon: "Bot",
