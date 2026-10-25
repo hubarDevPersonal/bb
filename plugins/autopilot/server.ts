@@ -28,7 +28,7 @@ const DEFAULT_SOURCES = [
 
 const USAGE_CACHE_MS = 60_000;
 const STALE_MS = 45 * 60_000;
-const PLANNER_COOLDOWN_MS = 24 * 60 * 60_000;
+const PLANNER_COOLDOWN_MS = 3 * 60 * 60_000;
 
 export interface AutopilotRuntime {
   store: AutopilotStore;
