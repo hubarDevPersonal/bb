@@ -235,6 +235,7 @@ describe("paginateTimelineRows", () => {
       createdAt: 5,
       status: "completed",
       summaryCount: 1,
+      editedFiles: [],
       completedAt: 5,
       children: [child(5)],
     };
@@ -370,6 +371,7 @@ describe("paginateTimelineRows", () => {
         createdAt: 31,
         status: "pending",
         summaryCount: 1,
+        editedFiles: [],
         completedAt: null,
         children: [
           { ...assistantRow(3), sourceSeqEnd: 30 },

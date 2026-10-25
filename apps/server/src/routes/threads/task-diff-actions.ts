@@ -101,7 +101,6 @@ export function registerThreadTaskDiffActionRoutes(
       key: JSON.stringify(sourceTarget.workspaceContext),
       load: () =>
         callEnvironmentWorkspaceStatus(deps, {
-          environment,
           target: sourceTarget,
         }),
     });
@@ -123,7 +122,6 @@ export function registerThreadTaskDiffActionRoutes(
       key: JSON.stringify(mainTarget.workspaceContext),
       load: () =>
         callEnvironmentWorkspaceStatus(deps, {
-          environment: mainCheckoutEnvironment,
           target: mainTarget,
         }),
     });

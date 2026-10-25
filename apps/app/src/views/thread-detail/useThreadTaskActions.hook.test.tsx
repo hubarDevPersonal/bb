@@ -82,7 +82,7 @@ function makeThreadResponse(
     pinnedAt: null,
     projectId: "proj_1",
     providerId: "codex",
-    runtime: { displayStatus: "idle", hostReconnectGraceExpiresAt: null },
+    runtime: { displayStatus: "idle" },
     sectionId: null,
     sourceThreadId: null,
     status: "idle",

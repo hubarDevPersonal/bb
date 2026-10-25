@@ -50,6 +50,7 @@ async function answerDiffFiles(harness: TestAppHarness, environmentId: string) {
         deletions: 1,
         binary: false,
         origin: "tracked",
+        revision: "100644:aaaa:100644:bbbb",
       },
       {
         path: "b.ts",
@@ -59,6 +60,7 @@ async function answerDiffFiles(harness: TestAppHarness, environmentId: string) {
         deletions: 0,
         binary: false,
         origin: "untracked",
+        revision: "000000:0000:100644:cccc",
       },
     ],
     shortstat: "2 files changed",

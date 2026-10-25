@@ -49,6 +49,7 @@ export async function loadTaskDiffStatsResult(
         workspaceContext: target.workspaceContext,
         target: args.targetInfo.target,
         maxFiles: WORKSPACE_DIFF_MAX_FILES,
+        ignoreWhitespace: false,
       },
     });
     if (result.outcome === "unavailable") {

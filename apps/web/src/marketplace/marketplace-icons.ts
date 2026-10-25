@@ -44,6 +44,7 @@ import SlidersHorizontalIcon from "@hugeicons/core-free-icons/SlidersHorizontalI
 import SourceCodeIcon from "@hugeicons/core-free-icons/SourceCodeIcon";
 import UserIcon from "@hugeicons/core-free-icons/UserIcon";
 import UserSwitchIcon from "@hugeicons/core-free-icons/UserSwitchIcon";
+import ToolboxIcon from "@hugeicons/core-free-icons/ToolboxIcon";
 import WorkflowCircle03Icon from "@hugeicons/core-free-icons/WorkflowCircle03Icon";
 import ZapIcon from "@hugeicons/core-free-icons/ZapIcon";
 import ZoomInAreaIcon from "@hugeicons/core-free-icons/ZoomInAreaIcon";
@@ -95,6 +96,7 @@ const PLUGIN_ICONS: Readonly<Record<string, IconSvgElement | undefined>> = {
   SlidersHorizontal: SlidersHorizontalIcon,
   SideChat: SentIcon,
   Terminal: ComputerTerminal01Icon,
+  Toolbox: ToolboxIcon,
   UserRound: UserIcon,
   UserSwitch: UserSwitchIcon,
   Workflow: WorkflowCircle03Icon,

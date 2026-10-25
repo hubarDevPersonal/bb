@@ -1164,7 +1164,7 @@ describe("Workspace", () => {
   });
 
   it("applyBranch reports up_to_date when the source branch is already merged", async () => {
-    const repoPath = await initRepo();
+    const repoPath = await initRepo(await makeTempDir("bb-workspace-repo-"));
     await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
     await runGit(["checkout", "main"], { cwd: repoPath });
 
@@ -1183,7 +1183,7 @@ describe("Workspace", () => {
   });
 
   it("applyBranch fast-forwards when HEAD is an ancestor of the source branch", async () => {
-    const repoPath = await initRepo();
+    const repoPath = await initRepo(await makeTempDir("bb-workspace-repo-"));
     await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
     await fs.writeFile(path.join(repoPath, "feature.txt"), "feature\n", "utf8");
     await runGit(["add", "feature.txt"], { cwd: repoPath });
@@ -1208,7 +1208,7 @@ describe("Workspace", () => {
   });
 
   it("applyBranch merges non-conflicting divergent branches", async () => {
-    const repoPath = await initRepo();
+    const repoPath = await initRepo(await makeTempDir("bb-workspace-repo-"));
     await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
     await fs.writeFile(path.join(repoPath, "feature.txt"), "feature\n", "utf8");
     await runGit(["add", "feature.txt"], { cwd: repoPath });
@@ -1239,7 +1239,7 @@ describe("Workspace", () => {
   });
 
   it("applyBranch reports conflicts without touching the checkout", async () => {
-    const repoPath = await initRepo();
+    const repoPath = await initRepo(await makeTempDir("bb-workspace-repo-"));
     await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
     await fs.writeFile(
       path.join(repoPath, "README.md"),
@@ -1276,7 +1276,7 @@ describe("Workspace", () => {
   });
 
   it("applyBranch refuses to run against a dirty checkout", async () => {
-    const repoPath = await initRepo();
+    const repoPath = await initRepo(await makeTempDir("bb-workspace-repo-"));
     await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
     await fs.writeFile(path.join(repoPath, "feature.txt"), "feature\n", "utf8");
     await runGit(["add", "feature.txt"], { cwd: repoPath });
@@ -1292,7 +1292,7 @@ describe("Workspace", () => {
   });
 
   it("applyBranch throws a typed error for a missing source branch", async () => {
-    const repoPath = await initRepo();
+    const repoPath = await initRepo(await makeTempDir("bb-workspace-repo-"));
     const workspace = new Workspace(repoPath);
 
     await expect(
@@ -1301,7 +1301,7 @@ describe("Workspace", () => {
   });
 
   it("applyBranch rejects a detached HEAD checkout", async () => {
-    const repoPath = await initRepo();
+    const repoPath = await initRepo(await makeTempDir("bb-workspace-repo-"));
     await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
     await fs.writeFile(path.join(repoPath, "feature.txt"), "feature\n", "utf8");
     await runGit(["add", "feature.txt"], { cwd: repoPath });
@@ -1316,7 +1316,7 @@ describe("Workspace", () => {
   });
 
   it("applyBranch reports conflicts for non-ASCII file names without quoting them", async () => {
-    const repoPath = await initRepo();
+    const repoPath = await initRepo(await makeTempDir("bb-workspace-repo-"));
     const fileName = "üni file.txt";
     await fs.writeFile(path.join(repoPath, fileName), "base\n", "utf8");
     await runGit(["add", "-A"], { cwd: repoPath });
@@ -1336,7 +1336,7 @@ describe("Workspace", () => {
   });
 
   it("applyBranch reports rename/delete conflicts", async () => {
-    const repoPath = await initRepo();
+    const repoPath = await initRepo(await makeTempDir("bb-workspace-repo-"));
     await fs.writeFile(
       path.join(repoPath, "old.txt"),
       "line1\nline2\nline3\n",
@@ -1364,7 +1364,7 @@ describe("Workspace", () => {
   });
 
   it("aborts a true merge when a commit hook rejects it, leaving the checkout untouched", async () => {
-    const repoPath = await initRepo();
+    const repoPath = await initRepo(await makeTempDir("bb-workspace-repo-"));
     await runGit(["checkout", "-b", "feature"], { cwd: repoPath });
     await fs.writeFile(path.join(repoPath, "feature.txt"), "feature\n", "utf8");
     await runGit(["add", "feature.txt"], { cwd: repoPath });
@@ -1400,7 +1400,7 @@ describe("Workspace", () => {
   });
 
   it("applyBranch refuses when the source branch would overwrite an ignored file", async () => {
-    const repoPath = await initRepo();
+    const repoPath = await initRepo(await makeTempDir("bb-workspace-repo-"));
     await fs.writeFile(
       path.join(repoPath, ".gitignore"),
       "ignored.txt\n",

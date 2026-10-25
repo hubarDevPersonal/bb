@@ -14,6 +14,7 @@ const UNPREFIXED_BUNDLED_PLUGIN_IDS = [
   "agent-annotations",
   "ask-user-question",
   "automations",
+  "autopilot",
   "bb-account",
   "bb-ai",
   "bb-guide",
@@ -48,6 +49,7 @@ const UNPREFIXED_BUNDLED_PLUGIN_IDS = [
   "tasks",
   "theme-preview",
   "thread-list",
+  "workbench",
   "workflows",
 ];
 

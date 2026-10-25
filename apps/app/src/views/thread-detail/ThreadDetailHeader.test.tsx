@@ -661,6 +661,7 @@ describe("ThreadDetailHeader", () => {
               isSecondaryPanelOpen={false}
               onOpenThreadGitAction={vi.fn()}
               onToggleSecondaryPanel={vi.fn()}
+              taskActions={makeThreadTaskActions()}
               threadHeaderGitActions={[]}
               threadId={THREAD_ID}
               threadTitle="Pinned toggle"
@@ -670,7 +671,9 @@ describe("ThreadDetailHeader", () => {
       </MemoryRouter>,
     );
 
-    const slot = container.querySelector("span[aria-hidden].header-icon-button");
+    const slot = container.querySelector(
+      "span[aria-hidden].header-icon-button",
+    );
     expect(slot).not.toBeNull();
     const classes = slot?.className.split(" ") ?? [];
     for (const token of MACOS_TITLE_BAR_TRAILING_TOGGLE_CLASS.split(" ")) {
@@ -732,6 +735,7 @@ describe("ThreadDetailHeader", () => {
             isSecondaryPanelOpen={false}
             onOpenThreadGitAction={vi.fn()}
             onToggleSecondaryPanel={vi.fn()}
+            taskActions={makeThreadTaskActions()}
             threadHeaderGitActions={[]}
             threadId={THREAD_ID}
             threadTitle="Focused thread"
@@ -849,7 +853,6 @@ describe("ThreadDetailHeader", () => {
       <PaneContext.Provider value={PANE_CONTEXT}>
         <ThreadDetailHeader
           actionsMenu={null}
-          childPillLabel={null}
           isSecondaryPanelOpen={false}
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}
@@ -879,7 +882,6 @@ describe("ThreadDetailHeader", () => {
       <PaneContext.Provider value={PANE_CONTEXT}>
         <ThreadDetailHeader
           actionsMenu={null}
-          childPillLabel={null}
           isSecondaryPanelOpen={false}
           onOpenThreadGitAction={vi.fn()}
           onToggleSecondaryPanel={vi.fn()}

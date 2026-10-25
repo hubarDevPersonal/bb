@@ -50,7 +50,11 @@ import {
   type ThreadListEntry,
   type ThreadWithRuntime,
 } from "@bb/domain";
-import type { TerminalSession, TimelineRow } from "@bb/server-contract";
+import type {
+  TerminalSession,
+  ThreadResponse,
+  TimelineRow,
+} from "@bb/server-contract";
 import type { WorkspaceOpenTarget } from "@bb/host-daemon-contract";
 import { appToast } from "@/components/ui/app-toast";
 import { copyToClipboardWithToast } from "@/lib/clipboard";

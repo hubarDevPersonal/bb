@@ -57,7 +57,10 @@ const taskDiffResponse: ThreadTaskDiffResponse = {
   canApplyLocally: false,
 };
 
-const diffFilesResponse: EnvironmentDiffFilesResponse = {
+const diffFilesResponse: Extract<
+  EnvironmentDiffFilesResponse,
+  { outcome: "available" }
+> = {
   outcome: "available",
   files: [
     {
@@ -69,6 +72,7 @@ const diffFilesResponse: EnvironmentDiffFilesResponse = {
       binary: false,
       origin: "tracked",
       loadMode: "auto",
+      revision: "100644:aaaa:100644:bbbb",
     },
   ],
   truncated: false,
@@ -127,7 +131,7 @@ describe("TaskDiffPanelContent", () => {
       taskDiffResponse,
     );
     queryClient.setQueryData(
-      environmentDiffFilesQueryKey(ENVIRONMENT_ID, "all", "main"),
+      environmentDiffFilesQueryKey(ENVIRONMENT_ID, "all", "main", false),
       diffFilesResponse,
     );
 
@@ -163,6 +167,7 @@ describe("TaskDiffPanelContent", () => {
           binary: false,
           origin: "tracked",
           loadMode: "auto",
+          revision: "100644:aaaa:100644:bbbb",
         },
       ],
     });

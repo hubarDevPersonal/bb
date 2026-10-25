@@ -12,6 +12,8 @@ import {
 import type { SidebarThread } from "../model/sidebar-thread.js";
 import { makeSidebarThread } from "../model/fixtures.js";
 import { sidebarCollapsedStateGroupsAtom } from "../preferences/atoms.js";
+import { ThreadRowNavigationProvider } from "../rows/threadRowNavigation.js";
+import { SidebarRenameProvider } from "../rows/SidebarInlineRename.js";
 
 installTestPluginRuntime();
 const { StateModeSections } = await import("./ProjectList.js");
@@ -23,7 +25,13 @@ function Harness({
   store: ReturnType<typeof createStore>;
   children: ReactNode;
 }) {
-  return <JotaiProvider store={store}>{children}</JotaiProvider>;
+  return (
+    <JotaiProvider store={store}>
+      <ThreadRowNavigationProvider>
+        <SidebarRenameProvider>{children}</SidebarRenameProvider>
+      </ThreadRowNavigationProvider>
+    </JotaiProvider>
+  );
 }
 
 function renderStateMode(
@@ -39,7 +47,6 @@ function renderStateMode(
         <TooltipProvider>
           <StateModeSections
             threads={threads}
-            draftThreadIds={new Set()}
             effectivePinnedThreadIds={effectivePinnedThreadIds}
             showPinnedSection={false}
             pinnedSection={{ label: "Pinned", content: null }}

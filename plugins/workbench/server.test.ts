@@ -635,7 +635,7 @@ describe("workbench thread outputs", () => {
                 change: { path: "src/b.ts", kind: "update" },
               },
             ],
-            timelinePage: { hasOlderRows: false, olderCursor: null },
+            timelinePage: { olderCursor: null },
           }),
         },
       },
@@ -685,7 +685,7 @@ describe("workbench thread outputs", () => {
                 ],
               },
             ],
-            timelinePage: { hasOlderRows: false, olderCursor: null },
+            timelinePage: { olderCursor: null },
           }),
         },
       },
@@ -716,7 +716,7 @@ describe("workbench thread outputs", () => {
                 change: { path: "/tmp/out.txt", kind: "add" },
               },
             ],
-            timelinePage: { hasOlderRows: false, olderCursor: null },
+            timelinePage: { olderCursor: null },
           }),
         },
         environments: {
@@ -756,7 +756,6 @@ describe("workbench thread outputs", () => {
                   },
                 ],
                 timelinePage: {
-                  hasOlderRows: true,
                   olderCursor: { anchorSeq: 2, anchorId: "row_2" },
                 },
               };
@@ -776,7 +775,6 @@ describe("workbench thread outputs", () => {
                   },
                 ],
                 timelinePage: {
-                  hasOlderRows: true,
                   olderCursor: { anchorSeq: 1, anchorId: "row_1" },
                 },
               };
@@ -790,7 +788,6 @@ describe("workbench thread outputs", () => {
                 },
               ],
               timelinePage: {
-                hasOlderRows: true,
                 olderCursor: { anchorSeq: 0, anchorId: "row_0" },
               },
             };
@@ -1771,7 +1768,7 @@ describe("workbench CLI", () => {
                 change: { path: "src/a.ts", kind: "add" },
               },
             ],
-            timelinePage: { hasOlderRows: false, olderCursor: null },
+            timelinePage: { olderCursor: null },
           }),
         },
       },

@@ -27,7 +27,6 @@ export function subagentStatus(
     case "active":
     case "stopping":
     case "provisioning":
-    case "host-reconnecting":
     case "waiting-for-host":
       return "active";
   }
@@ -75,7 +74,11 @@ export function flattenFileChangeRows(
       changes.push({ path: row.change.path, kind: row.change.kind });
       continue;
     }
-    if (row.kind === "work" && row.workKind === "delegation") {
+    if (
+      row.kind === "work" &&
+      row.workKind === "delegation" &&
+      row.childRows !== null
+    ) {
       changes.push(...flattenFileChangeRows(row.childRows));
     }
   }

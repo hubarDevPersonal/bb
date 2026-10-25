@@ -1308,7 +1308,6 @@ interface StateModeSectionsProps extends BuiltInSectionRenderState {
   collapsedEnvironmentIds: Set<string>;
   collapsedThreadIds: Set<string>;
   compareThreads: ThreadComparator;
-  draftThreadIds: ReadonlySet<string>;
   effectivePinnedThreadIds: ReadonlySet<string>;
   onProjectSelect?: () => void;
   onToggleEnvironmentCollapsed: ToggleCollapsedId;
@@ -1324,7 +1323,6 @@ export function StateModeSections({
   collapsedSectionIds,
   collapsedThreadIds,
   compareThreads,
-  draftThreadIds,
   effectivePinnedThreadIds,
   onProjectSelect,
   onToggleCollapsed,
@@ -1375,7 +1373,6 @@ export function StateModeSections({
           <ProjectThreadTree
             threadListState={{ status: "ready", threads: [] }}
             compareThreads={compareThreads}
-            variant="section"
             selectedThreadId={selectedThreadId}
             collapsedThreadIds={collapsedThreadIds}
             collapsedEnvironmentIds={collapsedEnvironmentIds}
@@ -1410,10 +1407,7 @@ export function StateModeSections({
           key={group.key}
           sectionId={`state:${group.key}`}
           label={group.label}
-          collapsedActivity={getCollapsedChildActivity(
-            group.threads,
-            draftThreadIds,
-          )}
+          collapsedActivity={getCollapsedChildActivity(group.threads)}
           collapsedThreads={group.threads}
           collapseControl={{
             isCollapsed: collapsedGroupKeys.has(group.key),
@@ -1423,7 +1417,6 @@ export function StateModeSections({
           <ProjectThreadTree
             threadListState={{ status: "ready", threads: group.threads }}
             compareThreads={compareThreads}
-            variant="section"
             selectedThreadId={selectedThreadId}
             collapsedThreadIds={collapsedThreadIds}
             collapsedEnvironmentIds={collapsedEnvironmentIds}
@@ -1910,7 +1903,6 @@ function ProjectListComponent({
           renderState={() => (
             <StateModeSections
               threads={threads}
-              draftThreadIds={draftThreadIds}
               effectivePinnedThreadIds={
                 pinnedSidebarState.effectivePinnedThreadIds
               }

@@ -389,7 +389,15 @@ describe("diff-file in-flight reads", () => {
   it("invalidates only taskDiff for the thread's environment on status-changed", async () => {
     const hub = createFakeHub();
     const caches = new WorkspaceReadCaches({ hub, now: () => 0 });
-    const status = createCounter(["status-a", "status-b"]);
+    const statusResult = {
+      outcome: "unavailable" as const,
+      failure: {
+        code: "unknown" as const,
+        workspacePath: "/tmp/env-1",
+        message: "no git",
+      },
+    };
+    const status = createCounter([statusResult, statusResult]);
     await caches.status.read({ ...READ, load: status.load });
     const taskDiffA = {
       outcome: "available" as const,

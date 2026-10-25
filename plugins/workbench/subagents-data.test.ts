@@ -12,11 +12,11 @@ describe("subagentStatus", () => {
   it.each([
     ["idle", "done"],
     ["error", "done"],
+    ["pending", "active"],
     ["starting", "active"],
     ["active", "active"],
     ["stopping", "active"],
     ["provisioning", "active"],
-    ["host-reconnecting", "active"],
     ["waiting-for-host", "active"],
   ] as const)("maps %s to %s", (displayStatus, expected) => {
     expect(subagentStatus(displayStatus)).toBe(expected);
@@ -106,6 +106,13 @@ describe("flattenFileChangeRows", () => {
     expect(flattenFileChangeRows(rows)).toEqual([
       { path: "nested.ts", kind: "add" },
     ]);
+  });
+
+  it("skips a delegation row whose childRows were not loaded", () => {
+    const rows = [
+      { kind: "work", workKind: "delegation", childRows: null },
+    ] as unknown as TimelineRow[];
+    expect(flattenFileChangeRows(rows)).toEqual([]);
   });
 });
 

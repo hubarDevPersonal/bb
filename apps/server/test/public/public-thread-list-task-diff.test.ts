@@ -50,6 +50,7 @@ async function answerNextDiffFiles(
         deletions: stats.deletions,
         binary: false,
         origin: "tracked",
+        revision: "100644:aaaa:100644:bbbb",
       },
     ],
     shortstat: "1 file changed",

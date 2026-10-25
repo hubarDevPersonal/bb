@@ -13,6 +13,7 @@ import {
 import { useThreadTaskDiff } from "@/hooks/queries/thread-queries";
 import { GitDiffTabContent } from "../ThreadSecondaryPanelTabContent";
 import { TaskDiffHeader } from "./TaskDiffHeader";
+import { DEFAULT_DIFF_FILE_FILTERS } from "./diff-file-filters";
 import {
   resolveNextTaskDiffFileIndex,
   resolvePreviousTaskDiffFileIndex,
@@ -177,6 +178,8 @@ function TaskDiffAvailableContent({
         isPanelOpen={isPanelOpen}
         gitDiffPresentation={TASK_DIFF_PRESENTATION}
         fileFilter=""
+        filters={DEFAULT_DIFF_FILE_FILTERS}
+        ignoreWhitespace={false}
         onClearPendingGitDiffIntent={handleScrolledToPath}
         onFilesChange={handleFilesChange}
         onOpenFileInEditor={onOpenFileInEditor}

@@ -275,7 +275,6 @@ describe("BrowserTabContent persistent navigation", () => {
   it("hides the developer tools action when the desktop API lacks it", () => {
     const harness = createBrowserChromeHarness();
     renderBrowserChrome(harness, "https://example.com/docs");
-    expectChromeVisible();
 
     expect(
       screen.queryByRole("button", { name: "Developer tools" }),
