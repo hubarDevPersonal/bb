@@ -349,6 +349,10 @@ export default async function plugin(bb: BbPluginApi) {
         return [`${key}: verifying`];
       }
       case "complete":
+        if (tracked.kind === "planner") {
+          // The planner leaves its own task in review; close it so the board stays clean.
+          await tasks.updateStatus(tracked.taskId, "done").catch(() => undefined);
+        }
         await store.untrack(tracked.taskId);
         await store.log({ kind: "done", taskKey: key, detail: tracked.kind });
         return [`${key}: done`];
