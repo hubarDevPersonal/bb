@@ -42,7 +42,7 @@ ${SAFETY}
 Contract:
 1. Read the task, its comments and the PR (\`bb tasks show ${taskKey}\`, \`gh pr view\`, \`gh pr diff\`), or the local branch \`${branch}\` if there is no PR.
 2. Review: the diff stays within the task's scope; no tests or checks were weakened or removed; no secrets or data dumps; no unrelated files.
-3. Check out \`${branch}\` from a clean state and run the task's \`Acceptance:\` command and the repo's standard check (\`make check\` if present).
+3. Check out \`${branch}\` from a clean state and run, from the repo root, BOTH the task's \`Acceptance:\` command AND the repo's full standard check: \`make check\` when the Makefile has that target (otherwise the CI command from .github/workflows). Run them in a login shell (\`/bin/zsh -lic '<cmd>'\`) so the right toolchains are on PATH. Both are mandatory: a green acceptance command with a red \`make check\` is a FAIL. If \`make check\` is already red on the base branch, merge only when the branch adds no new failures, and say so in the comment.
 4. If everything is green and the review passes, MERGE:
    - with a GitHub PR: \`gh pr merge --squash --delete-branch\` (add \`--auto\` when the repo has required CI checks, so GitHub merges only after CI is green);
    - without a remote: squash-merge into the default branch locally.
@@ -62,7 +62,7 @@ Steps:
 1. List existing tasks first (\`bb tasks list --json\`) so you never create duplicates.
 2. For each source, read the roadmap/plan files and find the next items that are not done.
 3. Turn them into at most ${maxTasks} new tasks in total. Each task: about 1–2 hours of agent work, provable by ONE command. Skip anything that needs a human decision, credentials, money, live trading, or external accounts — list those in your final comment instead.
-4. Create each task with \`bb tasks create\` in the tracker project linked to that repo, status \`todo\`, label \`auto\`, priority following roadmap order. Description format:
+4. Create each task with \`bb tasks create\` in the tracker project linked to that repo, label \`auto\`, priority following roadmap order. \`bb tasks create\` has no status flag, so right after creating each task run \`bb tasks update <KEY> --status todo\` — tasks left in backlog are never picked up. Description format:
    Context: <roadmap file and item id>
    Goal: <what must be true afterwards>
    Acceptance: \`<single command run from the repo root>\`
