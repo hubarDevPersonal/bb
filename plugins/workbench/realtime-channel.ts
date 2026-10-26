@@ -19,3 +19,9 @@ export function workbenchMultiModelModeSignalEnabled(
   const enabled = (payload as { enabled?: unknown }).enabled;
   return typeof enabled === "boolean" ? enabled : null;
 }
+
+export const WORKBENCH_SECURITY_MODE_REALTIME_CHANNEL =
+  "workbench-security-mode";
+
+export const workbenchSecurityModeSignalEnabled =
+  workbenchMultiModelModeSignalEnabled;

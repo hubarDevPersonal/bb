@@ -25,6 +25,7 @@ import {
   upsertFrontmatterKey,
 } from "./frontmatter.js";
 import {
+  collectSecurityAskContext,
   collectSecurityContext,
   defaultSecurityContextDeps,
   type SecurityContextDeps,
@@ -174,6 +175,9 @@ export function createWorkbenchHostEntry(
       },
       collectSecurityContext(input) {
         return collectSecurityContext(input, securityDeps);
+      },
+      collectSecurityAskContext(input) {
+        return collectSecurityAskContext(input, securityDeps);
       },
     },
   });

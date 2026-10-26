@@ -7,6 +7,7 @@ import { experimental_createHostEntryHarness } from "@get-bb/plugin-sdk/testing/
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWorkbenchHostEntry } from "./host.js";
 import {
+  collectSecurityAskContext,
   collectSecurityContext,
   defaultSecurityContextDeps,
   type SecurityContextDeps,
@@ -318,6 +319,173 @@ describe("collectSecurityContext", () => {
       deps,
     );
     expect(result.ok).toBe(false);
+  });
+
+  it("reads attached files through the safe reader, withholding secret-like, outside, linked, binary, and non-file paths", async () => {
+    const absolute = path.join(repo, "app.ts");
+    const result = await collectSecurityAskContext(
+      {
+        cwd: repo,
+        paths: [
+          "app.ts",
+          "./app.ts",
+          ".env",
+          "deploy/server.pem",
+          "link.txt",
+          "blob.bin",
+          "missing.ts",
+          absolute,
+          "deploy",
+          "../outside.txt",
+        ],
+        diff: null,
+        maxChars: 100_000,
+      },
+      deps,
+    );
+    if (!result.ok) throw new Error(result.error);
+    expect(result.files).toEqual([
+      { path: "app.ts", content: "export const a = 3;\n" },
+    ]);
+    expect(result.diff).toBeNull();
+    expect(result.truncated).toBe(false);
+    expect(result.skipped).toEqual([
+      ".env (secret-like name)",
+      "deploy/server.pem (secret-like name)",
+      "link.txt (not a regular file)",
+      "blob.bin (binary)",
+      "missing.ts (not found)",
+      `${absolute} (not workspace-relative)`,
+      "deploy (not a regular file)",
+      "../outside.txt (outside the workspace)",
+    ]);
+    expect(result.securitySpec).toBe("SEC-1 secrets stay out\n");
+    expect(result.projectSpec).toBe("PRJ-C1 no comments\n");
+  });
+
+  it("withholds a secret-like file reached through a linked directory and redacts values in attached files", async () => {
+    const dir = path.join(repo, "ask");
+    await mkdir(path.join(dir, ".aws"), { recursive: true });
+    try {
+      await writeFile(
+        path.join(dir, ".aws/credentials"),
+        "aws_secret_access_key = abcdefghijklmnop\n",
+      );
+      await symlink(path.join(dir, ".aws"), path.join(dir, "awsdir"));
+      await writeFile(
+        path.join(dir, "config.ts"),
+        'const password = "hunter2hunter2";\n',
+      );
+      const result = await collectSecurityAskContext(
+        {
+          cwd: repo,
+          paths: ["ask/awsdir/credentials", "ask/config.ts"],
+          diff: null,
+          maxChars: 100_000,
+        },
+        deps,
+      );
+      if (!result.ok) throw new Error(result.error);
+      expect(result.files).toEqual([
+        { path: "ask/config.ts", content: 'const password = "[redacted]";\n' },
+      ]);
+      expect(result.skipped).toEqual([
+        "ask/awsdir/credentials (secret-like name)",
+        "1 value redacted in ask/config.ts",
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("puts the change first and caps the attached files at the remaining budget", async () => {
+    const dir = path.join(repo, "ask");
+    await mkdir(dir, { recursive: true });
+    try {
+      await writeFile(path.join(dir, "big.ts"), "x".repeat(2_000));
+      const result = await collectSecurityAskContext(
+        {
+          cwd: repo,
+          paths: ["ask/big.ts", "app.ts"],
+          diff: { range: { base: "main", branch: "feature" } },
+          maxChars: 1_000,
+        },
+        deps,
+      );
+      if (!result.ok) throw new Error(result.error);
+      expect(result.diff?.text).toContain("+export const a = 2;");
+      expect(result.diff?.files).toEqual(["app.ts"]);
+      expect(result.diff?.untracked).toEqual([]);
+      expect(result.files.map((file) => file.path)).toEqual(["ask/big.ts"]);
+      expect(
+        (result.diff?.text.length ?? 0) + result.files[0]!.content.length,
+      ).toBe(1_000);
+      expect(result.truncated).toBe(true);
+      expect(result.skipped).toEqual([
+        "deploy/server.pem (secret-like name)",
+        "app.ts (context limit)",
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("redacts secret values in security.md and PROJECT.md on both the scan and the ask path", async () => {
+    const specHome = path.join(root, "spec-home");
+    const plain = path.join(root, "plain");
+    await mkdir(path.join(specHome, ".claude/specs"), { recursive: true });
+    await mkdir(path.join(plain, ".claude/specs"), { recursive: true });
+    await writeFile(
+      path.join(specHome, ".claude/specs/security.md"),
+      'Example: api_key = "abcdefgh12345678"\n',
+    );
+    await writeFile(
+      path.join(plain, ".claude/specs/PROJECT.md"),
+      "Staging token: ghp_abcdefghijklmnopqrstuvwxyz0123\n",
+    );
+    const specDeps = { ...deps, homeDir: () => specHome };
+    const ask = await collectSecurityAskContext(
+      { cwd: plain, paths: [], diff: null, maxChars: 100_000 },
+      specDeps,
+    );
+    if (!ask.ok) throw new Error(ask.error);
+    expect(ask.securitySpec).toBe('Example: api_key = "[redacted]"\n');
+    expect(ask.projectSpec).toBe("Staging token: [redacted]\n");
+    expect(ask.skipped).toEqual([
+      "1 value redacted in security.md",
+      "1 value redacted in PROJECT.md",
+    ]);
+    const scan = await collectSecurityContext(
+      {
+        cwd: repo,
+        range: { base: "main", branch: "feature" },
+        maxChars: 100_000,
+      },
+      specDeps,
+    );
+    if (!scan.ok) throw new Error(scan.error);
+    expect(scan.securitySpec).not.toContain("abcdefgh12345678");
+    expect(scan.skipped).toContain("1 value redacted in security.md");
+  });
+
+  it("rejects more than 20 attached paths and NUL bytes at the host contract", async () => {
+    const harness = experimental_createHostEntryHarness(
+      createWorkbenchHostEntry(),
+    );
+    for (const paths of [
+      Array.from({ length: 21 }, (_, index) => `f${index}.ts`),
+      ["app\0.ts"],
+    ]) {
+      await expect(
+        harness.experimental_call("collectSecurityAskContext", {
+          cwd: repo,
+          paths,
+          diff: null,
+          maxChars: 100_000,
+        }),
+      ).rejects.toThrow();
+    }
+    await harness.experimental_dispose();
   });
 
   it("rejects option-like refs and relative paths at the host contract", async () => {
