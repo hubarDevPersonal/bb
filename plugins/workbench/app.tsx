@@ -237,6 +237,7 @@ const REVIEW_ERROR_COPY: Readonly<Record<string, string>> = {
   provider_unavailable: "Configured review provider is unavailable",
   no_environment: "This thread has no environment to review",
   review_of_review: "This thread is itself a cross-model review",
+  security_thread: "This thread is itself a security check",
 };
 
 function reviewErrorMessage(error: string): string {
@@ -364,6 +365,89 @@ function ReviewAction() {
           </TooltipContent>
         ) : sent ? (
           <TooltipContent>Review started</TooltipContent>
+        ) : null}
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function SecurityCheckAction() {
+  const threadId = useThreadId();
+  const rpc = useRpc<typeof workbenchRpcContract>();
+  const navigate = useBbNavigate();
+  const [models, setModels] = useState<readonly string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void rpc
+      .call("securityPanelModels")
+      .then((result) => {
+        if (active) setModels(result.models);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [rpc]);
+
+  if (threadId === null) return null;
+
+  const label =
+    models.length === 0
+      ? "Security check"
+      : `Security check (panel: ${models.join(", ")})`;
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      <Tooltip
+        open={error !== null || sent}
+        onOpenChange={(open) => {
+          if (!open) {
+            setError(null);
+            setSent(false);
+          }
+        }}
+      >
+        <TooltipTrigger asChild>
+          <ComposerActionButton
+            icon="Lock"
+            label={label}
+            disabled={busy}
+            iconColorClassName="text-palette-blue"
+            onClick={() => {
+              setBusy(true);
+              setError(null);
+              setSent(false);
+              void rpc
+                .call("requestSecurityCheck", { threadId })
+                .then((result) => {
+                  if (result.ok) {
+                    setSent(true);
+                    window.setTimeout(
+                      () => setSent(false),
+                      REVIEW_ACTION_CONFIRMATION_MS,
+                    );
+                    navigate.openThreadPanel({
+                      actionId: SUBAGENTS_PANEL_ACTION_ID,
+                    });
+                  } else {
+                    setError(reviewErrorMessage(result.error));
+                  }
+                })
+                .catch((sendError) => setError(errorMessage(sendError)))
+                .finally(() => setBusy(false));
+            }}
+          />
+        </TooltipTrigger>
+        {error !== null ? (
+          <TooltipContent className="text-destructive-text">
+            {error}
+          </TooltipContent>
+        ) : sent ? (
+          <TooltipContent>Security check started</TooltipContent>
         ) : null}
       </Tooltip>
     </TooltipProvider>
@@ -1121,6 +1205,7 @@ export default definePluginApp((app) => {
       { id: "spec-check", component: SpecCheckAction },
       { id: "bugfix", component: BugfixAction },
       { id: "review", component: ReviewAction },
+      { id: "security-check", component: SecurityCheckAction },
       { id: "multi-model", component: MultiModelPill },
     ],
     banners: [
