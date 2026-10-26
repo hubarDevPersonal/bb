@@ -1,6 +1,7 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { AGENT_EFFORT_LEVELS, AGENT_ROLES } from "./routing.js";
+import { securityMaxDiffCharsSchema } from "./security-panel.js";
 
 export {
   AGENT_EFFORT_LEVELS,
@@ -60,6 +61,96 @@ const readRoutingResultSchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(false), error: z.literal("missing_file") }).strict(),
 ]) satisfies z.ZodType<RoutingFileResult>;
 
+const GIT_REF_PATTERN = /^(?!-)(?!.*\.\.)[^\s~^:?*[\\]+$/;
+const gitRefSchema = z.string().min(1).max(255).regex(GIT_REF_PATTERN);
+
+const absoluteCwdSchema = z
+  .string()
+  .min(1)
+  .regex(/^(?:\/|[A-Za-z]:[\\/])/);
+
+const securityRangeSchema = z
+  .object({ base: gitRefSchema, branch: gitRefSchema })
+  .strict()
+  .nullable();
+
+const securityContextInputSchema = z
+  .object({
+    cwd: absoluteCwdSchema,
+    range: securityRangeSchema,
+    maxChars: securityMaxDiffCharsSchema,
+  })
+  .strict();
+export type SecurityContextInput = z.infer<typeof securityContextInputSchema>;
+
+export const SECURITY_PANEL_MAX_PATHS = 20;
+
+export const securityPanelPathsSchema = z
+  .array(
+    z
+      .string()
+      .min(1)
+      .max(1024)
+      .regex(/^[^\0]+$/),
+  )
+  .max(SECURITY_PANEL_MAX_PATHS);
+
+const securityAskContextInputSchema = z
+  .object({
+    cwd: absoluteCwdSchema,
+    paths: securityPanelPathsSchema,
+    diff: z.object({ range: securityRangeSchema }).strict().nullable(),
+    maxChars: securityMaxDiffCharsSchema,
+  })
+  .strict();
+export type SecurityAskContextInput = z.infer<
+  typeof securityAskContextInputSchema
+>;
+
+const securityAskContextResultSchema = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      files: z.array(
+        z.object({ path: z.string(), content: z.string() }).strict(),
+      ),
+      diff: z
+        .object({
+          text: z.string(),
+          files: z.array(z.string()),
+          untracked: z.array(z.string()),
+        })
+        .strict()
+        .nullable(),
+      truncated: z.boolean(),
+      skipped: z.array(z.string()),
+      securitySpec: z.string().nullable(),
+      projectSpec: z.string().nullable(),
+    })
+    .strict(),
+  z.object({ ok: z.literal(false), error: z.string() }).strict(),
+]);
+export type SecurityAskContextResult = z.infer<
+  typeof securityAskContextResultSchema
+>;
+
+const securityContextResultSchema = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      diff: z.string(),
+      truncated: z.boolean(),
+      files: z.array(z.string()),
+      untracked: z.array(z.string()),
+      skipped: z.array(z.string()),
+      securitySpec: z.string().nullable(),
+      projectSpec: z.string().nullable(),
+    })
+    .strict(),
+  z.object({ ok: z.literal(false), error: z.string() }).strict(),
+]);
+export type SecurityContextResult = z.infer<typeof securityContextResultSchema>;
+
 export const workbenchHostContract = defineRpcContract({
   readAgentModel: {
     input: z.object({ role: agentRoleSchema }).strict(),
@@ -90,5 +181,13 @@ export const workbenchHostContract = defineRpcContract({
         ),
       })
       .strict(),
+  },
+  collectSecurityContext: {
+    input: securityContextInputSchema,
+    output: securityContextResultSchema,
+  },
+  collectSecurityAskContext: {
+    input: securityAskContextInputSchema,
+    output: securityAskContextResultSchema,
   },
 });

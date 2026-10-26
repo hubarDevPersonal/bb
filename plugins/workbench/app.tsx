@@ -32,8 +32,10 @@ import {
 } from "./description-dialog.js";
 import {
   WORKBENCH_MULTI_MODEL_MODE_REALTIME_CHANNEL,
+  WORKBENCH_SECURITY_MODE_REALTIME_CHANNEL,
   WORKBENCH_SUBAGENTS_REALTIME_CHANNEL,
   workbenchMultiModelModeSignalEnabled,
+  workbenchSecurityModeSignalEnabled,
   workbenchSubagentsSignalParentThreadId,
 } from "./realtime-channel.js";
 import {
@@ -489,6 +491,100 @@ function MultiModelPill() {
           className={error !== null ? "text-destructive-text" : undefined}
         >
           {error ?? <MultiModelRoutingSummary routing={routing} />}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function SecurityModeSummary({ models }: { models: readonly string[] }) {
+  return (
+    <div className="space-y-1 text-xs">
+      <p>
+        Agents treat tasks as security work on this project, consult the
+        security panel, and verify its answers against the code.
+      </p>
+      <p>Panel: {models.length === 0 ? "no models" : models.join(", ")}</p>
+      <p className="text-subtle-foreground">
+        Applies to new agent sessions; the security_panel and security_scan
+        tools work in every thread.
+      </p>
+    </div>
+  );
+}
+
+function SecurityModePill() {
+  const rpc = useRpc<typeof workbenchRpcContract>();
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [models, setModels] = useState<readonly string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    void rpc
+      .call("getSecurityMode")
+      .then((result) => {
+        if (active) setEnabled(result.enabled);
+      })
+      .catch(() => undefined);
+    void rpc
+      .call("securityPanelModels")
+      .then((result) => {
+        if (active) setModels(result.models);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [rpc]);
+
+  useRealtime(WORKBENCH_SECURITY_MODE_REALTIME_CHANNEL, (payload) => {
+    const next = workbenchSecurityModeSignalEnabled(payload);
+    if (next !== null) setEnabled(next);
+  });
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip
+        open={error !== null ? true : undefined}
+        onOpenChange={(open) => {
+          if (!open) setError(null);
+        }}
+      >
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-pressed={enabled ?? false}
+            disabled={enabled === null || saving}
+            onClick={() => {
+              setSaving(true);
+              const next = !(enabled ?? false);
+              setEnabled(next);
+              setError(null);
+              void rpc
+                .call("setSecurityMode", { enabled: next })
+                .catch((saveError) => {
+                  setEnabled((current) => (current === next ? !next : current));
+                  setError(errorMessage(saveError));
+                })
+                .finally(() => setSaving(false));
+            }}
+            className={cn(
+              "flex h-6.5 items-center gap-1 text-xs font-medium disabled:opacity-50",
+              enabled
+                ? "rounded-full bg-primary/15 px-2.5 text-timeline-accent"
+                : "rounded-md px-2 text-muted-foreground hover:bg-state-hover",
+            )}
+          >
+            <Icon name="Lock" className="size-4" aria-hidden />
+            Security
+          </button>
+        </TooltipTrigger>
+        <TooltipContent
+          className={error !== null ? "text-destructive-text" : undefined}
+        >
+          {error ?? <SecurityModeSummary models={models} />}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -1122,6 +1218,7 @@ export default definePluginApp((app) => {
       { id: "bugfix", component: BugfixAction },
       { id: "review", component: ReviewAction },
       { id: "multi-model", component: MultiModelPill },
+      { id: "security-mode", component: SecurityModePill },
     ],
     banners: [
       { id: "spec-init", chrome: "bare", component: SpecInitBanner },
