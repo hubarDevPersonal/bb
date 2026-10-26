@@ -24,6 +24,11 @@ import {
   replaceFrontmatterModel,
   upsertFrontmatterKey,
 } from "./frontmatter.js";
+import {
+  collectSecurityContext,
+  defaultSecurityContextDeps,
+  type SecurityContextDeps,
+} from "./security-context.js";
 
 const AGENTS_DIR = ".claude/agents";
 const SPECS_DIR = ".claude/specs";
@@ -75,6 +80,7 @@ export function createWorkbenchHostEntry(
     chmod,
     unlink,
   },
+  securityDeps: SecurityContextDeps = defaultSecurityContextDeps,
 ) {
   async function rewriteAgentFile(
     role: AgentRole,
@@ -165,6 +171,9 @@ export function createWorkbenchHostEntry(
           }))
           .sort((a, b) => a.name.localeCompare(b.name));
         return { files };
+      },
+      collectSecurityContext(input) {
+        return collectSecurityContext(input, securityDeps);
       },
     },
   });
