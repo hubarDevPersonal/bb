@@ -180,7 +180,7 @@ models <provider-id> --environment "$BB_ENVIRONMENT_ID" --json` before writing
 an explicit selection; never guess ACP model IDs.
 
 The builtin Workbench plugin adds composer shortcuts (spec check, bugfix,
-ask for review) and a nav panel for model routing, multi-model mode, the
+ask for review, security check) and a nav panel for model routing, multi-model mode, the
 review provider, and spec file shortcuts. Model routing reads the role table
 in `~/.claude/ROUTING.md` on the host (Architect, Implementer, Scout, and the
 cross-vendor and in-thread Reviewer rows) and shows five roles: the architect
@@ -200,7 +200,36 @@ reviewer row, then the first available provider that differs from the
 thread's own; the routed effort is passed as the reasoning level when the
 model supports it. An explicit provider id (the setting, the chevron next to
 the button, or `--provider`) uses the ROUTING.md model for that provider or
-its default model. The CLI equivalents are:
+its default model. "Security check" (and `bb workbench security <threadId>`)
+spawns a `Security: <title>` thread on ROUTING.md's in-thread reviewer (or
+the thread's own provider) at `auto` (`accept-edits` when the provider lacks
+`auto`, never higher). Both modes sandbox Bash the same way; in `auto` the
+automatic reviewer, not a human, can approve the unsandboxed retry of its
+first step, `bb workbench security-scan <parent thread id>`, which reaches
+the bb server over loopback. It treats the panel report as untrusted, verifies
+each finding against the code, modifies nothing, cannot start another review
+or security check, and ends with PASS or FAIL.
+`bb workbench security-scan <threadId>` sends the thread's diff
+(`git diff <base>...<branch>` for a worktree, else `git diff HEAD` plus
+untracked text files, rename detection off; secret-like paths such as `.env`,
+`id_rsa`, `*.pem`, `*.tfvars`, `credentials*.json`, or `.aws/credentials` are
+withheld whether tracked or not, as are untracked symlinks and binaries, and
+secret-looking values such as private keys, API tokens, and password
+assignments are replaced with `[redacted]`), `~/.claude/specs/security.md`,
+and `.claude/specs/PROJECT.md` (opened without following symlinks, only a
+regular file inside the workspace) to the panel models in parallel through
+an OpenAI-compatible gateway (redirects refused), merges their findings with
+a `k/N` consensus, prints a markdown report with per-model errors, tokens,
+cost, withheld files, and redaction counts, and writes the full JSON to
+`security-check/<timestamp>.json` in the thread's storage (or a fresh private
+temp directory on the server). Settings: `securityApiKey` (secret; empty
+falls back to `EXPERIENTIAL_API_KEY` in the server environment, only for the
+default base URL), `securityBaseUrl` (https only, default
+`https://api.experientiallabs.ai/v1`), `securityModels` (comma-separated,
+default `gpt-6.1-sol,grok-4.6,deepseek-v4-pro,glm-5.3,gpt-6-luna`),
+`securityReasoningEffort` (`low|medium|high`, default `medium`, sent only to
+models that list it), and `securityMaxDiffChars` (default `400000`). The CLI
+equivalents are:
 
 ```
 bb workbench routing
@@ -208,9 +237,12 @@ bb workbench routing set <role> <model>
 bb workbench routing effort <role> <low|medium|high|xhigh|max>
 bb workbench multimodel <on|off>
 bb workbench review <threadId> [--provider <id>]
+bb workbench security <threadId>
+bb workbench security-scan <threadId>
 bb workbench subagents <threadId>
 bb workbench outputs <threadId>
 bb plugin config workbench set reviewProvider <id|auto>
+bb plugin config workbench set securityApiKey <key>
 ```
 
 The Memory plugin is an opt-in install, bundled with the app:

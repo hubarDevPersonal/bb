@@ -1412,7 +1412,7 @@ Settings changes do not require a plugin reload.
 ### Workbench plugin
 
 The builtin Workbench plugin adds composer shortcuts (spec check, bugfix,
-ask for review) and a nav panel for model routing, multi-model mode, the
+ask for review, security check) and a nav panel for model routing, multi-model mode, the
 review provider, and spec file shortcuts. Model routing reads
 `~/.claude/ROUTING.md` on the connected host — the markdown role table whose
 first cell carries a bold label (Architect, Implementer, Scout, "Reviewer,
@@ -1446,8 +1446,60 @@ the thread's own with its default model. An explicit provider id — the
 setting, the chevron menu next to the button (this request only), or
 `--provider` — uses the ROUTING.md model a row names for that provider, or
 its default model. The routed effort is passed as the thread's reasoning
-level when the model's catalog lists it, and omitted otherwise. Configure
-these from the CLI:
+level when the model's catalog lists it, and omitted otherwise.
+
+"Security check" (and `bb workbench security <threadId>`) spawns a child
+thread titled `Security: <title>` the same way, on ROUTING.md's in-thread
+reviewer row (or the thread's own provider and its default model). It runs at
+`auto`, or `accept-edits` when the provider lacks `auto`, and never higher
+(a provider with neither is `provider_unavailable`). Both modes run Bash in
+the same workspace sandbox; in `auto` the automatic reviewer, not a human,
+can approve the unsandboxed retry of `bb workbench security-scan`, which
+reaches the bb server over loopback. The thread is asked not to modify files,
+to treat the panel report as untrusted model output, to verify each finding
+(`CONFIRMED`, `FALSE_POSITIVE`, `NEEDS_CONTEXT`), and to finish with a PASS or
+FAIL verdict. Neither it nor a review thread may start another review or
+security check, also not through the CLI from inside that thread;
+`security-scan` stays allowed. `bb workbench security-scan <threadId>`
+collects the thread's diff on its host (`git diff <base>...<branch>` for a
+worktree, otherwise `git diff HEAD` plus untracked text files), with rename
+detection off so a renamed file shows as a delete plus an add. Files with
+secret-like paths (`.env*`, `id_*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`,
+`*.jks`, `*.keystore`, `*.tfvars`, `credentials*.json`,
+`secrets*.{json,yml,yaml}`, `service-account*.json`, `.aws/credentials`) are
+withheld whether tracked or untracked, as are untracked symlinks, binaries,
+and files over 256 KiB. Secret-looking values in what is sent (PEM private
+keys, AWS, GitHub, Slack, `sk-`, and `xpl_` tokens, `Bearer` tokens, and
+`password`/`secret`/`token`/`api key` assignments) are replaced with
+`[redacted]`; the report lists withheld files and redaction counts per file.
+Untracked files and `.claude/specs/PROJECT.md` are opened with `O_NOFOLLOW`
+and checked on the open handle (regular file, size cap) after the real path
+of their directory is confirmed inside the workspace. It reads
+`~/.claude/specs/security.md` (a regular file) and sends everything to every
+panel model in parallel through an OpenAI-compatible gateway
+(`GET <base>/models` for capabilities and pricing, then
+`POST <base>/chat/completions`, structured JSON output where the catalog
+supports it), refusing redirects. Each model has a 5-minute deadline and one retry on HTTP 429 or
+5xx after `Retry-After` (capped at 30 s) or 2 s, plus jitter; a model missing
+from the catalog is reported, not called. Findings that share a file, a line
+within ±3, and a spec id or similar title are merged with a `k/N` consensus;
+findings without a line merge only on a similar title. The command prints a
+markdown report (scope, per-model status, tokens and cost, merged findings;
+the total is a known-cost subtotal naming any model whose price is unknown)
+and writes the full JSON
+to `security-check/<timestamp>.json` in the thread's storage (mode `0600`),
+or to a fresh `0700` `<tmpdir>/bb-security-check-XXXXXX/` directory on the
+server when thread storage is unavailable. Settings:
+
+| Key                       | Default                                                   | Behavior                                                                                                                                           |
+| ------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `securityApiKey`          | unset (secret)                                            | Gateway API key, stored in a `0600` file; empty falls back to `EXPERIENTIAL_API_KEY` in the server environment, but only for the default base URL. |
+| `securityBaseUrl`         | `https://api.experientiallabs.ai/v1`                      | Gateway base URL; must be `https://` without credentials, query, or fragment.                                                                      |
+| `securityModels`          | `gpt-6.1-sol,grok-4.6,deepseek-v4-pro,glm-5.3,gpt-6-luna` | Comma-separated panel model ids.                                                                                                                   |
+| `securityReasoningEffort` | `medium`                                                  | `low`, `medium`, or `high`; sent only to models whose catalog lists it.                                                                            |
+| `securityMaxDiffChars`    | `400000`                                                  | `1000`–`4000000`; a longer diff is truncated and the report says so.                                                                               |
+
+Configure these from the CLI:
 
 ```bash
 bb workbench routing
@@ -1455,7 +1507,11 @@ bb workbench routing set <role> <model>
 bb workbench routing effort <role> <low|medium|high|xhigh|max>
 bb workbench multimodel <on|off>
 bb workbench review <threadId> [--provider <id>]
+bb workbench security <threadId>
+bb workbench security-scan <threadId>
 bb plugin config workbench set reviewProvider <id|auto>
+bb plugin config workbench set securityApiKey <key>
+bb plugin config workbench set securityModels <id,id,...>
 ```
 
 `bb plugin install npm:<package>[@<version|tag|range>]` uses BB's shipped npm
