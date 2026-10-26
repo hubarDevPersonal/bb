@@ -4,6 +4,8 @@ import { open, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import type {
+  SecurityAskContextInput,
+  SecurityAskContextResult,
   SecurityContextInput,
   SecurityContextResult,
 } from "./contract.js";
@@ -19,7 +21,7 @@ const SPEC_MAX_CHARS = 200_000;
 const SPEC_MAX_BYTES = 1024 * 1024;
 const NAME_LIST_MAX_CHARS = 2_000_000;
 const TOO_MANY_FILES_ERROR = "too many changed files to list safely";
-const UNTRACKED_FILE_MAX_BYTES = 256 * 1024;
+const WORKSPACE_FILE_MAX_BYTES = 256 * 1024;
 const GIT_STDERR_MAX_CHARS = 2_000;
 const DIFF_FLAGS = [
   "diff",
@@ -143,7 +145,7 @@ async function readSecuritySpec(
 }
 
 type WorkspaceFileRead =
-  | { ok: true; content: Buffer }
+  | { ok: true; content: Buffer; relative: string }
   | {
       ok: false;
       reason: "missing" | "outside" | "not_regular" | "too_large";
@@ -170,11 +172,10 @@ async function readWorkspaceFile(
     throw error;
   }
   if (!isInside(root, parent)) return { ok: false, reason: "outside" };
+  const resolved = path.join(parent, path.basename(absolute));
   let handle: NoFollowHandle;
   try {
-    handle = await deps.openNoFollow(
-      path.join(parent, path.basename(absolute)),
-    );
+    handle = await deps.openNoFollow(resolved);
   } catch (error) {
     const code = errorCode(error);
     if (code === "ENOENT") return { ok: false, reason: "missing" };
@@ -187,7 +188,11 @@ async function readWorkspaceFile(
     const info = await handle.stat();
     if (!info.isFile()) return { ok: false, reason: "not_regular" };
     if (info.size > maxBytes) return { ok: false, reason: "too_large" };
-    return { ok: true, content: await handle.readFile() };
+    return {
+      ok: true,
+      content: await handle.readFile(),
+      relative: path.relative(root, resolved).split(path.sep).join("/"),
+    };
   } finally {
     await handle.close();
   }
@@ -238,10 +243,175 @@ function untrackedDiff(file: string, content: string): string {
   ].join("\n");
 }
 
+type ChangeDiff =
+  | {
+      ok: true;
+      diff: string;
+      truncated: boolean;
+      files: string[];
+      untracked: string[];
+      skipped: string[];
+      redactions: string[];
+    }
+  | { ok: false; error: string };
+
+async function readSpecs(
+  deps: SecurityContextDeps,
+  cwd: string,
+): Promise<{
+  securitySpec: string | null;
+  projectSpec: string | null;
+  skipped: string[];
+  redactions: string[];
+}> {
+  const [securitySpec, projectSpec] = await Promise.all([
+    readSecuritySpec(deps),
+    readProjectSpec(deps, cwd),
+  ]);
+  const redactions: string[] = [];
+  const redactSpec = (name: string, content: string | null) => {
+    if (content === null) return null;
+    const redacted = redactSecrets(content);
+    if (redacted.count > 0)
+      redactions.push(redactionNote(name, redacted.count));
+    return redacted.text;
+  };
+  return {
+    securitySpec: redactSpec("security.md", securitySpec),
+    projectSpec: redactSpec("PROJECT.md", projectSpec.content),
+    skipped: projectSpec.rejected
+      ? [`${PROJECT_SPEC_FILE} (not a regular file inside the workspace)`]
+      : [],
+    redactions,
+  };
+}
+
 export async function collectSecurityContext(
   input: SecurityContextInput,
   deps: SecurityContextDeps,
 ): Promise<SecurityContextResult> {
+  const change = await collectChangeDiff(input, deps);
+  if (!change.ok) return change;
+  const specs = await readSpecs(deps, input.cwd);
+  return {
+    ok: true,
+    diff: change.diff,
+    truncated: change.truncated,
+    files: change.files,
+    untracked: change.untracked,
+    skipped: [
+      ...change.skipped,
+      ...specs.skipped,
+      ...change.redactions,
+      ...specs.redactions,
+    ],
+    securitySpec: specs.securitySpec,
+    projectSpec: specs.projectSpec,
+  };
+}
+
+const ATTACHED_FILE_SKIP_REASONS: Readonly<
+  Record<Exclude<WorkspaceFileRead, { ok: true }>["reason"], string>
+> = {
+  missing: "not found",
+  outside: "outside the workspace",
+  not_regular: "not a regular file",
+  too_large: `larger than ${WORKSPACE_FILE_MAX_BYTES} bytes`,
+};
+
+export async function collectSecurityAskContext(
+  input: SecurityAskContextInput,
+  deps: SecurityContextDeps,
+): Promise<SecurityAskContextResult> {
+  let budget = input.maxChars;
+  let truncated = false;
+  const skipped: string[] = [];
+  const redactions: string[] = [];
+  let diff: Extract<SecurityAskContextResult, { ok: true }>["diff"] = null;
+  if (input.diff !== null) {
+    const change = await collectChangeDiff(
+      { cwd: input.cwd, range: input.diff.range, maxChars: input.maxChars },
+      deps,
+    );
+    if (!change.ok) return change;
+    diff = {
+      text: change.diff,
+      files: change.files,
+      untracked: change.untracked,
+    };
+    truncated = change.truncated;
+    budget -= change.diff.length;
+    skipped.push(...change.skipped);
+    redactions.push(...change.redactions);
+  }
+  const files: { path: string; content: string }[] = [];
+  const seen = new Set<string>();
+  for (const requested of input.paths) {
+    if (path.isAbsolute(requested)) {
+      skipped.push(`${requested} (not workspace-relative)`);
+      continue;
+    }
+    if (isSecretLike(requested)) {
+      skipped.push(`${requested} (secret-like name)`);
+      continue;
+    }
+    const read = await readWorkspaceFile(
+      deps,
+      input.cwd,
+      requested,
+      WORKSPACE_FILE_MAX_BYTES,
+    ).catch(() => null);
+    if (read === null) {
+      skipped.push(`${requested} (unreadable)`);
+      continue;
+    }
+    if (!read.ok) {
+      skipped.push(`${requested} (${ATTACHED_FILE_SKIP_REASONS[read.reason]})`);
+      continue;
+    }
+    if (seen.has(read.relative)) continue;
+    seen.add(read.relative);
+    if (isSecretLike(read.relative)) {
+      skipped.push(`${requested} (secret-like name)`);
+      continue;
+    }
+    if (read.content.includes(0)) {
+      skipped.push(`${requested} (binary)`);
+      continue;
+    }
+    if (budget <= 0) {
+      skipped.push(`${requested} (context limit)`);
+      truncated = true;
+      continue;
+    }
+    const redacted = redactSecrets(read.content.toString("utf8"));
+    if (redacted.count > 0) {
+      redactions.push(redactionNote(read.relative, redacted.count));
+    }
+    let content = redacted.text;
+    if (content.length > budget) {
+      content = content.slice(0, budget);
+      truncated = true;
+    }
+    budget -= content.length;
+    files.push({ path: read.relative, content });
+  }
+  const specs = await readSpecs(deps, input.cwd);
+  return {
+    ok: true,
+    files,
+    diff,
+    truncated,
+    skipped: [...skipped, ...specs.skipped, ...redactions, ...specs.redactions],
+    securitySpec: specs.securitySpec,
+    projectSpec: specs.projectSpec,
+  };
+}
+
+async function collectChangeDiff(
+  input: SecurityContextInput,
+  deps: SecurityContextDeps,
+): Promise<ChangeDiff> {
   const range =
     input.range === null
       ? "HEAD"
@@ -321,7 +491,7 @@ export async function collectSecurityContext(
         deps,
         input.cwd,
         file,
-        UNTRACKED_FILE_MAX_BYTES,
+        WORKSPACE_FILE_MAX_BYTES,
       ).catch(() => null);
       if (read === null) {
         skipped.push(`${file} (unreadable)`);
@@ -330,7 +500,7 @@ export async function collectSecurityContext(
       if (!read.ok) {
         skipped.push(
           read.reason === "too_large"
-            ? `${file} (larger than ${UNTRACKED_FILE_MAX_BYTES} bytes)`
+            ? `${file} (larger than ${WORKSPACE_FILE_MAX_BYTES} bytes)`
             : read.reason === "outside"
               ? `${file} (outside the workspace)`
               : `${file} (not a regular file)`,
@@ -355,23 +525,13 @@ export async function collectSecurityContext(
       }
     }
   }
-  const [securitySpec, projectSpec] = await Promise.all([
-    readSecuritySpec(deps),
-    readProjectSpec(deps, input.cwd),
-  ]);
-  if (projectSpec.rejected) {
-    skipped.push(
-      `${PROJECT_SPEC_FILE} (not a regular file inside the workspace)`,
-    );
-  }
   return {
     ok: true,
     diff: text,
     truncated,
     files,
     untracked,
-    skipped: [...skipped, ...redactions],
-    securitySpec,
-    projectSpec: projectSpec.content,
+    skipped,
+    redactions,
   };
 }

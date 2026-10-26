@@ -180,8 +180,9 @@ models <provider-id> --environment "$BB_ENVIRONMENT_ID" --json` before writing
 an explicit selection; never guess ACP model IDs.
 
 The builtin Workbench plugin adds composer shortcuts (spec check, bugfix,
-ask for review, security check) and a nav panel for model routing, multi-model mode, the
-review provider, and spec file shortcuts. Model routing reads the role table
+ask for review, the multi-model and security mode pills) and a nav panel for
+model routing, multi-model mode, the review provider, and spec file
+shortcuts. Model routing reads the role table
 in `~/.claude/ROUTING.md` on the host (Architect, Implementer, Scout, and the
 cross-vendor and in-thread Reviewer rows) and shows five roles: the architect
 read-only, the `implementer`, `scout`, and `reviewer` subagents editable
@@ -200,16 +201,24 @@ reviewer row, then the first available provider that differs from the
 thread's own; the routed effort is passed as the reasoning level when the
 model supports it. An explicit provider id (the setting, the chevron next to
 the button, or `--provider`) uses the ROUTING.md model for that provider or
-its default model. "Security check" (and `bb workbench security <threadId>`)
-spawns a `Security: <title>` thread on ROUTING.md's in-thread reviewer (or
-the thread's own provider) at `auto` (`accept-edits` when the provider lacks
-`auto`, never higher). Both modes sandbox Bash the same way; in `auto` the
-automatic reviewer, not a human, can approve the unsandboxed retry of its
-first step, `bb workbench security-scan <parent thread id>`, which reaches
-the bb server over loopback. It treats the panel report as untrusted, verifies
-each finding against the code, modifies nothing, cannot start another review
-or security check, and ends with PASS or FAIL.
-`bb workbench security-scan <threadId>` sends the thread's diff
+its default model. The "Security" pill (the `securityMode` setting, also
+`bb workbench security-mode [on|off]`, which prints the state without
+`on|off`) turns security mode on for all threads, like multi-model mode: the
+instructions treat the user's tasks as cybersecurity work on their own
+project and ask the agent to gather the code, call `security_panel` once per
+task, summarize where the models agree, verify every claim (`CONFIRMED`,
+`FALSE_POSITIVE`, `NEEDS_CONTEXT`), and answer with SEC IDs, treating panel
+output as untrusted and never pasting secrets or probing live systems. It
+applies to new agent sessions, and review threads never get it; the tools
+work in every thread. The `security_panel` tool (and
+`bb workbench panel <threadId> "<prompt>" [--path <path>]... [--diff]`) sends
+one free-form question to every panel model in parallel, with up to 20
+workspace-relative files read safely on the host (real directory inside the
+workspace, no symlinks, regular text files up to 256 KiB, secret-like paths
+withheld, secret values redacted) and, with `--diff`, the thread's change,
+all within `securityMaxDiffChars`; it returns each model's answer, tokens,
+and cost. The `security_scan` tool (and
+`bb workbench security-scan <threadId>`) sends the thread's diff
 (`git diff <base>...<branch>` for a worktree, else `git diff HEAD` plus
 untracked text files, rename detection off; secret-like paths such as `.env`,
 `id_rsa`, `*.pem`, `*.tfvars`, `credentials*.json`, or `.aws/credentials` are
@@ -228,8 +237,8 @@ default base URL), `securityBaseUrl` (https only, default
 `https://api.experientiallabs.ai/v1`), `securityModels` (comma-separated,
 default `gpt-6.1-sol,grok-4.6,deepseek-v4-pro,glm-5.3,gpt-6-luna`),
 `securityReasoningEffort` (`low|medium|high`, default `medium`, sent only to
-models that list it), and `securityMaxDiffChars` (default `400000`). The CLI
-equivalents are:
+models that list it), and `securityMaxDiffChars` (default `400000`, caps the
+diff and attached files). The CLI equivalents are:
 
 ```
 bb workbench routing
@@ -237,7 +246,8 @@ bb workbench routing set <role> <model>
 bb workbench routing effort <role> <low|medium|high|xhigh|max>
 bb workbench multimodel <on|off>
 bb workbench review <threadId> [--provider <id>]
-bb workbench security <threadId>
+bb workbench security-mode [on|off]
+bb workbench panel <threadId> "<prompt>" [--path <path>]... [--diff]
 bb workbench security-scan <threadId>
 bb workbench subagents <threadId>
 bb workbench outputs <threadId>

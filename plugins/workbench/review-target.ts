@@ -37,10 +37,6 @@ const AUTO_ROUTING_ROLES = [
   "reviewer-subagent",
 ] as const satisfies readonly RoutingRole[];
 
-const SECURITY_CHECK_ROUTING_ROLES = [
-  "reviewer-subagent",
-] as const satisfies readonly RoutingRole[];
-
 const EXPLICIT_ROUTING_ORDER: readonly RoutingRole[] = [
   ...AUTO_ROUTING_ROLES,
   ...ROUTING_ROLES.filter(
@@ -107,77 +103,6 @@ export async function resolveReviewTarget<
   };
 }
 
-async function routedModelFor<M extends { model: string }>(
-  modelsFor: (providerId: string) => Promise<readonly M[]>,
-  entry: RoutingEntry,
-  providerId: string,
-): Promise<M | null> {
-  return (
-    (await modelsFor(providerId)).find(
-      (model) => model.model === entry.model,
-    ) ?? null
-  );
-}
-
-async function firstRoutedTarget<
-  P extends { id: string },
-  M extends { model: string; isDefault: boolean },
->(
-  roles: readonly RoutingRole[],
-  input: Pick<ReviewTargetInput<P, M>, "entries" | "available">,
-  modelsFor: (providerId: string) => Promise<readonly M[]>,
-): Promise<ReviewTargetResolution<P, M> | null> {
-  for (const role of roles) {
-    const entry = routingEntryFor(input.entries, role);
-    if (entry === null) continue;
-    const provider = input.available.find(
-      (candidate) => candidate.id === entry.providerId,
-    );
-    if (provider === undefined) continue;
-    const model = await routedModelFor(modelsFor, entry, provider.id);
-    if (model !== null) {
-      return {
-        ok: true,
-        provider,
-        model,
-        effort: entry.effort,
-        source: sourceForRole(role),
-      };
-    }
-  }
-  return null;
-}
-
-export async function resolveSecurityCheckTarget<
-  P extends { id: string },
-  M extends { model: string; isDefault: boolean },
->(
-  input: Omit<ReviewTargetInput<P, M>, "request"> & {
-    threadProviderId: string;
-  },
-): Promise<ReviewTargetResolution<P, M>> {
-  const modelsFor = cachedCatalog(input.loadModels);
-  const routed = await firstRoutedTarget(
-    SECURITY_CHECK_ROUTING_ROLES,
-    input,
-    modelsFor,
-  );
-  if (routed !== null) return routed;
-  const own = input.available.find(
-    (candidate) => candidate.id === input.threadProviderId,
-  );
-  if (own === undefined) return { ok: false, error: "provider_unavailable" };
-  const model = defaultModelOf(await modelsFor(own.id));
-  if (model === null) return { ok: false, error: "provider_unavailable" };
-  return {
-    ok: true,
-    provider: own,
-    model,
-    effort: null,
-    source: "provider-default",
-  };
-}
-
 export async function resolveRoutedReviewTarget<
   P extends { id: string },
   M extends { model: string; isDefault: boolean },
@@ -187,6 +112,13 @@ export async function resolveRoutedReviewTarget<
   const modelsFor = cachedCatalog(input.loadModels);
   const defaultModel = async (providerId: string): Promise<M | null> =>
     defaultModelOf(await modelsFor(providerId));
+  const routedModel = async (
+    entry: RoutingEntry,
+    provider: P,
+  ): Promise<M | null> =>
+    (await modelsFor(provider.id)).find(
+      (model) => model.model === entry.model,
+    ) ?? null;
 
   if (input.request.kind === "provider") {
     const requestedId = input.request.providerId;
@@ -199,7 +131,7 @@ export async function resolveRoutedReviewTarget<
     for (const role of EXPLICIT_ROUTING_ORDER) {
       const entry = routingEntryFor(input.entries, role);
       if (entry === null || entry.providerId !== provider.id) continue;
-      const model = await routedModelFor(modelsFor, entry, provider.id);
+      const model = await routedModel(entry, provider);
       if (model !== null) {
         return {
           ok: true,
@@ -221,5 +153,23 @@ export async function resolveRoutedReviewTarget<
     };
   }
 
-  return firstRoutedTarget(AUTO_ROUTING_ROLES, input, modelsFor);
+  for (const role of AUTO_ROUTING_ROLES) {
+    const entry = routingEntryFor(input.entries, role);
+    if (entry === null) continue;
+    const provider = input.available.find(
+      (candidate) => candidate.id === entry.providerId,
+    );
+    if (provider === undefined) continue;
+    const model = await routedModel(entry, provider);
+    if (model !== null) {
+      return {
+        ok: true,
+        provider,
+        model,
+        effort: entry.effort,
+        source: sourceForRole(role),
+      };
+    }
+  }
+  return null;
 }
