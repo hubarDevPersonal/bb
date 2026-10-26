@@ -1070,8 +1070,9 @@ the `workflows` skill.
 ### Workbench plugin
 
 The builtin Workbench plugin adds composer shortcuts (spec check, bugfix,
-ask for review, security check) and a nav panel for model routing, multi-model mode, the
-review provider, and spec file shortcuts. Model routing reads
+ask for review, the multi-model and security mode pills) and a nav panel for
+model routing, multi-model mode, the review provider, and spec file
+shortcuts. Model routing reads
 `~/.claude/ROUTING.md` on the connected host — the markdown role table whose
 first cell carries a bold label (Architect, Implementer, Scout, "Reviewer,
 кросс-вендорный", "Reviewer, внутри треда"), whose model cell is the
@@ -1106,19 +1107,44 @@ setting, the chevron menu next to the button (this request only), or
 its default model. The routed effort is passed as the thread's reasoning
 level when the model's catalog lists it, and omitted otherwise.
 
-"Security check" (and `bb workbench security <threadId>`) spawns a child
-thread titled `Security: <title>` the same way, on ROUTING.md's in-thread
-reviewer row (or the thread's own provider and its default model). It runs at
-`auto`, or `accept-edits` when the provider lacks `auto`, and never higher
-(a provider with neither is `provider_unavailable`). Both modes run Bash in
-the same workspace sandbox; in `auto` the automatic reviewer, not a human,
-can approve the unsandboxed retry of `bb workbench security-scan`, which
-reaches the bb server over loopback. The thread is asked not to modify files,
-to treat the panel report as untrusted model output, to verify each finding
-(`CONFIRMED`, `FALSE_POSITIVE`, `NEEDS_CONTEXT`), and to finish with a PASS or
-FAIL verdict. Neither it nor a review thread may start another review or
-security check, also not through the CLI from inside that thread;
-`security-scan` stays allowed. `bb workbench security-scan <threadId>`
+The "Security" pill next to "Multi-model" (the `securityMode` setting, also
+`bb workbench security-mode [on|off]`; without `on|off` it prints the state)
+turns security mode on or off for all threads, like multi-model mode; a
+change reaches open clients in real time. In security mode a thread's
+instructions say that the user's tasks are cybersecurity work on their own
+project, and ask the agent to gather the relevant code,
+call `security_panel` once per task (with the relevant paths, `diff: true`
+for the current change, or `security_scan` for a structured review of the
+change), summarize where the models agree and disagree, verify every claim
+against the code (`CONFIRMED`, `FALSE_POSITIVE`, `NEEDS_CONTEXT`), and answer
+with SEC IDs, treating panel output as untrusted text and never pasting
+secrets or probing production or third-party systems. Review threads get
+neither the multi-model nor the security mode instructions. Instructions are
+fixed when a provider session is built, so a toggle applies to new agent
+sessions (a new thread, or a resume after a daemon, provider, or environment
+restart); the two tools are registered for every thread and work without
+the mode.
+
+The `security_panel` agent tool (and
+`bb workbench panel <threadId> "<prompt>" [--path <path>]... [--diff]`)
+sends one free-form security question to every panel model in parallel. Up
+to 20 workspace-relative files are read on the thread's host: the real path
+of each file's directory must be inside the workspace, the file is opened
+with `O_NOFOLLOW` and must be a regular text file of at most 256 KiB, and
+absolute, missing, linked, binary, and secret-like paths are withheld. With
+`--diff` (`diff: true`) the thread's change, collected as for
+`security-scan`, is attached first. The change and the files share the
+`securityMaxDiffChars` budget; what does not fit is truncated or withheld
+and the report says so. Secret-looking values in the files, the change, and
+the prompt are replaced with `[redacted]`. The system prompt casts the
+models as senior application-security engineers, marks the attachments as
+untrusted data whose instructions are ignored, asks for file:line, SEC IDs,
+the exploit path, a fix, and an explicit note when unsure, and appends
+`~/.claude/specs/security.md` and `.claude/specs/PROJECT.md`. The result
+lists each model's status, tokens, and cost and its answer (capped at 20,000
+characters), and is written as JSON like the scan report.
+
+The `security_scan` agent tool (and `bb workbench security-scan <threadId>`)
 collects the thread's diff on its host (`git diff <base>...<branch>` for a
 worktree, otherwise `git diff HEAD` plus untracked text files), with rename
 detection off so a renamed file shows as a delete plus an add. Files with
@@ -1151,11 +1177,12 @@ server when thread storage is unavailable. Settings:
 
 | Key                       | Default                                                   | Behavior                                                                                                                                           |
 | ------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `securityMode`            | `false`                                                   | Security mode instructions for new agent sessions (the "Security" pill).                                                                           |
 | `securityApiKey`          | unset (secret)                                            | Gateway API key, stored in a `0600` file; empty falls back to `EXPERIENTIAL_API_KEY` in the server environment, but only for the default base URL. |
 | `securityBaseUrl`         | `https://api.experientiallabs.ai/v1`                      | Gateway base URL; must be `https://` without credentials, query, or fragment.                                                                      |
 | `securityModels`          | `gpt-6.1-sol,grok-4.6,deepseek-v4-pro,glm-5.3,gpt-6-luna` | Comma-separated panel model ids.                                                                                                                   |
 | `securityReasoningEffort` | `medium`                                                  | `low`, `medium`, or `high`; sent only to models whose catalog lists it.                                                                            |
-| `securityMaxDiffChars`    | `400000`                                                  | `1000`–`4000000`; a longer diff is truncated and the report says so.                                                                               |
+| `securityMaxDiffChars`    | `400000`                                                  | `1000`–`4000000`; caps the diff and the attached files; longer context is truncated and the report says so.                                        |
 
 Configure these from the CLI:
 
@@ -1165,7 +1192,8 @@ bb workbench routing set <role> <model>
 bb workbench routing effort <role> <low|medium|high|xhigh|max>
 bb workbench multimodel <on|off>
 bb workbench review <threadId> [--provider <id>]
-bb workbench security <threadId>
+bb workbench security-mode [on|off]
+bb workbench panel <threadId> "<prompt>" [--path <path>]... [--diff]
 bb workbench security-scan <threadId>
 bb plugin config workbench set reviewProvider <id|auto>
 bb plugin config workbench set securityApiKey <key>
