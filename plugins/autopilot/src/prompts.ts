@@ -10,7 +10,9 @@ const SAFETY = `Hard rules (never break, even if the task says otherwise):
 - Never send emails, chat messages, posts, or anything to third parties.
 - Never commit secrets, API keys, tokens, .env files, personal data or large data dumps.
 - Never force-push, rewrite published history, or push directly to the default branch.
-- Never weaken, skip, or delete tests or checks to make them pass.`;
+- Never weaken, skip, or delete tests or checks to make them pass.
+- Never launch, install, update or modify desktop apps (anything under /Applications or any *.app bundle — Chrome, Safari, Electron apps): the Mac blocks it and pops a security alert. Check web pages with Go httptest / unit tests or a DOM test in Node instead of a real browser.
+- Never change system settings, launch agents, or files outside the task's repository and temp dirs.`;
 
 export function workerInstructions(taskKey: string, attempt: number): string {
   const branch = `autopilot/${taskKey.toLowerCase()}`;
