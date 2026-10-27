@@ -11,7 +11,7 @@ const SAFETY = `Hard rules (never break, even if the task says otherwise):
 - Never commit secrets, API keys, tokens, .env files, personal data or large data dumps.
 - Never force-push, rewrite published history, or push directly to the default branch.
 - Never weaken, skip, or delete tests or checks to make them pass.
-- Never launch, install, update or modify desktop apps from /Applications (Chrome, Safari, Electron apps, etc.): the Mac blocks it and pops a security alert. For browser checks use only Playwright's own bundled headless browser (`npx playwright install chromium`), or Go httptest / DOM tests in Node.
+- Never launch, install, update or modify desktop apps from /Applications (Chrome, Safari, Electron apps, etc.): the Mac blocks it and pops a security alert. For browser checks use only Playwright's own bundled headless browser (\`npx playwright install chromium\`), or Go httptest / DOM tests in Node.
 - Never change system settings, launch agents, or files outside the task's repository and temp dirs.`;
 
 export function workerInstructions(taskKey: string, attempt: number): string {
