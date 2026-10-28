@@ -453,6 +453,43 @@ const routingViewSchema = z
   })
   .strict();
 
+const securityExecutionTargetErrorSchema = z.enum([
+  "host_unavailable",
+  "routing_unavailable",
+  "missing_cross_vendor",
+  "provider_unavailable",
+  "model_unavailable",
+]);
+
+const executionReasoningLevelSchema = z.enum([
+  "none",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultra",
+  "ultracode",
+]);
+
+const securityExecutionTargetSchema = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      providerId: z.string(),
+      model: z.string(),
+      reasoningLevel: executionReasoningLevelSchema.nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(false),
+      error: securityExecutionTargetErrorSchema,
+    })
+    .strict(),
+]);
+type SecurityExecutionTarget = z.infer<typeof securityExecutionTargetSchema>;
+
 const specFileSchema = z
   .object({ name: z.string(), path: z.string(), hostId: z.string() })
   .strict();
@@ -517,6 +554,10 @@ export const workbenchRpcContract = defineRpcContract({
   getSecurityMode: {
     input: z.null(),
     output: z.object({ enabled: z.boolean() }).strict(),
+  },
+  securityExecutionTarget: {
+    input: z.null(),
+    output: securityExecutionTargetSchema,
   },
   setSecurityMode: {
     input: z.object({ enabled: z.boolean() }).strict(),
@@ -732,6 +773,33 @@ export default async function workbenchPlugin(
     return sections.length === 0 ? null : sections.join("\n\n");
   });
 
+  bb.experimental_hooks.on("message.dispatch", async (context) => {
+    if (!securityMode || context.thread.status !== "pending") {
+      return { action: "proceed" };
+    }
+    const target = await resolveSecurityExecutionTarget(
+      context.host?.id ?? null,
+    );
+    if (!target.ok) {
+      return {
+        action: "reject",
+        message: `Security mode cannot resolve the cross-vendor security provider (${target.error}).`,
+      };
+    }
+    if (
+      context.requestedExecution.providerId === target.providerId &&
+      context.requestedExecution.model === target.model
+    ) {
+      return { action: "proceed" };
+    }
+    return {
+      action: "reject",
+      message:
+        `Security mode requires the cross-vendor provider ${target.providerId} / ${target.model} for new sessions. ` +
+        "Security runs outside Claude Code; select the cross-vendor security model and send again.",
+    };
+  });
+
   async function setSecurityMode(enabled: boolean): Promise<void> {
     await bb.sdk.plugins.updateSettings({
       pluginId: bb.pluginId,
@@ -882,6 +950,57 @@ export default async function workbenchPlugin(
     const entries = parseRoutingTable(result.markdown);
     if (entries.length === 0) return { ok: false, error: "no_table" };
     return { ok: true, entries };
+  }
+
+  async function resolveSecurityExecutionTarget(
+    hostId: string | null,
+  ): Promise<SecurityExecutionTarget> {
+    if (hostId === null) return { ok: false, error: "host_unavailable" };
+    const routing = await readRoutingSource(hostId);
+    if (!routing.ok) return { ok: false, error: "routing_unavailable" };
+    // Security mode runs under the cross-vendor (non-Anthropic) provider, not
+    // the Claude-Code architect: a security thread must be driven by Codex.
+    const crossVendor = routingEntryFor(routing.entries, "reviewer-cross-vendor");
+    if (crossVendor === null) {
+      return { ok: false, error: "missing_cross_vendor" };
+    }
+    let providers;
+    try {
+      providers = await bb.sdk.providers.list({ hostId });
+    } catch {
+      return { ok: false, error: "provider_unavailable" };
+    }
+    const provider = providers.find(
+      (candidate) =>
+        candidate.id === crossVendor.providerId && candidate.available,
+    );
+    if (provider === undefined) {
+      return { ok: false, error: "provider_unavailable" };
+    }
+    let models;
+    try {
+      models = (
+        await bb.sdk.providers.models({
+          hostId,
+          providerId: provider.id,
+        })
+      ).models;
+    } catch {
+      return { ok: false, error: "model_unavailable" };
+    }
+    const model = models.find(
+      (candidate) => candidate.model === crossVendor.model,
+    );
+    if (model === undefined) return { ok: false, error: "model_unavailable" };
+    return {
+      ok: true,
+      providerId: provider.id,
+      model: model.model,
+      reasoningLevel: appliedReasoningLevel(
+        crossVendor.effort,
+        model.supportedReasoningEfforts,
+      ),
+    };
   }
 
   interface ReviewProviderCandidate {
@@ -1671,6 +1790,9 @@ export default async function workbenchPlugin(
     },
     getSecurityMode() {
       return { enabled: securityMode };
+    },
+    async securityExecutionTarget() {
+      return resolveSecurityExecutionTarget(await primaryHostId());
     },
     async setSecurityMode({ enabled }) {
       await setSecurityMode(enabled);

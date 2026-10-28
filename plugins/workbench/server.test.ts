@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import {
   createFakePluginHost,
+  makeMessageDispatchHookContext,
   makeThreadResponse,
 } from "@get-bb/plugin-sdk/testing";
 import { experimental_createHostEntryHarness } from "@get-bb/plugin-sdk/testing/host";
@@ -2731,6 +2732,80 @@ describe("workbench security mode", () => {
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toBe("Usage: bb workbench security-mode [on|off]");
     }
+    await host.harness.dispose();
+  });
+
+  it("rejects a new session outside the cross-vendor security provider", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      settings: { securityMode: true },
+      sdk: { providers: ROUTING_PROVIDERS_SDK },
+      experimental_callHostRpc: routingHostRpc,
+    });
+    await plugin(host.bb);
+    const hook = host.harness.registrations.hooks["message.dispatch"];
+    if (hook === null) throw new Error("expected a message.dispatch hook");
+    const context = makeMessageDispatchHookContext({
+      thread: { id: "thr_1", status: "pending" },
+      host: { id: "host_1", name: "host_1" },
+      requestedExecution: {
+        providerId: "claude-code",
+        model: "claude-fable-5-1",
+      },
+    });
+
+    await expect(hook(context)).resolves.toEqual({
+      action: "reject",
+      message:
+        "Security mode requires the cross-vendor provider codex / gpt-5.6-sol for new sessions. " +
+        "Security runs outside Claude Code; select the cross-vendor security model and send again.",
+    });
+    await expect(
+      hook({
+        ...context,
+        requestedExecution: {
+          ...context.requestedExecution,
+          providerId: "codex",
+          model: "gpt-5.6-sol",
+        },
+      }),
+    ).resolves.toEqual({ action: "proceed" });
+    await expect(
+      hook({
+        ...context,
+        thread: { ...context.thread, status: "idle" },
+      }),
+    ).resolves.toEqual({ action: "proceed" });
+    await host.harness.dispose();
+  });
+
+  it("fails closed when the cross-vendor route cannot be resolved", async () => {
+    const host = createFakePluginHost({
+      pluginId: "workbench",
+      settings: { securityMode: true },
+      experimental_callHostRpc: ({ method }) => {
+        if (method === "readRouting") {
+          return { ok: false, error: "missing_file" };
+        }
+        throw new Error(`unexpected host RPC method ${method}`);
+      },
+    });
+    await plugin(host.bb);
+    const hook = host.harness.registrations.hooks["message.dispatch"];
+    if (hook === null) throw new Error("expected a message.dispatch hook");
+
+    await expect(
+      hook(
+        makeMessageDispatchHookContext({
+          thread: { id: "thr_1", status: "pending" },
+          host: { id: "host_1", name: "host_1" },
+        }),
+      ),
+    ).resolves.toEqual({
+      action: "reject",
+      message:
+        "Security mode cannot resolve the cross-vendor security provider (routing_unavailable).",
+    });
     await host.harness.dispose();
   });
 
