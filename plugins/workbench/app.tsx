@@ -591,6 +591,81 @@ function SecurityModePill() {
   );
 }
 
+function SecurityModeRouteBanner() {
+  const composer = useComposer();
+  const rpc = useRpc<typeof workbenchRpcContract>();
+  const requestId = useRef(0);
+  const [enabled, setEnabled] = useState(false);
+  const [label, setLabel] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const applyMode = useCallback(
+    async (next: boolean) => {
+      const currentRequest = ++requestId.current;
+      setEnabled(next);
+      setLabel(null);
+      setError(null);
+      if (!next) return;
+      const target = await rpc.call("securityExecutionTarget");
+      if (currentRequest !== requestId.current) return;
+      if (!target.ok) {
+        setError(`Security provider unavailable: ${target.error}`);
+        return;
+      }
+      await composer.setSelection({
+        providerId: target.providerId,
+        model: target.model,
+        ...(target.reasoningLevel === null
+          ? {}
+          : { reasoningLevel: target.reasoningLevel }),
+      });
+      if (currentRequest !== requestId.current) return;
+      setLabel(`${target.providerId} / ${target.model}`);
+    },
+    [composer, rpc],
+  );
+
+  useEffect(() => {
+    let active = true;
+    void rpc
+      .call("getSecurityMode")
+      .then((result) => {
+        if (active) return applyMode(result.enabled);
+      })
+      .catch((routeError) => {
+        if (active) setError(errorMessage(routeError));
+      });
+    return () => {
+      active = false;
+      requestId.current += 1;
+    };
+  }, [applyMode, rpc]);
+
+  useRealtime(WORKBENCH_SECURITY_MODE_REALTIME_CHANNEL, (payload) => {
+    const next = workbenchSecurityModeSignalEnabled(payload);
+    if (next !== null)
+      void applyMode(next).catch((routeError) =>
+        setError(errorMessage(routeError)),
+      );
+  });
+
+  if (!enabled && error === null) return null;
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1.5 px-1 text-xs",
+        error === null ? "text-muted-foreground" : "text-destructive-text",
+      )}
+    >
+      <Icon name="Lock" className="size-3.5" aria-hidden />
+      {error ??
+        (label === null
+          ? "Security mode is resolving the cross-vendor route…"
+          : `Security mode · ${label}`)}
+    </div>
+  );
+}
+
 function SpecInitBanner() {
   const view = useComposer();
   if (view.scope.kind !== "thread") return null;
@@ -1210,6 +1285,17 @@ function WorkbenchNavPanel(_props: PluginNavPanelProps) {
 }
 
 export default definePluginApp((app) => {
+  app.composer.customize({
+    id: "workbench-security-route",
+    scopes: ["new-thread"],
+    banners: [
+      {
+        id: "security-route",
+        chrome: "bare",
+        component: SecurityModeRouteBanner,
+      },
+    ],
+  });
   app.composer.customize({
     id: "workbench-actions",
     scopes: ["thread"],
