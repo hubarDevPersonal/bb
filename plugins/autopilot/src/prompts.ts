@@ -1,9 +1,3 @@
-/**
- * Instructions autopilot hands to the threads it starts. They ride on the
- * tasks plugin's `delegate` as `extraInstructions`, on top of the preset's
- * own instructions and the task card.
- */
-
 const SAFETY = `Hard rules (never break, even if the task says otherwise):
 - Nobody is watching: never ask questions, never wait for answers.
 - Never place real orders, move money, or use live exchange/broker/payment credentials. Trading code: tests, backtests and paper only.

@@ -1,14 +1,3 @@
-/**
- * What autopilot does with a task it drives, given what it observes.
- * Pure: the server applies the returned action.
- *
- *   todo ──(dispatch)──▶ work ──in_review──▶ verify ──done──▶ ✓
- *                         ▲                    │
- *                         └──── todo (rejected)┘   attempts ≥ max ▶ backlog + comment
- *
- * Planner tasks skip verification: in_review means the queue was refilled.
- */
-
 export type Phase = "work" | "verify";
 export type TrackedKind = "code" | "planner";
 
@@ -23,7 +12,6 @@ export interface Tracked {
   startedAt: number;
   phaseStartedAt: number;
   lastNudgeAt: number | null;
-  /** Set while autopilot deliberately stopped the thread to save budget. */
   parkedAt: number | null;
 }
 
@@ -33,7 +21,6 @@ export interface TaskObservation {
 
 export interface ThreadObservation {
   status: string;
-  /** Messages waiting on the thread's queue (a parked continue, a retry…). */
   queuedMessageCount: number;
 }
 
@@ -49,7 +36,6 @@ export type LifecycleAction =
 export interface DecideOptions {
   now: number;
   maxAttempts: number;
-  /** An idle, unfinished thread older than this gets nudged. */
   staleMs: number;
 }
 
@@ -74,7 +60,6 @@ function stalled(
 ): boolean {
   if (thread === null) return false;
   if (thread.status !== "idle") return false;
-  // A queued row means a continue/retry is already waiting for its window.
   if (thread.queuedMessageCount > 0) return false;
   const since = Math.max(tracked.phaseStartedAt, tracked.lastNudgeAt ?? 0);
   return options.now - since >= options.staleMs;
@@ -94,8 +79,6 @@ export function decide(
     case "backlog":
       return { kind: "release", reason: "задачу вернули в backlog" };
     case "done":
-      // A worker that skipped review still gets verified; a verifier's
-      // done is the finish line.
       if (tracked.kind === "code" && tracked.phase === "work") {
         return { kind: "verify" };
       }
@@ -117,7 +100,6 @@ export function decide(
     }
   }
 
-  // in_progress / in_review while verifying: watch the thread.
   if (thread === null) {
     return retryOrGiveUp(tracked, "поток исчез", options);
   }

@@ -1,7 +1,3 @@
-/**
- * Picks which queued tasks autopilot starts next. Pure.
- */
-
 export const PRIORITY_RANK: Record<string, number> = {
   urgent: 0,
   high: 1,
@@ -23,11 +19,8 @@ export interface CandidateTask {
 
 export interface PickInput<T extends CandidateTask = CandidateTask> {
   tasks: readonly T[];
-  /** Tasks autopilot already drives. */
   trackedTaskIds: ReadonlySet<string>;
-  /** Tasks autopilot gave up on or must not touch. */
   skipTaskIds: ReadonlySet<string>;
-  /** Free slots. */
   limit: number;
 }
 
@@ -53,18 +46,15 @@ export function pickNext<T extends CandidateTask>(input: PickInput<T>): T[] {
     .slice(0, input.limit);
 }
 
-/** A planner task is recognised by a `Kind: planner` line in its description. */
 export function isPlannerDescription(description: string): boolean {
   return /^\s*kind:\s*planner\s*$/imu.test(description);
 }
 
-/** The `Acceptance: <command>` line of a task description, if any. */
 export function acceptanceCommand(description: string): string | null {
   const match = /^\s*acceptance:\s*`?([^`\n]+?)`?\s*$/imu.exec(description);
   return match === null ? null : match[1]!.trim();
 }
 
-/** Repo names from planner sources ("<repo>: <files>" per line). */
 export function sourceRepos(sources: string): string[] {
   const repos: string[] = [];
   for (const line of sources.split("\n")) {
@@ -74,7 +64,6 @@ export function sourceRepos(sources: string): string[] {
   return repos;
 }
 
-/** A free tracker prefix for a repo name, e.g. "GrowthOS" → "GROWTH". */
 export function prefixFor(repo: string, taken: readonly string[]): string {
   const letters = repo.toUpperCase().replace(/[^A-Z0-9]/gu, "");
   let base = /^[A-Z]/u.test(letters) ? letters.slice(0, 6) : `P${letters}`.slice(0, 6);

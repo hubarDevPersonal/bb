@@ -1,8 +1,3 @@
-/**
- * Thin typed client for the Tasks plugin's RPC methods autopilot needs.
- * Output schemas are loose on purpose: we read a few fields and tolerate the
- * rest, so additive changes in the Tasks plugin do not break autopilot.
- */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 

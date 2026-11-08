@@ -1,9 +1,3 @@
-/**
- * Autopilot's durable state in the plugin KV: the tasks it drives, the ones
- * it gave up on, the pause flag and a short event log. Everything is kept in
- * memory too, because the dispatch gate asks "is this thread ours?" on every
- * message and must answer without I/O.
- */
 import type { Tracked } from "./lifecycle.js";
 
 export interface KvLike {

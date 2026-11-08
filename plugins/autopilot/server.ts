@@ -132,8 +132,6 @@ export default async function plugin(bb: BbPluginApi) {
     };
   }
 
-  // ---------------------------------------------------------------- usage
-
   const usageCache = new Map<string, { at: number; usage: ProviderUsageLike | null }>();
 
   async function readUsage(
@@ -175,12 +173,6 @@ export default async function plugin(bb: BbPluginApi) {
     });
   }
 
-  // --------------------------------------------------- the dispatch gate
-  // Every message bound for an autopilot thread passes here. Over budget, the
-  // message is queued with sendAt = window reset: core re-attempts it then,
-  // which is what brings parked threads back to life without our own timer.
-  // Threads autopilot did not start are never touched.
-
   bb.experimental_hooks.on("message.dispatch", async (context) => {
     if (context.attempt === "join-turn") return { action: "proceed" };
     const tracked = store.byThread(context.thread.id);
@@ -197,8 +189,6 @@ export default async function plugin(bb: BbPluginApi) {
     await store.log({ kind: "deferred", taskKey: tracked.taskKey, detail: verdict.reason });
     return { action: "wait", reason: verdict.reason, sendAt: verdict.resumeAt };
   });
-
-  // ------------------------------------------------------------ the loop
 
   let ticking: Promise<string[]> | null = null;
 
@@ -225,7 +215,6 @@ export default async function plugin(bb: BbPluginApi) {
       return [`worker preset "${current.workerPreset}" missing: run bb autopilot setup`];
     }
 
-    // 1. Drive what we already own.
     for (const tracked of [...store.tracked]) {
       try {
         notes.push(...(await advance(tracked, worker, verifier!)));
@@ -234,10 +223,8 @@ export default async function plugin(bb: BbPluginApi) {
       }
     }
 
-    // 2. Park running autopilot turns that blew far past the budget.
     notes.push(...(await parkOverspenders()));
 
-    // 3. Start new work while there is room and budget.
     if (store.paused) return [...notes, "paused"];
     const free = clamp(current.maxParallel, 0, 8) - store.tracked.length;
     if (free <= 0) return notes;
@@ -350,7 +337,6 @@ export default async function plugin(bb: BbPluginApi) {
       }
       case "complete":
         if (tracked.kind === "planner") {
-          // The planner leaves its own task in review; close it so the board stays clean.
           await tasks.updateStatus(tracked.taskId, "done").catch(() => undefined);
         }
         await store.untrack(tracked.taskId);
@@ -387,8 +373,6 @@ export default async function plugin(bb: BbPluginApi) {
           `🤖 Автопилот сдаётся: ${action.reason}. Возвращаю в backlog — посмотри комментарии выше и поправь задачу (Acceptance, Scope), потом верни в todo.`,
         );
         await tasks.updateStatus(tracked.taskId, "backlog");
-        // No skip-list entry: backlog already keeps it out of the queue, and
-        // moving it back to todo is how you say "try again".
         await store.untrack(tracked.taskId);
         await store.log({ kind: "gave-up", taskKey: key, detail: action.reason });
         return [`${key}: gave up — ${action.reason}`];
@@ -417,8 +401,6 @@ export default async function plugin(bb: BbPluginApi) {
       }
       const verdict = await budgetFor(thread.providerId, null, null, margin);
       if (verdict.kind === "ok") continue;
-      // Stop the turn, then queue a continue: the dispatch gate holds it
-      // until the window resets and core sends it then.
       await bb.sdk.threads.stop({ threadId: tracked.threadId });
       await bb.sdk.threads.send({
         threadId: tracked.threadId,
@@ -436,7 +418,6 @@ export default async function plugin(bb: BbPluginApi) {
     const projects = await tasks.listProjects();
     const prefix = current.plannerProject.trim().toUpperCase();
     if (prefix !== "") return projects.find((p) => p.prefix === prefix) ?? null;
-    // Default: the tracker project of the first roadmap source.
     const first = sourceRepos(current.plannerSources)[0];
     return first === undefined
       ? null
@@ -463,8 +444,6 @@ export default async function plugin(bb: BbPluginApi) {
     await store.log({ kind: "planned", taskKey: prefix, detail: "planner task created" });
     return [`queue empty: planner task created in ${prefix}`];
   }
-
-  // ------------------------------------------------------------- helpers
 
   async function readThreadFull(threadId: string) {
     try {
@@ -527,8 +506,6 @@ export default async function plugin(bb: BbPluginApi) {
       });
       notes.push(`preset "${name}" created (${providerId} / ${modelId})`);
     }
-    // Tracker projects for the roadmap repos, linked to the bb projects of
-    // the same name, so delegated workers run inside the right repo.
     const bbProjects = (await bb.sdk.projects.list()) as { id: string; name: string }[];
     let trackers = await tasks.listProjects();
     for (const repo of sourceRepos(current.plannerSources)) {
@@ -553,7 +530,6 @@ export default async function plugin(bb: BbPluginApi) {
       await tasks.createLabel(project.id, current.label, "#2A9D90");
       notes.push(`label "${current.label}" added to ${project.prefix}`);
     }
-    // Fill the queue right away instead of waiting for the next tick.
     await store.setLastPlannerAt(0);
     notes.push(...(await tick("setup")));
     return notes;
@@ -563,14 +539,10 @@ export default async function plugin(bb: BbPluginApi) {
     await bb.experimental_hooks.recheck("message.dispatch");
   }
 
-  // ------------------------------------------------------------ triggers
-
   bb.background.schedule("tick", "*/5 * * * *", async () => {
     await tick("schedule");
   });
 
-  // React quickly when an autopilot thread settles, instead of waiting for
-  // the next five-minute tick.
   bb.events.on("thread.idle", async (event) => {
     if (store.byThread(event.thread.id) !== null) await tick("thread idle");
   });

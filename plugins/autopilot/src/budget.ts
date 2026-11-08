@@ -1,15 +1,3 @@
-/**
- * Budget governor: decides whether autopilot work may use the provider right
- * now, and if not, when it may resume. Pure — no SDK imports — so the policy
- * is unit-tested without a server.
- *
- * Autopilot only ever spends up to `fiveHourPercent` of the five-hour window
- * and `weeklyPercent` of the weekly window; the rest is left for the human.
- * A blocked verdict always carries `resumeAt`, which the dispatch hook hands
- * to core as the queued row's `sendAt`, so the thread wakes up by itself
- * after the window resets — no timer of our own.
- */
-
 export interface UsageWindowLike {
   label: string;
   usedPercent: number;
@@ -25,13 +13,9 @@ export interface ProviderUsageLike {
 }
 
 export interface BudgetPolicy {
-  /** Max share (0–100) of the five-hour window autopilot may consume. */
   fiveHourPercent: number;
-  /** Max share (0–100) of the weekly window autopilot may consume. */
   weeklyPercent: number;
-  /** How long to wait when usage cannot be read at all. */
   unknownBackoffMs: number;
-  /** Extra delay after a reset so many threads do not wake at once. */
   jitterMinMs: number;
   jitterMaxMs: number;
 }
@@ -79,7 +63,6 @@ function parseResetMs(resetsAt: string | null): number | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
-/** A model-scoped window only binds work that runs on that model. */
 function windowApplies(window: UsageWindowLike, model: string | null): boolean {
   if (window.model === undefined || window.model === "") return true;
   if (model === null) return false;
@@ -94,9 +77,7 @@ export interface EvaluateBudgetInput {
   usage: ProviderUsageLike | null | undefined;
   policy: BudgetPolicy;
   now: number;
-  /** Model the work will run on, for model-scoped weekly windows. */
   model?: string | null;
-  /** Percentage points added to every limit (hard-stop check uses > 0). */
   marginPercent?: number;
   random?: number;
 }
@@ -147,8 +128,6 @@ export function evaluateBudget(input: EvaluateBudgetInput): BudgetVerdict {
     return { kind: "ok", headroomPercent: Math.max(0, headroom) };
   }
 
-  // Resume only when every exceeded window has reset; an exceeded window
-  // without a reset time falls back to the unknown-usage backoff.
   let resumeAt = now + policy.unknownBackoffMs;
   const known = exceeded
     .map((window) => window.resetsAtMs)
