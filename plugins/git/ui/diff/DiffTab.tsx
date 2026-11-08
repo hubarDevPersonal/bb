@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useResizeObserver } from "usehooks-ts";
 import {
   experimental_useFixedTabTarget as useFixedTabTarget,
@@ -9,7 +9,7 @@ import {
 import { Button } from "@bb/shared-ui/button";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import type { DiffPresentation } from "@bb/shared-ui/git-diff/renderers";
-import type { DiffFileEntry } from "../../contract.js";
+import type { DiffFileEntry, GitFilesResult } from "../../contract.js";
 import { GIT_DIFF_TAB_REFERENCE } from "../diff-tab-target.js";
 import { useMergeBase } from "../merge-base.js";
 import { useGitStatus, useWorkspacePath } from "../queries.js";
@@ -41,6 +41,21 @@ import {
 } from "./useResponsiveGitDiffPanelDisplay.js";
 
 const EMPTY_DIFF_FILES: readonly DiffFileEntry[] = [];
+
+function narrowDiffFilesToPaths(
+  result: GitFilesResult | undefined,
+  paths: ReadonlySet<string> | null,
+): GitFilesResult | undefined {
+  if (paths === null || result?.outcome !== "available") return result;
+  return {
+    ...result,
+    files: result.files.filter(
+      (file) =>
+        paths.has(file.path) ||
+        (file.previousPath !== null && paths.has(file.previousPath)),
+    ),
+  };
+}
 
 export function useDiffTabVisible({
   environment,
@@ -136,6 +151,32 @@ function EnvironmentDiffTab({
     tabTarget?.target.kind === "file" ? tabTarget.target.path : null;
   const pendingCommitSha =
     tabTarget?.target.kind === "commit" ? tabTarget.target.sha : null;
+  const pendingFilePaths =
+    tabTarget?.target.kind === "files" ? tabTarget.target.paths : null;
+  const [turnPaths, setTurnPaths] = useState<ReadonlySet<string> | null>(
+    null,
+  );
+  const targetSequence = tabTarget?.sequence ?? null;
+  const [seenTargetSequence, setSeenTargetSequence] = useState<
+    number | null
+  >(null);
+  if (seenTargetSequence !== targetSequence) {
+    setSeenTargetSequence(targetSequence);
+    if (pendingFilePaths !== null) {
+      setTurnPaths(new Set(pendingFilePaths));
+    } else if (pendingScrollPath !== null || pendingCommitSha !== null) {
+      setTurnPaths(null);
+    }
+  }
+  const [wasLive, setWasLive] = useState(isLive);
+  if (wasLive !== isLive) {
+    setWasLive(isLive);
+    if (!isLive) setTurnPaths(null);
+  }
+  useEffect(() => {
+    if (pendingFilePaths !== null) clearPendingIntent();
+  }, [clearPendingIntent, pendingFilePaths]);
+  const clearTurnPaths = useCallback(() => setTurnPaths(null), []);
 
   const openFileInEditor = useCallback(
     (path: string) => {
@@ -168,6 +209,7 @@ function EnvironmentDiffTab({
     requestedMergeBaseBranch,
     workspaceStatus: status.workspace,
     pendingScrollPath,
+    pendingFilePaths,
     pendingCommitSha,
     pendingSequence: tabTarget?.sequence ?? null,
     onClearPendingIntent: clearPendingIntent,
@@ -180,7 +222,11 @@ function EnvironmentDiffTab({
     ignoreWhitespace: gitDiffIgnoreWhitespace,
     enabled: isLive,
   });
-  const diffFilesResponse = filesQuery.shown?.result;
+  const shownFilesResult = filesQuery.shown?.result;
+  const diffFilesResponse = useMemo(
+    () => narrowDiffFilesToPaths(shownFilesResult, turnPaths),
+    [shownFilesResult, turnPaths],
+  );
   const shownTarget = filesQuery.shown?.target ?? gitDiffTarget;
   const shownIgnoreWhitespace =
     filesQuery.shown?.ignoreWhitespace ?? gitDiffIgnoreWhitespace;
@@ -291,6 +337,24 @@ function EnvironmentDiffTab({
             onIgnoreWhitespaceChange={setGitDiffIgnoreWhitespace}
           />
       </div>
+      {turnPaths === null ? null : (
+        <div
+          role="status"
+          className="flex items-center gap-1 px-4 py-1.5 text-xs text-muted-foreground"
+        >
+          <span>
+            Showing {diffFiles.length}{" "}
+            {diffFiles.length === 1 ? "file" : "files"} from this turn ·
+          </span>
+          <button
+            type="button"
+            className="text-foreground hover:underline"
+            onClick={clearTurnPaths}
+          >
+            Show all
+          </button>
+        </div>
+      )}
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <GitDiffTabContent
           environmentId={environmentId}

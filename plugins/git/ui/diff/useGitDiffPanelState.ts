@@ -14,6 +14,7 @@ interface UseGitDiffPanelStateParams {
   requestedMergeBaseBranch: string | undefined;
   workspaceStatus: WorkspaceStatus | undefined;
   pendingScrollPath: string | null;
+  pendingFilePaths: readonly string[] | null;
   pendingCommitSha: string | null;
   pendingSequence: number | null;
   onClearPendingIntent: () => void;
@@ -24,6 +25,7 @@ export function useGitDiffPanelState({
   requestedMergeBaseBranch,
   workspaceStatus,
   pendingScrollPath,
+  pendingFilePaths,
   pendingCommitSha,
   pendingSequence,
   onClearPendingIntent,
@@ -46,11 +48,11 @@ export function useGitDiffPanelState({
   }, [environmentId]);
 
   useEffect(() => {
-    if (pendingScrollPath) {
+    if (pendingScrollPath || pendingFilePaths) {
       setSelectedGitDiffSelection(null);
       setGitDiffFileFilter(null);
     }
-  }, [pendingScrollPath, pendingSequence]);
+  }, [pendingFilePaths, pendingScrollPath, pendingSequence]);
 
   useEffect(() => {
     if (pendingCommitSha) {

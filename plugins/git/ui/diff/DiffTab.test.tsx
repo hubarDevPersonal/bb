@@ -175,6 +175,62 @@ describe("DiffTab", () => {
     );
   });
 
+  it("narrows the diff to a turn's files until Show all", async () => {
+    const paths = ["a.ts", "b.ts", "c.ts"];
+    renderSlot({ component: DiffTab }, PROPS, {
+      rpc: {
+        ...RPC,
+        files: () => ({
+          outcome: "available",
+          files: paths.map((path) =>
+            makeDiffFileEntry({ path, revision: `rev-${path}` }),
+          ),
+          truncated: false,
+          shortstat: "",
+          mergeBaseRef: null,
+          initialPatches: [],
+        }),
+        patches: ({ keys }) =>
+          Object.fromEntries(
+            keys.map((key) => [
+              key,
+              {
+                outcome: "available" as const,
+                patch: { path: key, patch: "", truncated: false },
+              },
+            ]),
+          ),
+      } as PluginRpcTestHandlers<typeof gitRpcContract>,
+      experimental_rpcContract: gitRpcContract,
+      pluginId: "bb--git",
+      sdk: SDK as never,
+      canOpenFileExternally: () => true,
+      experimental_fixedTabTarget: {
+        tabId: "diff",
+        target: { kind: "files", paths: ["a.ts", "c.ts"] },
+      },
+    });
+    const openButtons = () =>
+      screen
+        .queryAllByRole("button", { name: /^Open .* in editor$/u })
+        .map((button) => button.getAttribute("aria-label"));
+
+    expect(
+      await screen.findByText("Showing 2 files from this turn ·"),
+    ).toBeTruthy();
+    await waitFor(() =>
+      expect(openButtons()).toEqual([
+        "Open a.ts in editor",
+        "Open c.ts in editor",
+      ]),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+
+    await waitFor(() => expect(openButtons()).toHaveLength(3));
+    expect(screen.queryByText(/from this turn/u)).toBeNull();
+  });
+
   it.each([
     [true, 1],
     [false, 0],

@@ -144,7 +144,7 @@ const timelineRows = [
   conversationRow({
     id: "story_assistant",
     role: "assistant",
-    text: "Added the card and wired it to the Task diff panel.",
+    text: "Added the card and wired it to the Diff tab.",
     turnId: TIMELINE_TURN_ID,
     sourceSeqStart: 10,
   }),
@@ -160,7 +160,6 @@ export function InTimeline() {
         <TimelineStage>
           <ThreadTimelineRows
             threadRuntimeDisplayStatus="idle"
-            workspaceRootPath={undefined}
             timelineRows={timelineRows}
             onViewTurnChanges={noop}
           />

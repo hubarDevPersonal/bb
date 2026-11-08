@@ -37,6 +37,7 @@ import {
   type ThreadTimelineForkMessageHandler,
   type ThreadTimelineLinkHandler,
   type ThreadTimelineLocalFileLink,
+  type ThreadTimelineViewTurnChangesHandler,
   type TimelineTitleActionResolver,
   useThreadTimelineController,
 } from "@/components/thread/timeline";
@@ -778,6 +779,22 @@ function ThreadDetailViewInternal(
       }),
     [panel],
   );
+  const handleViewTurnChanges =
+    useCallback<ThreadTimelineViewTurnChangesHandler>(
+      (paths) => {
+        const [onlyPath] = paths;
+        if (paths.length === 1 && onlyPath !== undefined) {
+          openSecondaryPanelDiffFile(onlyPath);
+          return;
+        }
+        panel.openTab({
+          tab: GIT_DIFF_TAB_REFERENCE,
+          availability: "fixed",
+          target: { kind: "files", paths: [...paths] },
+        });
+      },
+      [openSecondaryPanelDiffFile, panel],
+    );
 
   const handleSelectFileSearchResult = useCallback(
     (selection: FileSearchSelection) => {
@@ -1537,6 +1554,7 @@ function ThreadDetailViewInternal(
         includePluginMessageActions: true,
         onForkMessage: isForkAvailable ? handleForkMessage : undefined,
         onTitleAction: handleTimelineTitleAction,
+        onViewTurnChanges: canUseGitUi ? handleViewTurnChanges : undefined,
         unreadDividerAutoScroll: unreadDividerState.autoScroll,
         unreadDividerPlacement: unreadDividerState.placement,
       }}

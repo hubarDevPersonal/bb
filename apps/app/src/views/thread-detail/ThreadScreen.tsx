@@ -29,6 +29,7 @@ import {
   type ThreadTimelineForkMessageHandler,
   type ThreadTimelineInlineMessageEditor,
   type ThreadTimelineUnreadDividerPlacement,
+  type ThreadTimelineViewTurnChangesHandler,
   type TimelineTitleActionResolver,
   type UseThreadTimelineControllerResult,
 } from "@/components/thread/timeline";
@@ -101,6 +102,7 @@ export interface ThreadScreenTimelineHost {
   leadingContent?: ReactNode;
   onForkMessage?: ThreadTimelineForkMessageHandler;
   onTitleAction?: TimelineTitleActionResolver;
+  onViewTurnChanges?: ThreadTimelineViewTurnChangesHandler;
   unreadDividerAutoScroll: boolean;
   unreadDividerPlacement: ThreadTimelineUnreadDividerPlacement | null;
 }
@@ -526,6 +528,7 @@ export function ThreadScreen({
         onSelectionAddToChat={selectionAddToChat}
         onLoadOlderRows={timeline.loadOlderTimelineRows}
         onTitleAction={timelineHost.onTitleAction}
+        onViewTurnChanges={timelineHost.onViewTurnChanges}
         projectId={projectId}
         resolveMentionLink={resolveMentionLink}
         showOngoingIndicator={

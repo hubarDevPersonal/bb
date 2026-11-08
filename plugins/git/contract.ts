@@ -315,6 +315,12 @@ export function parseGitPatchKey(key: string): GitPatchKey | null {
 
 export const gitDiffTabTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("file"), path: z.string().min(1) }).strict(),
+  z
+    .object({
+      kind: z.literal("files"),
+      paths: z.array(z.string().min(1)).min(1),
+    })
+    .strict(),
   z.object({ kind: z.literal("commit"), sha: z.string().min(1) }).strict(),
 ]);
 export type GitDiffTabTarget = z.infer<typeof gitDiffTabTargetSchema>;
