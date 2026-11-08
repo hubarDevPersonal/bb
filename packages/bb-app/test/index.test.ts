@@ -40,6 +40,7 @@ import {
   resolveBundledCliLaunch,
   resolveWorktreeRuntimePolicy,
   runBbApp,
+  runsFromGitCheckoutBuild,
   shouldRunSourceAppUpdateShim,
   runBundledCliCommand,
   superviseFullStackProcesses,
@@ -609,6 +610,36 @@ describe("bb-app launcher", () => {
     expect(context.daemonEntry).toBe(
       resolve("/repo/apps/host-daemon/dist/daemon-bundle.mjs"),
     );
+  });
+
+  it("treats only a built bb-app inside a git checkout as a checkout build", () => {
+    const root = mkdtempSync(join(tmpdir(), "bb-app-checkout-build-"));
+    try {
+      const checkoutPackage = join(root, "fork", "packages", "bb-app");
+      mkdirSync(checkoutPackage, { recursive: true });
+      mkdirSync(join(root, "fork", ".git"));
+      const worktreePackage = join(root, "worktree", "packages", "bb-app");
+      mkdirSync(worktreePackage, { recursive: true });
+      writeFileSync(join(root, "worktree", ".git"), "gitdir: /elsewhere\n");
+      const npmPackage = join(root, "project", "node_modules", "bb-app");
+      mkdirSync(npmPackage, { recursive: true });
+      mkdirSync(join(root, "project", ".git"));
+      const updatePackage = join(
+        root,
+        "app-versions",
+        "0.49.0",
+        "node_modules",
+        "bb-app",
+      );
+      mkdirSync(updatePackage, { recursive: true });
+
+      expect(runsFromGitCheckoutBuild(checkoutPackage)).toBe(true);
+      expect(runsFromGitCheckoutBuild(worktreePackage)).toBe(true);
+      expect(runsFromGitCheckoutBuild(npmPackage)).toBe(false);
+      expect(runsFromGitCheckoutBuild(updatePackage)).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("reads appVersion from the package.json next to the resolved package root", () => {

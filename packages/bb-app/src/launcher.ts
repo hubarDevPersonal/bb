@@ -18,7 +18,7 @@ import {
 import { mutateManagedJsonFile } from "@bb/config/managed-json-file";
 import { access, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve, win32 } from "node:path";
+import { basename, dirname, join, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -1344,6 +1344,13 @@ export function readBbAppPackageVersion(packageRoot: string): string {
 function runsFromSourceCheckout(entrypointUrl: string): boolean {
   const entrypointDir = dirname(fileURLToPath(entrypointUrl));
   return entrypointDir === resolve(entrypointDir, "..", "src");
+}
+
+export function runsFromGitCheckoutBuild(packageRoot: string): boolean {
+  return (
+    basename(dirname(packageRoot)) === "packages" &&
+    existsSync(resolve(packageRoot, "..", "..", ".git"))
+  );
 }
 
 export function resolveBbAppStartContext(
@@ -3903,6 +3910,7 @@ function shouldRunNpmAppUpdateShim(args: {
     !args.underShim &&
     args.options.worktreePolicy === null &&
     !runsFromSourceCheckout(import.meta.url) &&
+    !runsFromGitCheckoutBuild(args.runtime.context.packageRoot) &&
     parseAppSurface(args.runtime.env[APP_SURFACE_ENV_NAME]) !==
       APP_SURFACE_DESKTOP
   );
