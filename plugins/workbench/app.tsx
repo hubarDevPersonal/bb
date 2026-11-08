@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   definePluginApp,
+  experimental_useAppPanel,
   useBbNavigate,
   useComposer,
   useRealtime,
@@ -65,6 +66,11 @@ import {
 import type { workbenchRpcContract } from "./server.js";
 
 const SUBAGENTS_PANEL_ACTION_ID = "subagents";
+const SUBAGENTS_TAB_REFERENCE = {
+  id: SUBAGENTS_PANEL_ACTION_ID,
+  context: { kind: "thread" },
+  availability: "action",
+} as const;
 const SUBAGENTS_POLL_INTERVAL_MS = 3_000;
 const SUBAGENTS_NOW_TICK_MS = 30_000;
 
@@ -252,7 +258,7 @@ type ReviewTargetOption = Extract<ReviewTargetView, { ok: true }>;
 function ReviewAction() {
   const threadId = useThreadId();
   const rpc = useRpc<typeof workbenchRpcContract>();
-  const navigate = useBbNavigate();
+  const panel = experimental_useAppPanel();
   const [target, setTarget] = useState<ReviewTargetOption | null>(null);
   const [options, setOptions] = useState<readonly ReviewTargetOption[]>([]);
   const [busy, setBusy] = useState(false);
@@ -298,7 +304,7 @@ function ReviewAction() {
             () => setSent(false),
             REVIEW_ACTION_CONFIRMATION_MS,
           );
-          navigate.openThreadPanel({ actionId: SUBAGENTS_PANEL_ACTION_ID });
+          panel.openTab({ tab: SUBAGENTS_TAB_REFERENCE });
         } else {
           setError(reviewErrorMessage(result.error));
         }
@@ -1253,7 +1259,7 @@ function SubagentsDoneBanner() {
 
 function SubagentsDoneBannerForThread({ threadId }: { threadId: string }) {
   const { state } = useSubagentsList(threadId);
-  const navigate = useBbNavigate();
+  const panel = experimental_useAppPanel();
   if (state.status !== "ready") return null;
 
   const done = state.subagents.filter((subagent) => subagent.status === "done");
@@ -1268,7 +1274,7 @@ function SubagentsDoneBannerForThread({ threadId }: { threadId: string }) {
       doneCount={done.length}
       activeCount={active.length}
       onView={() => {
-        navigate.openThreadPanel({ actionId: SUBAGENTS_PANEL_ACTION_ID });
+        panel.openTab({ tab: SUBAGENTS_TAB_REFERENCE });
       }}
     />
   );

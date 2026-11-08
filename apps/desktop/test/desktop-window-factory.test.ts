@@ -669,6 +669,7 @@ describe("desktop window factory", () => {
       shouldUseDarkColors: () => true,
       isQuitting: () => false,
       openExternalUrl() {},
+      onWindowCreated() {},
       preloadPath: "/tmp/preload.cjs",
       userDataPath: tempDir.path,
     });

@@ -67,7 +67,6 @@ describe("ThreadTimelineRows edited files card", () => {
         threadId={THREAD_ID}
         timelineRows={completedTurnRows}
         threadRuntimeDisplayStatus="idle"
-        workspaceRootPath={undefined}
         onViewTurnChanges={onViewTurnChanges}
       />,
     );
@@ -103,7 +102,6 @@ describe("ThreadTimelineRows edited files card", () => {
           fileChangeRow({ id: "edit_live", turnId: "turn_live" }),
         ]}
         threadRuntimeDisplayStatus="active"
-        workspaceRootPath={undefined}
         onViewTurnChanges={vi.fn()}
       />,
     );
@@ -117,7 +115,6 @@ describe("ThreadTimelineRows edited files card", () => {
         threadId={THREAD_ID}
         timelineRows={completedTurnRows}
         threadRuntimeDisplayStatus="idle"
-        workspaceRootPath={undefined}
       />,
     );
 

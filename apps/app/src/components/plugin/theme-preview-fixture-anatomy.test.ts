@@ -33,7 +33,7 @@ const MOCK_ROW_CLASS_CONTRACTS = [
     name: "SIDEBAR_ROW_SELECTED_STATE_CLASS",
     value: SIDEBAR_ROW_SELECTED_STATE_CLASS,
     classes: [
-      "bg-state-active",
+      "bg-sidebar-selected",
       "bb-sidebar-selected-row",
       "text-sidebar-foreground",
     ],

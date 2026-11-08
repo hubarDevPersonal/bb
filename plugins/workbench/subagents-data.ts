@@ -5,12 +5,12 @@ type SdkThreads = BbPluginApi["sdk"]["threads"];
 export type SubagentThreadEntry = Awaited<
   ReturnType<SdkThreads["list"]>
 >[number];
-export type TimelineRow = Awaited<
-  ReturnType<SdkThreads["timeline"]>
->["rows"][number];
-export type TimelinePageMetadata = Awaited<
-  ReturnType<SdkThreads["timeline"]>
->["timelinePage"];
+type TimelinePage = Extract<
+  Awaited<ReturnType<SdkThreads["timeline"]>>,
+  { rows: unknown }
+>;
+export type TimelineRow = TimelinePage["rows"][number];
+export type TimelinePageMetadata = TimelinePage["timelinePage"];
 
 type SubagentDisplayStatus = SubagentThreadEntry["runtime"]["displayStatus"];
 export type SubagentStatus = "active" | "done";

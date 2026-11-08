@@ -990,14 +990,14 @@ export default async function workbenchPlugin(
       (candidate) => candidate.model === crossVendor.model,
     );
     if (model === undefined) return { ok: false, error: "model_unavailable" };
+    const reasoningLevel = executionReasoningLevelSchema.safeParse(
+      appliedReasoningLevel(crossVendor.effort, model.supportedReasoningEfforts),
+    );
     return {
       ok: true,
       providerId: provider.id,
       model: model.model,
-      reasoningLevel: appliedReasoningLevel(
-        crossVendor.effort,
-        model.supportedReasoningEfforts,
-      ),
+      reasoningLevel: reasoningLevel.success ? reasoningLevel.data : null,
     };
   }
 
