@@ -1,4 +1,5 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { z } from "zod";
 import {
   DEFAULT_POLICY,
   evaluateBudget,
@@ -9,6 +10,7 @@ import {
 import { registerAutopilotCli } from "./src/cli.js";
 import { decide, type LifecycleAction, type Tracked } from "./src/lifecycle.js";
 import { isPlannerDescription, pickNext, prefixFor, sourceRepos } from "./src/picker.js";
+import { plannerCooldownMs } from "./src/planner.js";
 import {
   PLANNER_TASK_TITLE,
   continuePrompt,
@@ -21,6 +23,13 @@ import {
 import { AutopilotStore, type AutopilotEvent } from "./src/store.js";
 import { TasksClient, type TaskPreset, type TaskRecord } from "./src/tasks-client.js";
 
+const workspaceStatusSchema = z.object({
+  outcome: z.string(),
+  workspace: z
+    .object({ workingTree: z.object({ hasUncommittedChanges: z.boolean() }) })
+    .optional(),
+});
+
 const DEFAULT_SOURCES = [
   "fund: docs/hedge/03-roadmap.md, learn/README.md, learn/questions.md",
   "GrowthOS: plan/tracks.md",
@@ -28,7 +37,6 @@ const DEFAULT_SOURCES = [
 
 const USAGE_CACHE_MS = 60_000;
 const STALE_MS = 45 * 60_000;
-const PLANNER_COOLDOWN_MS = 3 * 60 * 60_000;
 
 export interface AutopilotRuntime {
   store: AutopilotStore;
@@ -286,6 +294,7 @@ export default async function plugin(bb: BbPluginApi) {
       kind: planner ? "planner" : "code",
       phase: "work",
       threadId,
+      threadIds: [threadId],
       attempts: 0,
       startedAt: now,
       phaseStartedAt: now,
@@ -327,6 +336,7 @@ export default async function plugin(bb: BbPluginApi) {
         await store.update(tracked.taskId, {
           phase: "verify",
           threadId,
+          threadIds: [...threadHistory(tracked), threadId],
           phaseStartedAt: Date.now(),
           lastNudgeAt: null,
           parkedAt: null,
@@ -335,13 +345,22 @@ export default async function plugin(bb: BbPluginApi) {
         await store.log({ kind: "verifying", taskKey: key, detail: threadId });
         return [`${key}: verifying`];
       }
-      case "complete":
+      case "complete": {
+        if (thread !== null && (thread.status === "active" || thread.status === "starting")) {
+          return [];
+        }
+        let detail: string = tracked.kind;
         if (tracked.kind === "planner") {
           await tasks.updateStatus(tracked.taskId, "done").catch(() => undefined);
+          detail = await notePlannerResult();
+        } else {
+          await store.setEmptyPlannerRuns(0);
         }
         await store.untrack(tracked.taskId);
-        await store.log({ kind: "done", taskKey: key, detail: tracked.kind });
+        await retireThreads(threadHistory(tracked));
+        await store.log({ kind: "done", taskKey: key, detail });
         return [`${key}: done`];
+      }
       case "retry": {
         await tasks.comment(
           tracked.taskId,
@@ -358,6 +377,7 @@ export default async function plugin(bb: BbPluginApi) {
         await store.update(tracked.taskId, {
           phase: "work",
           threadId,
+          threadIds: [...threadHistory(tracked), threadId],
           attempts: tracked.attempts + 1,
           phaseStartedAt: Date.now(),
           lastNudgeAt: null,
@@ -424,8 +444,23 @@ export default async function plugin(bb: BbPluginApi) {
       : (projects.find((p) => p.name.toLowerCase() === first.toLowerCase()) ?? null);
   }
 
+  async function notePlannerResult(): Promise<string> {
+    const skipped = new Set(store.skipped);
+    const queued = (await loadQueue()).filter(
+      (t) => !isPlannerDescription(t.description) && !skipped.has(t.id),
+    ).length;
+    if (queued > 0) {
+      await store.setEmptyPlannerRuns(0);
+      return `planner queued ${queued}`;
+    }
+    const runs = store.emptyPlannerRuns + 1;
+    await store.setEmptyPlannerRuns(runs);
+    const hours = Math.round(plannerCooldownMs(runs) / 3_600_000);
+    return `planner found nothing (${runs} in a row), next run in ${hours}h`;
+  }
+
   async function maybePlan(): Promise<string[]> {
-    if (Date.now() - store.lastPlannerAt < PLANNER_COOLDOWN_MS) return [];
+    if (Date.now() - store.lastPlannerAt < plannerCooldownMs(store.emptyPlannerRuns)) return [];
     const project = await plannerProject();
     if (project === null) return ["planner: no tracker project (run bb autopilot setup)"];
     const prefix = project.prefix;
@@ -445,12 +480,48 @@ export default async function plugin(bb: BbPluginApi) {
     return [`queue empty: planner task created in ${prefix}`];
   }
 
+  async function retireThreads(threadIds: string[]): Promise<void> {
+    for (const threadId of threadIds) {
+      try {
+        const thread = await readThreadFull(threadId);
+        if (thread === null) continue;
+        if (thread.status === "active" || thread.status === "starting") continue;
+        if (!thread.archivedAt) await bb.sdk.threads.archive({ threadId });
+        if (thread.environmentId) await dropWorktree(thread.environmentId);
+      } catch (error) {
+        bb.log.warn(`could not retire ${threadId}: ${errorText(error)}`);
+      }
+    }
+  }
+
+  async function dropWorktree(environmentId: string): Promise<void> {
+    const env = (await bb.sdk.environments.get({ environmentId })) as {
+      environmentProviderId: string | null;
+      managed: boolean;
+      status: string;
+    };
+    if (env.environmentProviderId !== "git-worktree" || !env.managed) return;
+    if (env.status === "destroyed") return;
+    const status = await bb.sdk.plugins.callRpc({
+      pluginId: "bb--git",
+      method: "workspaceStatus",
+      input: { environmentId },
+      outputSchema: workspaceStatusSchema,
+    });
+    if (status.outcome !== "available" || status.workspace?.workingTree.hasUncommittedChanges !== false) {
+      return;
+    }
+    await bb.sdk.environments.delete({ environmentId });
+  }
+
   async function readThreadFull(threadId: string) {
     try {
       return (await bb.sdk.threads.get({ threadId })) as {
         status: string;
         providerId: string;
         queuedMessageCount: number;
+        environmentId?: string | null;
+        archivedAt?: number | null;
       };
     } catch {
       return null;
@@ -531,6 +602,7 @@ export default async function plugin(bb: BbPluginApi) {
       notes.push(`label "${current.label}" added to ${project.prefix}`);
     }
     await store.setLastPlannerAt(0);
+    await store.setEmptyPlannerRuns(0);
     notes.push(...(await tick("setup")));
     return notes;
   }
@@ -558,6 +630,10 @@ export default async function plugin(bb: BbPluginApi) {
     recheck,
   };
   registerAutopilotCli(bb, runtime);
+}
+
+function threadHistory(tracked: Tracked): string[] {
+  return [...new Set([...(tracked.threadIds ?? []), tracked.threadId])];
 }
 
 function findPreset(presets: TaskPreset[], name: string): TaskPreset | null {

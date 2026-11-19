@@ -8,6 +8,7 @@ export interface Tracked {
   kind: TrackedKind;
   phase: Phase;
   threadId: string;
+  threadIds?: string[];
   attempts: number;
   startedAt: number;
   phaseStartedAt: number;

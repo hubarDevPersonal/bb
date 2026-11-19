@@ -18,6 +18,7 @@ const KEYS = {
   paused: "paused",
   events: "events",
   lastPlannerAt: "lastPlannerAt",
+  emptyPlannerRuns: "emptyPlannerRuns",
 } as const;
 
 const MAX_EVENTS = 200;
@@ -29,6 +30,7 @@ export class AutopilotStore {
   paused = false;
   events: AutopilotEvent[] = [];
   lastPlannerAt = 0;
+  emptyPlannerRuns = 0;
 
   constructor(private readonly kv: KvLike) {}
 
@@ -38,6 +40,7 @@ export class AutopilotStore {
     this.paused = (await this.kv.get<boolean>(KEYS.paused)) ?? false;
     this.events = (await this.kv.get<AutopilotEvent[]>(KEYS.events)) ?? [];
     this.lastPlannerAt = (await this.kv.get<number>(KEYS.lastPlannerAt)) ?? 0;
+    this.emptyPlannerRuns = (await this.kv.get<number>(KEYS.emptyPlannerRuns)) ?? 0;
   }
 
   byThread(threadId: string): Tracked | null {
@@ -81,6 +84,12 @@ export class AutopilotStore {
   async setLastPlannerAt(at: number): Promise<void> {
     this.lastPlannerAt = at;
     await this.kv.set(KEYS.lastPlannerAt, at);
+  }
+
+  async setEmptyPlannerRuns(runs: number): Promise<void> {
+    if (this.emptyPlannerRuns === runs) return;
+    this.emptyPlannerRuns = runs;
+    await this.kv.set(KEYS.emptyPlannerRuns, runs);
   }
 
   async log(event: Omit<AutopilotEvent, "at">): Promise<void> {

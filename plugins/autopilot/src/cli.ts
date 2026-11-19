@@ -5,6 +5,7 @@ import {
   type PluginCliResult,
 } from "@get-bb/plugin-sdk";
 import type { AutopilotRuntime } from "../server.js";
+import { plannerCooldownMs } from "./planner.js";
 
 const JSON_OPTION = {
   type: "boolean",
@@ -36,14 +37,19 @@ export function registerAutopilotCli(bb: BbPluginApi, runtime: AutopilotRuntime)
           summary: "Show tracked tasks, budget and recent events",
           options: { json: JSON_OPTION },
           async run(input) {
+            const plannerAfter =
+              store.lastPlannerAt + plannerCooldownMs(store.emptyPlannerRuns);
             const view = {
               paused: store.paused,
+              emptyPlannerRuns: store.emptyPlannerRuns,
+              plannerAfter,
               tracked: store.tracked,
               skipped: store.skipped.length,
               recent: store.events.slice(-15),
             };
             const lines = [
               `autopilot: ${store.paused ? "PAUSED" : "running"}`,
+              `planner: next run after ${when(plannerAfter)}${store.emptyPlannerRuns > 0 ? ` (${store.emptyPlannerRuns} empty in a row)` : ""}`,
               `tracked (${store.tracked.length}):`,
               ...store.tracked.map(
                 (t) =>
