@@ -31,6 +31,11 @@ export const CORE_COMMAND_GROUPS: readonly CommandGroup[] = [
     (m) => (program, deps) => m.registerBrowserCommands(program, deps.getUrl),
   ),
   group(
+    "artifact",
+    () => import("./commands/artifact.js"),
+    (m) => (program, deps) => m.registerArtifactCommands(program, deps.getUrl),
+  ),
+  group(
     "status",
     () => import("./commands/status.js"),
     (m) => (program, deps) =>

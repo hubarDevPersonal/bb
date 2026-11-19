@@ -38,6 +38,7 @@ bb status --json
 | Plugins and marketplaces                                                | `bb guide plugins`             |
 | Scheduled work                                                          | the `automations` skill        |
 | Built-in browser tabs                                                   | `bb guide browser`             |
+| Open a claude.ai artifact inside bb                                     | `bb guide browser`             |
 | `--json` output shapes and the error envelope                           | `bb guide json`                |
 | Writing theme CSS                                                       | references/theming.md          |
 

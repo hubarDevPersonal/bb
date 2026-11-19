@@ -1,5 +1,6 @@
 import { parseApplicationUrl } from "@bb/domain/application-url";
 import { useAtom } from "jotai";
+import { isClaudeArtifactUrl } from "@bb/domain";
 import { createBooleanPreferenceAtom } from "./browser-storage";
 
 const OPEN_LINKS_IN_APP_BROWSER_STORAGE_KEY = "bb.openLinksInAppBrowser";
@@ -34,7 +35,10 @@ function resolveUrlOpenTarget({
   if (!isHttpOrHttpsUrl(url)) {
     return "unhandled";
   }
-  if (desktopBrowserAvailable && openLinksInAppBrowser) {
+  if (
+    desktopBrowserAvailable &&
+    (openLinksInAppBrowser || isClaudeArtifactUrl(url))
+  ) {
     return "in-app-browser";
   }
   return "external-browser";

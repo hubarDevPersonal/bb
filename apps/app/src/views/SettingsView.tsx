@@ -1008,7 +1008,7 @@ export function GeneralSettingsSection({
           {desktopBrowserAvailable ? (
             <SettingsWithControl
               label={IN_APP_BROWSER_LINK_SETTING_LABEL}
-              description="Open web links inside bb."
+              description="Open web links inside bb. Claude artifacts always open inside bb."
             >
               <Switch
                 checked={openLinksInAppBrowser}

@@ -339,3 +339,8 @@ Use `--selected-model <model-id>` to discover its reasoning choices and include 
 - `bb browser watch`
 - `bb browser import-sources`
 - `bb browser import-cookies`
+
+## artifact
+
+- `bb artifact`
+- `bb artifact open`
