@@ -43,6 +43,7 @@ export * from "./queued-message.js";
 export * from "./queued-message-lifecycle.js";
 export * from "./system-message.js";
 export * from "./provider-event.js";
+export * from "./thread-backdrop-state.js";
 export * from "./thread-provider-state.js";
 export * from "./provider-extension-kind.js";
 export * from "./provider-fork.js";

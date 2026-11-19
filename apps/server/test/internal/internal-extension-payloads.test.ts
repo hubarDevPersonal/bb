@@ -609,6 +609,113 @@ describe("extension kind ownership at ingest", () => {
     }
   });
 
+  it("serves the latest bb/backdrop state as the timeline backdrop and refuses a malformed one", async () => {
+    const { harness, session, thread } = await setup();
+    try {
+      const readBackdrop = async () =>
+        threadTimelineResponseSchema.parse(
+          await readJson(
+            await harness.app.request(`/api/v1/threads/${thread.id}/timeline`),
+          ),
+        ).backdrop;
+      const nightSky = {
+        source: "night-sky",
+        scene: "night-sky",
+        colorScheme: "dark",
+        glass: { blur: 12, opacity: 0.55, tint: null },
+        tree: {
+          type: "Box",
+          props: { backgroundColor: "#0b1026" },
+          children: [
+            {
+              type: "Svg",
+              source: "<svg xmlns='http://www.w3.org/2000/svg'/>",
+              alt: "Night sky",
+              width: null,
+              height: null,
+            },
+            { type: "Text", props: {}, children: ["Night sky"] },
+          ],
+        },
+        ground: null,
+      };
+      const gradientGround = {
+        source: "ground-probe",
+        scene: null,
+        colorScheme: "dark",
+        glass: null,
+        tree: null,
+        ground: {
+          type: "gradient",
+          stops: [
+            { at: null, color: "#0b1026" },
+            { at: null, color: "#3b3f7a" },
+          ],
+          angle: 180,
+          shape: "linear",
+          size: null,
+          repeat: false,
+        },
+      };
+
+      expect(await readBackdrop()).toBeNull();
+      expect(
+        (
+          await post(harness, session.id, [
+            extensionStateEvent(
+              thread.id,
+              { backdrop: { ...nightSky, scene: "dusk" } },
+              "bb/backdrop",
+            ),
+            extensionStateEvent(
+              thread.id,
+              { backdrop: nightSky },
+              "bb/backdrop",
+            ),
+          ])
+        ).status,
+      ).toBe(200);
+      expect(await readBackdrop()).toEqual(nightSky);
+
+      const malformed = await post(harness, session.id, [
+        extensionStateEvent(
+          thread.id,
+          { backdrop: { ...nightSky, tree: { type: "Button", props: {} } } },
+          "bb/backdrop",
+        ),
+      ]);
+      expect(malformed.status).toBe(200);
+      expect(storedRows(harness, thread.id).at(-1)?.type).toBe(
+        "provider/unhandled",
+      );
+      expect(await readBackdrop()).toEqual(nightSky);
+
+      expect(
+        (
+          await post(harness, session.id, [
+            extensionStateEvent(
+              thread.id,
+              { backdrop: gradientGround },
+              "bb/backdrop",
+            ),
+          ])
+        ).status,
+      ).toBe(200);
+      expect(await readBackdrop()).toEqual(gradientGround);
+
+      expect(
+        (
+          await post(harness, session.id, [
+            extensionStateEvent(thread.id, { backdrop: null }, "bb/backdrop"),
+          ])
+        ).status,
+      ).toBe(200);
+      expect(await readBackdrop()).toBeNull();
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
   it("keeps a chosen session option pending until the agent reports it, and refuses the server's own state kind from a provider", async () => {
     const { harness, session, thread } = await setup();
     try {

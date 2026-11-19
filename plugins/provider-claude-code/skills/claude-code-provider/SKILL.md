@@ -56,6 +56,13 @@ with `bb plugin config provider-claude-code set <key> <value>`.
   turn starts. Commands for settings bb manages (such as
   `/model`, `/config`, `/fast`), terminal-only commands (such as `/doctor`),
   and bb's own skills are left out.
+- A Claude Code mod that sets a backdrop (`$.theme.set({ backdrop })`: a live
+  scene drawn by a `ui.render` hook, or a still color, gradient, vector or
+  image ground) has it drawn behind the thread's transcript. Images over about
+  42 KB are left out.
+  bb attaches to each Claude Code session as a desktop surface that draws
+  backdrops and redraws when the mod invalidates it; Claude Code versions
+  without mod surfaces show no backdrop. `bb thread backdrop` shows what is set.
 - Structured plan, message editing, and compaction are supported through the
   corresponding `bb thread` commands. Unlisted model IDs are accepted by the
   provider; verify actual availability on the target host.

@@ -7,6 +7,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,7 +42,8 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   tool: vi.fn((_name, _desc, _schema, handler) => handler),
 }));
 
-import { handleLine } from "../bridge.js";
+import { handleLine, setBackdropPublishSchedulerForTests } from "../bridge.js";
+import { realBackdropPublishScheduler } from "../backdrop.js";
 import { buildSessionOptions } from "../session-options.js";
 import {
   type ClaudePermissionMode,
@@ -1156,6 +1158,780 @@ describe("bridge", () => {
       await stopBridgeThread({ bridge, queries, threadId });
       bridge.restore();
     }
+  });
+
+  describe("backdrop surface", () => {
+    interface Deferred {
+      resolve(response: unknown): void;
+      reject(error: Error): void;
+    }
+
+    interface FakeBackdropScheduler {
+      advance(ms: number): void;
+    }
+
+    const threadId = "thread-backdrop";
+    const nightSkyResponse = {
+      tree: {
+        type: "Box",
+        props: { backgroundColor: "blue" },
+        children: [{ type: "Text", children: ["Night sky"] }],
+        part: { plugin: "night-sky" },
+      },
+      props: {
+        id: "night-sky",
+        plugin: "night-sky",
+        glass: false,
+        colorScheme: "dark",
+      },
+      rewritten: false,
+      hooked: true,
+      drawn_by: ["night-sky"],
+    };
+    const nightSkyState = {
+      backdrop: {
+        source: "night-sky",
+        scene: "night-sky",
+        colorScheme: "dark",
+        glass: null,
+        tree: {
+          type: "Box",
+          props: { backgroundColor: "blue" },
+          children: [{ type: "Text", props: {}, children: ["Night sky"] }],
+        },
+        ground: null,
+      },
+    };
+    const sceneResponse = (scene: string) => ({
+      ...nightSkyResponse,
+      props: { ...nightSkyResponse.props, id: scene },
+    });
+    const sceneState = (scene: string) => ({
+      backdrop: { ...nightSkyState.backdrop, scene },
+    });
+    const engineResponse = {
+      tree: { type: "engine", ref: 0 },
+      props: {},
+      rewritten: false,
+      hooked: true,
+      drawn_by: [],
+    };
+    const attachSuccess = {
+      subtype: "success",
+      request_id: "a",
+      response: { surfaces: ["desktop"] },
+    };
+    const renderSuccess = (response: unknown) => ({
+      subtype: "success",
+      request_id: "r",
+      response,
+    });
+
+    let fakeScheduler: FakeBackdropScheduler;
+    let stderr: { mock: { calls: unknown[][] }; mockRestore(): void };
+
+    beforeEach(() => {
+      let now = 0;
+      let timers: { at: number; callback: () => void; cancelled: boolean }[] =
+        [];
+      setBackdropPublishSchedulerForTests({
+        now: () => now,
+        schedule(callback, delayMs) {
+          const timer = { at: now + delayMs, callback, cancelled: false };
+          timers.push(timer);
+          return () => {
+            timer.cancelled = true;
+          };
+        },
+      });
+      fakeScheduler = {
+        advance(ms) {
+          now += ms;
+          const due = timers.filter(
+            (timer) => !timer.cancelled && timer.at <= now,
+          );
+          timers = timers.filter((timer) => !due.includes(timer));
+          for (const timer of due) {
+            timer.callback();
+          }
+        },
+      };
+      stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    });
+
+    afterEach(() => {
+      stderr.mockRestore();
+      setBackdropPublishSchedulerForTests(realBackdropPublishScheduler);
+    });
+
+    function backdropInvalidation(
+      instances?: { surface: string; component: string; instance_id: string }[],
+    ): SDKMessage {
+      return {
+        type: "system",
+        subtype: "ui_invalidate",
+        event: "ui.render",
+        ...(instances === undefined ? {} : { instances }),
+        uuid: "00000000-0000-4000-8000-0000000000aa",
+        session_id: threadId,
+      } as unknown as SDKMessage;
+    }
+
+    function backdropLogLines(): string[] {
+      return stderr.mock.calls
+        .map((call) => String(call[0]))
+        .filter((line) => line.includes("backdrop"));
+    }
+
+    function startBackdropBridge(request: ReturnType<typeof vi.fn>): {
+      bridge: BridgeJsonRpcTestHarness;
+      queries: ControlledClaudeQuery[];
+      backdropStates: () => unknown[];
+    } {
+      const bridge = createBridgeJsonRpcTestHarness(handleLine);
+      const queries: ControlledClaudeQuery[] = [];
+      queryMock.mockImplementation(() => {
+        const query = Object.assign(createControlledClaudeQuery(), {
+          request,
+        });
+        queries.push(query);
+        return query;
+      });
+      bridge.sendRequest(1, "thread/start", {
+        threadId,
+        cwd: "/tmp/worktree",
+        instructionMode: "append",
+        options: {
+          permissionMode: "accept-edits",
+          permissionScope: "workspace",
+          approvalReviewer: "user",
+          permissionEscalation: "ask",
+          instructions: "test",
+          providerOptions: { workflowsEnabled: false },
+        },
+      });
+      return {
+        bridge,
+        queries,
+        backdropStates: () =>
+          assembleCapturedThreadEvents(bridge.messages, "claude-code").flatMap(
+            (event) =>
+              event.type === "thread/extensionState/updated" &&
+              event.kind === "bb/backdrop"
+                ? [event.payload]
+                : [],
+          ),
+      };
+    }
+
+    interface UiRequestBody {
+      subtype: string;
+      component?: string;
+      instance_id?: string;
+    }
+
+    function isThemeRender(body: UiRequestBody): boolean {
+      return (
+        body.subtype === "ui_render" &&
+        body.component === "Theme" &&
+        body.instance_id === "theme"
+      );
+    }
+
+    function requestSubtypes(request: ReturnType<typeof vi.fn>): unknown[] {
+      return request.mock.calls
+        .map(([body]) => body)
+        .filter((body) => !isThemeRender(body))
+        .map((body) => body.subtype);
+    }
+
+    function renderTargets(request: ReturnType<typeof vi.fn>): string[] {
+      return request.mock.calls
+        .map(([body]) => body)
+        .filter((body) => body.subtype === "ui_render")
+        .map((body) => `${body.component}/${body.instance_id}`);
+    }
+
+    function scriptedRequest(
+      renders: unknown[],
+      themes: unknown[] = [],
+    ): ReturnType<typeof vi.fn> {
+      return vi.fn(async (body: UiRequestBody) =>
+        body.subtype === "ui_attach"
+          ? attachSuccess
+          : isThemeRender(body)
+            ? renderSuccess(themes.shift() ?? engineResponse)
+            : renderSuccess(renders.shift()),
+      );
+    }
+
+    function deferredRequest(pendingRenders: Deferred[]) {
+      return vi.fn((body: UiRequestBody) =>
+        body.subtype === "ui_attach"
+          ? Promise.resolve(attachSuccess)
+          : isThemeRender(body)
+            ? Promise.resolve(renderSuccess(engineResponse))
+            : new Promise((resolve, reject) => {
+                pendingRenders.push({
+                  resolve: (response) => resolve(renderSuccess(response)),
+                  reject,
+                });
+              }),
+      );
+    }
+
+    it("attaches as a desktop surface that draws backdrops and publishes each changed drawing", async () => {
+      const request = scriptedRequest([nightSkyResponse, engineResponse]);
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() =>
+          expect(backdropStates()).toEqual([nightSkyState]),
+        );
+        expect(request.mock.calls.map(([body]) => body)).toEqual([
+          {
+            subtype: "ui_attach",
+            surface: "desktop",
+            client_id: "bb",
+            draws: ["Theme", "Backdrop"],
+          },
+          {
+            subtype: "ui_render",
+            surface: "desktop",
+            client_id: "bb",
+            component: "Backdrop",
+            instance_id: "backdrop",
+            props: {},
+          },
+          {
+            subtype: "ui_render",
+            surface: "desktop",
+            client_id: "bb",
+            component: "Theme",
+            instance_id: "theme",
+            props: {},
+          },
+        ]);
+
+        queries[0].emit(
+          backdropInvalidation([
+            {
+              surface: "mobile",
+              component: "Backdrop",
+              instance_id: "backdrop",
+            },
+            { surface: "desktop", component: "Pane", instance_id: "pane" },
+          ]),
+        );
+        await bridge.flushWork();
+        expect(requestSubtypes(request)).toEqual(["ui_attach", "ui_render"]);
+
+        queries[0].emit(
+          backdropInvalidation([
+            {
+              surface: "desktop",
+              component: "Backdrop",
+              instance_id: "backdrop",
+            },
+            { surface: "desktop", component: "Theme", instance_id: "theme" },
+          ]),
+        );
+        await vi.waitFor(() =>
+          expect(requestSubtypes(request)).toEqual([
+            "ui_attach",
+            "ui_render",
+            "ui_render",
+          ]),
+        );
+        await bridge.flushWork();
+        expect(backdropStates()).toEqual([nightSkyState]);
+        fakeScheduler.advance(1000);
+        expect(backdropStates()).toEqual([nightSkyState, { backdrop: null }]);
+        expect(backdropLogLines()).toEqual([]);
+        expect(
+          assembleCapturedThreadEvents(bridge.messages, "claude-code").filter(
+            (event) => event.type === "provider/unhandled",
+          ),
+        ).toEqual([]);
+      } finally {
+        await stopBridgeThread({ bridge, queries, threadId });
+        bridge.restore();
+      }
+    });
+
+    it("publishes an empty backdrop as the first outcome of a new attachment, clearing one stored earlier", async () => {
+      const request = scriptedRequest([engineResponse, engineResponse]);
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() =>
+          expect(backdropStates()).toEqual([{ backdrop: null }]),
+        );
+        queries[0].emit(backdropInvalidation());
+        await vi.waitFor(() =>
+          expect(requestSubtypes(request)).toEqual([
+            "ui_attach",
+            "ui_render",
+            "ui_render",
+          ]),
+        );
+        fakeScheduler.advance(1000);
+        await bridge.flushWork();
+        expect(backdropStates()).toEqual([{ backdrop: null }]);
+      } finally {
+        await stopBridgeThread({ bridge, queries, threadId });
+        bridge.restore();
+      }
+    });
+
+    it("keeps one render in flight and publishes the latest drawing, throttled", async () => {
+      const pendingRenders: Deferred[] = [];
+      const request = deferredRequest(pendingRenders);
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() => expect(pendingRenders).toHaveLength(1));
+        for (let index = 0; index < 5; index += 1) {
+          queries[0].emit(backdropInvalidation());
+        }
+        await bridge.flushWork();
+        expect(pendingRenders).toHaveLength(1);
+
+        pendingRenders[0].resolve(nightSkyResponse);
+        await vi.waitFor(() =>
+          expect(backdropStates()).toEqual([nightSkyState]),
+        );
+        await vi.waitFor(() => expect(pendingRenders).toHaveLength(2));
+        queries[0].emit(backdropInvalidation());
+        await bridge.flushWork();
+        pendingRenders[1].resolve(sceneResponse("dusk"));
+        await vi.waitFor(() => expect(pendingRenders).toHaveLength(3));
+        pendingRenders[2].resolve(sceneResponse("dawn"));
+        await bridge.flushWork();
+        expect(backdropStates()).toEqual([nightSkyState]);
+
+        fakeScheduler.advance(1000);
+        expect(backdropStates()).toEqual([nightSkyState, sceneState("dawn")]);
+        expect(pendingRenders).toHaveLength(3);
+      } finally {
+        await stopBridgeThread({ bridge, queries, threadId });
+        bridge.restore();
+      }
+    });
+
+    it("treats a refused Backdrop render as unsupported: one log line, one empty backdrop, no more renders", async () => {
+      const request = vi.fn(async (body: { subtype: string }) => {
+        if (body.subtype === "ui_attach") {
+          return attachSuccess;
+        }
+        throw new Error(
+          'ui_render: surface must be "desktop", "mobile" or "vscode", component a render site name',
+        );
+      });
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() =>
+          expect(backdropStates()).toEqual([{ backdrop: null }]),
+        );
+        for (let index = 0; index < 3; index += 1) {
+          queries[0].emit(backdropInvalidation());
+        }
+        await bridge.flushWork();
+        fakeScheduler.advance(1000);
+        expect(renderTargets(request)).toEqual([
+          "Backdrop/backdrop",
+          "Theme/theme",
+        ]);
+        expect(backdropStates()).toEqual([{ backdrop: null }]);
+        expect(backdropLogLines()).toHaveLength(1);
+        expect(backdropLogLines()[0]).toContain("does not draw backdrops");
+      } finally {
+        await stopBridgeThread({ bridge, queries, threadId });
+        bridge.restore();
+      }
+    });
+
+    it("treats a CLI without ui_attach as unsupported", async () => {
+      const request = vi.fn(async () => {
+        throw new Error("Unsupported control request subtype: ui_attach");
+      });
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() =>
+          expect(backdropStates()).toEqual([{ backdrop: null }]),
+        );
+        queries[0].emit(backdropInvalidation());
+        await bridge.flushWork();
+        expect(request).toHaveBeenCalledOnce();
+        expect(backdropLogLines()).toHaveLength(1);
+        expect(
+          assembleCapturedThreadEvents(bridge.messages, "claude-code").filter(
+            (event) => event.type === "provider/unhandled",
+          ),
+        ).toEqual([]);
+      } finally {
+        await stopBridgeThread({ bridge, queries, threadId });
+        bridge.restore();
+      }
+    });
+
+    it("retries a transiently failed attach on the next invalidation", async () => {
+      let attachCount = 0;
+      const request = vi.fn(async (body: { subtype: string }) => {
+        if (body.subtype === "ui_attach") {
+          attachCount += 1;
+          if (attachCount === 1) {
+            throw new Error("The operation was aborted due to timeout");
+          }
+          return attachSuccess;
+        }
+        return renderSuccess(nightSkyResponse);
+      });
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() => expect(request).toHaveBeenCalledOnce());
+        await bridge.flushWork();
+        expect(backdropStates()).toEqual([]);
+        queries[0].emit(backdropInvalidation());
+        await vi.waitFor(() =>
+          expect(backdropStates()).toEqual([nightSkyState]),
+        );
+        expect(requestSubtypes(request)).toEqual([
+          "ui_attach",
+          "ui_attach",
+          "ui_render",
+        ]);
+        expect(backdropLogLines()).toHaveLength(1);
+      } finally {
+        await stopBridgeThread({ bridge, queries, threadId });
+        bridge.restore();
+      }
+    });
+
+    it("drops a render answered after the thread stopped without logging", async () => {
+      const pendingRenders: Deferred[] = [];
+      const request = deferredRequest(pendingRenders);
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() => expect(pendingRenders).toHaveLength(1));
+        queries[0].emit(backdropInvalidation());
+        await stopBridgeThread({ bridge, queries, threadId });
+        pendingRenders[0].reject(new Error("Control request aborted"));
+        await bridge.flushWork();
+        fakeScheduler.advance(1000);
+        expect(pendingRenders).toHaveLength(1);
+        expect(backdropStates()).toEqual([]);
+        expect(backdropLogLines()).toEqual([]);
+      } finally {
+        bridge.restore();
+      }
+    });
+
+    it("draws a 2.1.325 scene under Theme/backdrop once Backdrop is refused", async () => {
+      const scene325 = {
+        ...nightSkyResponse,
+        props: {
+          scene: "night-sky",
+          plugin: "night-sky",
+          glass: false,
+          overrideColorScheme: "dark",
+        },
+      };
+      const request = vi.fn(async (body: UiRequestBody) => {
+        if (body.subtype === "ui_attach") {
+          return attachSuccess;
+        }
+        if (body.component === "Backdrop") {
+          throw new Error(
+            'ui_render: surface must be "desktop", "mobile" or "vscode", component a render site name (a scene is Theme under instance_id backdrop, not Backdrop)',
+          );
+        }
+        return renderSuccess(isThemeRender(body) ? engineResponse : scene325);
+      });
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() =>
+          expect(backdropStates()).toEqual([nightSkyState]),
+        );
+        queries[0].emit(
+          backdropInvalidation([
+            { surface: "desktop", component: "Theme", instance_id: "theme" },
+          ]),
+        );
+        await vi.waitFor(() => expect(renderTargets(request)).toHaveLength(5));
+        expect(renderTargets(request)).toEqual([
+          "Backdrop/backdrop",
+          "Theme/backdrop",
+          "Theme/theme",
+          "Theme/backdrop",
+          "Theme/theme",
+        ]);
+        expect(backdropLogLines()).toHaveLength(1);
+        expect(backdropLogLines()[0]).toContain("draws scenes under Theme");
+      } finally {
+        await stopBridgeThread({ bridge, queries, threadId });
+        bridge.restore();
+      }
+    });
+
+    it("publishes a still gradient ground from Theme/theme", async () => {
+      const request = scriptedRequest(
+        [engineResponse],
+        [
+          {
+            tree: { type: "engine", ref: 0 },
+            props: {
+              plugin: "ground-probe",
+              overrideColorScheme: "dark",
+              backdrop: { gradient: { stops: ["#0b1026", "#3b3f7a"] } },
+            },
+            hooked: true,
+          },
+        ],
+      );
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() =>
+          expect(backdropStates()).toEqual([
+            {
+              backdrop: {
+                source: "ground-probe",
+                scene: null,
+                colorScheme: "dark",
+                glass: null,
+                tree: null,
+                ground: {
+                  type: "gradient",
+                  stops: [
+                    { at: null, color: "#0b1026" },
+                    { at: null, color: "#3b3f7a" },
+                  ],
+                  angle: 180,
+                  shape: "linear",
+                  size: null,
+                  repeat: false,
+                },
+              },
+            },
+          ]),
+        );
+      } finally {
+        await stopBridgeThread({ bridge, queries, threadId });
+        bridge.restore();
+      }
+    });
+
+    it("keeps a generic ui_render refusal of Backdrop off the Theme path", async () => {
+      const request = vi.fn(async (body: UiRequestBody) => {
+        if (body.subtype === "ui_attach") {
+          return attachSuccess;
+        }
+        if (body.component === "Backdrop") {
+          throw new Error("ui_render: props an object");
+        }
+        return renderSuccess(engineResponse);
+      });
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() =>
+          expect(backdropStates()).toEqual([{ backdrop: null }]),
+        );
+        expect(renderTargets(request)).toEqual([
+          "Backdrop/backdrop",
+          "Theme/theme",
+        ]);
+        expect(backdropLogLines()).toEqual([]);
+      } finally {
+        await stopBridgeThread({ bridge, queries, threadId });
+        bridge.restore();
+      }
+    });
+
+    it("replaces a published scene when the image ground that follows cannot be read", async () => {
+      let themeTurn = 0;
+      const request = vi.fn(async (body: UiRequestBody) => {
+        if (body.subtype === "ui_attach") {
+          return attachSuccess;
+        }
+        if (body.instance_id?.startsWith("image:")) {
+          throw new Error("Control request timed out");
+        }
+        if (isThemeRender(body)) {
+          themeTurn += 1;
+          return renderSuccess(
+            themeTurn === 1
+              ? engineResponse
+              : {
+                  tree: { type: "engine", ref: 0 },
+                  props: {
+                    plugin: "image-ground",
+                    backdrop: {
+                      image: { type: "png", width: 16, height: 16, id: "tile" },
+                    },
+                  },
+                },
+          );
+        }
+        return renderSuccess(
+          themeTurn === 0 ? nightSkyResponse : engineResponse,
+        );
+      });
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() =>
+          expect(backdropStates()).toEqual([nightSkyState]),
+        );
+        queries[0].emit(backdropInvalidation());
+        await vi.waitFor(() =>
+          expect(renderTargets(request)).toContain("Theme/image:tile:0"),
+        );
+        await bridge.flushWork();
+        fakeScheduler.advance(1000);
+        expect(backdropStates()).toEqual([nightSkyState, { backdrop: null }]);
+        expect(backdropLogLines()).toEqual([
+          expect.stringContaining("backdrop image could not be read"),
+        ]);
+      } finally {
+        await stopBridgeThread({ bridge, queries, threadId });
+        bridge.restore();
+      }
+    });
+
+    it("reads an image ground's chunks once per attachment", async () => {
+      const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
+      const imageTheme = {
+        tree: { type: "engine", ref: 0 },
+        props: {
+          plugin: "image-ground",
+          backdrop: {
+            image: {
+              type: "png",
+              width: 16,
+              height: 16,
+              id: "tile",
+              repeat: true,
+            },
+          },
+        },
+      };
+      const request = vi.fn(async (body: UiRequestBody) => {
+        if (body.subtype === "ui_attach") {
+          return attachSuccess;
+        }
+        if (body.instance_id === "image:tile:0") {
+          return renderSuccess({
+            tree: { type: "engine", ref: 0 },
+            props: {
+              data: bytes.toString("base64"),
+              index: 0,
+              of: 1,
+              hash: createHash("sha256").update(bytes).digest("hex"),
+              bytes: bytes.length,
+            },
+          });
+        }
+        return renderSuccess(isThemeRender(body) ? imageTheme : engineResponse);
+      });
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() => expect(backdropStates()).toHaveLength(1));
+        expect(backdropStates()[0]).toEqual({
+          backdrop: {
+            source: "image-ground",
+            scene: null,
+            colorScheme: null,
+            glass: null,
+            tree: null,
+            ground: {
+              type: "image",
+              mime: "image/png",
+              dataBase64: bytes.toString("base64"),
+              width: 16,
+              height: 16,
+              size: null,
+              repeat: true,
+            },
+          },
+        });
+        queries[0].emit(backdropInvalidation());
+        queries[0].emit(backdropInvalidation());
+        await vi.waitFor(() =>
+          expect(
+            renderTargets(request).filter((target) => target === "Theme/theme"),
+          ).toHaveLength(3),
+        );
+        await bridge.flushWork();
+        expect(
+          renderTargets(request).filter((target) =>
+            target.startsWith("Theme/image:"),
+          ),
+        ).toEqual(["Theme/image:tile:0"]);
+      } finally {
+        await stopBridgeThread({ bridge, queries, threadId });
+        bridge.restore();
+      }
+    });
+
+    it("re-attaches a replacement session and dedupes against the attachment's publish", async () => {
+      const request = scriptedRequest([
+        nightSkyResponse,
+        nightSkyResponse,
+        engineResponse,
+      ]);
+      const { bridge, queries, backdropStates } = startBackdropBridge(request);
+      try {
+        await bridge.waitForResponse(1);
+        await vi.waitFor(() =>
+          expect(backdropStates()).toEqual([nightSkyState]),
+        );
+        queries[0].finish();
+        await bridge.flushWork();
+        bridge.sendRequest(
+          3,
+          "turn/start",
+          canonicalTurnParams({
+            threadId,
+            providerThreadId: threadId,
+            input: [{ type: "text", text: "hello" }],
+          }),
+        );
+        await vi.waitFor(() => expect(queries).toHaveLength(2));
+        await vi.waitFor(() =>
+          expect(requestSubtypes(request)).toEqual([
+            "ui_attach",
+            "ui_render",
+            "ui_attach",
+            "ui_render",
+          ]),
+        );
+        await bridge.flushWork();
+        fakeScheduler.advance(1000);
+        expect(backdropStates()).toEqual([nightSkyState]);
+
+        queries[1].emit(backdropInvalidation());
+        await vi.waitFor(() =>
+          expect(requestSubtypes(request)).toHaveLength(5),
+        );
+        await bridge.flushWork();
+        expect(backdropStates()).toEqual([nightSkyState, { backdrop: null }]);
+      } finally {
+        await stopBridgeThread({
+          bridge,
+          queries: queries.slice(1),
+          threadId,
+        });
+        bridge.restore();
+      }
+    });
   });
 
   it("lists a folder's commands from Claude Code without sending a prompt", async () => {

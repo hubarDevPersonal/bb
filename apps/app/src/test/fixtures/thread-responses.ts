@@ -44,6 +44,7 @@ export function makeThreadTimelineResponse(
     pendingTodos: null,
     goal: null,
     providerCommands: null,
+    backdrop: null,
     sessionOptions: null,
     modelFallback: null,
     maxSeq: 0,

@@ -465,3 +465,15 @@ describe("theme.css shimmer paint scope", () => {
     expect(rule).toMatch(/-webkit-mask-image:\s*none;/);
   });
 });
+
+describe("theme.css color scheme scopes", () => {
+  it("lets a nearer .light scope opt out of dark: utilities without adding specificity", () => {
+    expect(css).toContain(
+      "@custom-variant dark (&:is(.dark *):not(:where(.light *)));",
+    );
+  });
+
+  it("declares light tokens on .light so a subtree can force the light scheme", () => {
+    expect(css).toMatch(/:root,\s*\.light\s*\{\s*color-scheme: light;/);
+  });
+});

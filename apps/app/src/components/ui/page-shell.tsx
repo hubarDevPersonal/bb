@@ -11,6 +11,7 @@ interface PageShellBaseProps {
   children: ReactNode;
   footer?: ReactNode;
   scrollOverlay?: ReactNode;
+  backdrop?: ReactNode;
   shellClassName?: string;
   scrollAreaClassName?: string;
   contentClassName?: string;
@@ -26,6 +27,7 @@ interface PageShellProps extends PageShellBaseProps {
 interface FooterRenderOptions {
   maxWidthClassName: string;
   footerClassName?: string;
+  hasBackdrop: boolean;
 }
 
 const SHELL_BLEED_CLASS =
@@ -34,12 +36,14 @@ const DEFAULT_MAX_WIDTH_CLASS = "max-w-[760px]";
 
 function renderStaticFooter(
   footer: ReactNode,
-  { maxWidthClassName, footerClassName }: FooterRenderOptions,
+  { maxWidthClassName, footerClassName, hasBackdrop }: FooterRenderOptions,
 ) {
   if (!footer) return null;
   return (
-    <div className="relative shrink-0 bg-background">
-      <OverflowFade placement="above" tone="background" />
+    <div className={cn("relative shrink-0", !hasBackdrop && "bg-background")}>
+      {hasBackdrop ? null : (
+        <OverflowFade placement="above" tone="background" />
+      )}
       <div
         className={cn(
           "mx-auto w-full px-4 pb-4",
@@ -57,6 +61,7 @@ export function PageShell({
   children,
   footer,
   scrollOverlay,
+  backdrop,
   shellClassName,
   scrollAreaClassName,
   contentClassName,
@@ -68,6 +73,7 @@ export function PageShell({
   const staticFooter = renderStaticFooter(footer, {
     maxWidthClassName,
     footerClassName,
+    hasBackdrop: Boolean(backdrop),
   });
 
   if (scrollBehavior === "bottom-anchor") {
@@ -79,6 +85,7 @@ export function PageShell({
           maxWidthClassName={maxWidthClassName}
           footer={staticFooter}
           scrollOverlay={scrollOverlay}
+          backdrop={backdrop}
           scrollAnchorThreadId={scrollAnchorThreadId}
         >
           {children}
@@ -89,8 +96,13 @@ export function PageShell({
 
   return (
     <div className={cn(SHELL_BLEED_CLASS, shellClassName)}>
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <TitleBarScrollFade tone="background" />
+      <div
+        className={cn(
+          "relative flex min-h-0 flex-1 flex-col overflow-hidden",
+          backdrop && "isolate",
+        )}
+      >
+        {backdrop ? backdrop : <TitleBarScrollFade tone="background" />}
         <div
           data-page-scroll-viewport=""
           className={cn(

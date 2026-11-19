@@ -23,6 +23,14 @@ function tokenTypes(html: string): string[] {
   return tokens(html).map(([type]) => type);
 }
 
+describe("markdown-code-highlight.css", () => {
+  it("keeps dark token colors out of a nearer .light scope", () => {
+    expect(stylesheet).toContain(
+      ".dark .bb-code-highlight:not(:where(.light *)) {",
+    );
+  });
+});
+
 describe("highlightMarkdownCode", () => {
   const shell = "# install the plugin\nbb plugin install ./plugins/monokai";
 

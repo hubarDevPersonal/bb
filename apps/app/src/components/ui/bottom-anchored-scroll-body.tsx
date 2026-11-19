@@ -44,6 +44,7 @@ interface BottomAnchoredScrollBodyProps {
   children: ReactNode;
   footer: ReactNode;
   scrollOverlay?: ReactNode;
+  backdrop?: ReactNode;
   scrollAreaClassName?: string;
   contentClassName?: string;
   maxWidthClassName: string;
@@ -105,6 +106,7 @@ export function BottomAnchoredScrollBody({
   maxWidthClassName,
   footer,
   scrollOverlay,
+  backdrop,
   children,
   scrollAnchorThreadId,
 }: BottomAnchoredScrollBodyProps) {
@@ -350,8 +352,13 @@ export function BottomAnchoredScrollBody({
   return (
     <BottomAnchorContext.Provider value={bottomAnchorContextValue}>
       <TimelineScrollRestoreContext.Provider value={initialRestore}>
-        <div className="relative grid min-h-0 flex-1 grid-rows-[minmax(auto,1fr)] overflow-hidden">
-          <TitleBarScrollFade tone="background" />
+        <div
+          className={cn(
+            "relative grid min-h-0 flex-1 grid-rows-[minmax(auto,1fr)] overflow-hidden",
+            backdrop && "isolate",
+          )}
+        >
+          {backdrop ? backdrop : <TitleBarScrollFade tone="background" />}
           <div
             ref={scrollAreaRef}
             data-page-scroll-viewport=""

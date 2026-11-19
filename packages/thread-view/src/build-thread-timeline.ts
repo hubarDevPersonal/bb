@@ -21,6 +21,7 @@ import {
   type ActiveThinking,
   type CompletedTurnDisplay,
   type Thread,
+  type ThreadBackdrop,
   type ThreadEventItemPresentation,
   type ThreadTimelineActivePromptMode,
   type ThreadTimelineGoal,
@@ -69,6 +70,7 @@ import {
 } from "./active-prompt-mode-extraction.js";
 import { extractThreadTimelineGoal } from "./goal-snapshot-extraction.js";
 import {
+  extractThreadBackdrop,
   extractThreadProviderCommands,
   extractThreadSessionOptions,
 } from "./provider-state-extraction.js";
@@ -106,6 +108,7 @@ export interface ThreadTimelineFromEventsResult {
   activeThinking: ActiveThinking | null;
   activeWorkflows: TimelineWorkflowWorkRow[];
   activeBackgroundCommands: TimelineWorkflowWorkRow[];
+  backdrop: ThreadBackdrop | null;
   contextWindowUsage: ThreadContextWindowUsage | null;
   goal: ThreadTimelineGoal | null;
   modelFallback: ThreadTimelineModelFallback | null;
@@ -1222,6 +1225,9 @@ export function buildThreadTimelineFromEvents(
         return row ? [row] : [];
       },
     ),
+    backdrop: !args.options.isLatestPage
+      ? null
+      : extractThreadBackdrop(stateEvents),
     contextWindowUsage: extractThreadContextWindowUsage(
       args.contextWindowEvents,
     ),

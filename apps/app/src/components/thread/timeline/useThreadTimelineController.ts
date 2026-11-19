@@ -49,6 +49,7 @@ export interface UseThreadTimelineControllerResult {
   contextWindowUsage: ThreadTimelineResponse["contextWindowUsage"];
   goal: ThreadTimelineResponse["goal"];
   providerCommands: ThreadTimelineResponse["providerCommands"];
+  backdrop: ThreadTimelineResponse["backdrop"];
   sessionOptions: ThreadTimelineResponse["sessionOptions"];
   modelFallback: ThreadTimelineResponse["modelFallback"];
   hasOlderTimelineRows: boolean;
@@ -328,6 +329,7 @@ export function useThreadTimelineController({
     contextWindowUsage: latestTimeline?.contextWindowUsage,
     goal: latestTimeline?.goal ?? null,
     providerCommands: latestTimeline?.providerCommands ?? null,
+    backdrop: latestTimeline?.backdrop ?? null,
     sessionOptions: latestTimeline?.sessionOptions ?? null,
     modelFallback: latestTimeline?.modelFallback ?? null,
     hasOlderTimelineRows,

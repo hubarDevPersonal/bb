@@ -18,6 +18,10 @@ import {
 } from "@get-bb/plugin-sdk/provider-bridge";
 import type { ClaudePermissionMode } from "../interactive-contract.js";
 import {
+  UnsupportedUiControlError,
+  type ClaudeUiControlRequest,
+} from "./backdrop.js";
+import {
   isMissingClaudeCliMessage,
   missingClaudeCliGuidance,
   translateMissingClaudeCliError,
@@ -90,7 +94,22 @@ interface BuildSdkDoneErrorMessageArgs {
   stderrTail: string;
 }
 
+interface SdkControlRequester {
+  request(
+    request: ClaudeUiControlRequest,
+    options: { signal: AbortSignal },
+  ): Promise<{ response?: unknown }>;
+}
+
 const SDK_STDERR_TAIL_MAX_CHARS = 4_000;
+const UI_CONTROL_REQUEST_TIMEOUT_MS = 10_000;
+
+function asControlRequester(query: Query): SdkControlRequester | null {
+  const candidate = query as unknown as Partial<SdkControlRequester>;
+  return typeof candidate.request === "function"
+    ? (candidate as SdkControlRequester)
+    : null;
+}
 
 export function isBypassPermissionsAvailable(): boolean {
   return process.getuid?.() !== 0;
@@ -204,6 +223,29 @@ export class SdkSession {
 
   async supportedCommands(): Promise<SlashCommand[]> {
     return this.query ? this.query.supportedCommands() : [];
+  }
+
+  async sendUiControlRequest(
+    request: ClaudeUiControlRequest,
+  ): Promise<unknown> {
+    const query = this.query;
+    if (!query) {
+      throw new Error("Claude SDK session is not running");
+    }
+    const requester = asControlRequester(query);
+    if (!requester) {
+      throw new UnsupportedUiControlError(
+        `Claude SDK query cannot send the ${request.subtype} control request`,
+      );
+    }
+    await query.initializationResult();
+    const result = await requester.request(request, {
+      signal: AbortSignal.any([
+        this.abortController.signal,
+        AbortSignal.timeout(UI_CONTROL_REQUEST_TIMEOUT_MS),
+      ]),
+    });
+    return result.response;
   }
 
   async setModel(model: string | undefined): Promise<void> {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  threadBackdropSchema,
   activeThinkingSchema,
   callerExecutionInputSourceSchema,
   completedTurnDisplaySchema,
@@ -1201,6 +1202,7 @@ export const threadTimelineResponseSchema = z.object({
     .array(providerCommandSchema.omit({ pluginId: true }))
     .nullable(),
   sessionOptions: z.array(threadTimelineSessionOptionSchema).nullable(),
+  backdrop: threadBackdropSchema.nullable(),
   modelFallback: threadTimelineModelFallbackSchema.nullable(),
   contextWindowUsage: threadContextWindowUsageSchema.optional(),
   timelinePage: timelinePageMetadataSchema,

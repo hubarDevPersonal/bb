@@ -65,6 +65,30 @@ import {
 import { MissingClaudeCliError } from "./missing-cli-error.js";
 import { createClaudeCodeBridgeModelListMemo } from "./model-list.js";
 import {
+  BACKDROP_COMPONENT,
+  BACKDROP_INSTANCE_ID,
+  BACKDROP_MAX_PAYLOAD_BYTES,
+  BACKDROP_STATE_KIND,
+  THEME_COMPONENT,
+  THEME_INSTANCE_ID,
+  backdropAttachRequest,
+  backdropRenderRequest,
+  createBackdropPublisher,
+  invalidatesBackdrop,
+  isSceneMovedToThemeError,
+  isUnsupportedUiControlError,
+  readThemeImageId,
+  realBackdropPublishScheduler,
+  toBackdropState,
+  type BackdropPublisher,
+  type ClaudeBackdropState,
+} from "./backdrop.js";
+import {
+  BACKDROP_IMAGE_MAX_BYTES,
+  fetchBackdropImage,
+  type ClaudeBackdropImage,
+} from "./backdrop-ground.js";
+import {
   PROVIDER_COMMANDS_STATE_KIND,
   createClaudeCodeBridgeCommandListMemo,
   toProviderCommandsState,
@@ -236,7 +260,20 @@ interface ClaudeSessionRestart {
   showRuntimeNote: boolean;
 }
 
+type BackdropAttachOutcome = "attached" | "unsupported" | "transient";
+
+interface BackdropSurfaceState {
+  attach: Promise<BackdropAttachOutcome> | null;
+  attachAttempts: number;
+  dirty: boolean;
+  failureLogged: boolean;
+  rendering: boolean;
+  sceneComponent: typeof BACKDROP_COMPONENT | typeof THEME_COMPONENT;
+  unsupported: boolean;
+}
+
 interface ThreadSession {
+  backdrop: BackdropSurfaceState;
   commandListGeneration: number;
   contextUsageCollector: ClaudeContextUsageCollector;
   session: SdkSession;
@@ -269,6 +306,10 @@ interface ThreadAttachment {
   liveSettings: ClaudeLiveSessionSettings;
   approvedPlanPermissionMode: ClaudePermissionMode;
   providerThreadId?: string;
+  backdropPublisher: BackdropPublisher;
+  backdropImages: Map<string, ClaudeBackdropImage>;
+  backdropOversizeLogged: boolean;
+  backdropUnsupportedLogged: boolean;
   publishedProviderCommands: string | null;
   sessionPermissionGrants: ClaudeSessionPermissionGrant[];
   threadIdRef: ThreadIdRef;
@@ -635,6 +676,7 @@ async function closeThreadSession(args: {
   }
 
   attachment.closing = true;
+  attachment.backdropPublisher.close();
   const threadSession = attachment.residentSession;
   if (threadSession) {
     threadSession.closing = true;
@@ -1096,6 +1138,21 @@ function createThreadAttachment(
     ...(args.providerThreadId
       ? { providerThreadId: args.providerThreadId }
       : {}),
+    backdropPublisher: createBackdropPublisher({
+      scheduler: backdropPublishScheduler,
+      send: (state) => {
+        sendThreadDeltas(args.threadIdRef.current, [
+          {
+            kind: "extension.state",
+            extensionKind: BACKDROP_STATE_KIND,
+            payload: state,
+          },
+        ]);
+      },
+    }),
+    backdropImages: new Map(),
+    backdropOversizeLogged: false,
+    backdropUnsupportedLogged: false,
     publishedProviderCommands: null,
     sessionPermissionGrants: [],
     threadIdRef: args.threadIdRef,
@@ -1131,6 +1188,15 @@ function createThreadSession(attachment: ThreadAttachment): ThreadSession {
     })),
   );
   const threadSession: ThreadSession = {
+    backdrop: {
+      attach: null,
+      attachAttempts: 0,
+      dirty: false,
+      failureLogged: false,
+      rendering: false,
+      sceneComponent: BACKDROP_COMPONENT,
+      unsupported: false,
+    },
     commandListGeneration: 0,
     contextUsageCollector: new ClaudeContextUsageCollector(),
     session,
@@ -1173,6 +1239,7 @@ function startResidentThreadSession(
     attachment.residentSession = null;
     throw error;
   }
+  refreshBackdrop(threadSession);
   return threadSession;
 }
 
@@ -1551,6 +1618,261 @@ function refreshProviderCommands(threadSession: ThreadSession): void {
   );
 }
 
+const MAX_BACKDROP_ATTACH_ATTEMPTS = 3;
+const NULL_BACKDROP_STATE: ClaudeBackdropState = { backdrop: null };
+
+let backdropPublishScheduler = realBackdropPublishScheduler;
+
+export function setBackdropPublishSchedulerForTests(
+  scheduler: typeof realBackdropPublishScheduler,
+): void {
+  backdropPublishScheduler = scheduler;
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isBackdropSessionLive(threadSession: ThreadSession): boolean {
+  return !threadSession.closing && !threadSession.attachment.closing;
+}
+
+function markBackdropUnsupported(
+  threadSession: ThreadSession,
+  error: unknown,
+): void {
+  threadSession.backdrop.unsupported = true;
+  const { attachment } = threadSession;
+  if (!attachment.backdropUnsupportedLogged) {
+    attachment.backdropUnsupportedLogged = true;
+    logBridgeError(
+      `this Claude Code session does not draw backdrops: ${errorText(error)}`,
+    );
+  }
+  attachment.backdropPublisher.offer(NULL_BACKDROP_STATE);
+}
+
+function logBackdropFailure(
+  threadSession: ThreadSession,
+  message: string,
+): void {
+  if (threadSession.backdrop.failureLogged) {
+    return;
+  }
+  threadSession.backdrop.failureLogged = true;
+  logBridgeError(message);
+}
+
+async function attachBackdropSurface(
+  threadSession: ThreadSession,
+): Promise<BackdropAttachOutcome> {
+  const surface = threadSession.backdrop;
+  if (surface.attach === null) {
+    if (surface.attachAttempts >= MAX_BACKDROP_ATTACH_ATTEMPTS) {
+      return "transient";
+    }
+    surface.attachAttempts += 1;
+    surface.attach = threadSession.session
+      .sendUiControlRequest(backdropAttachRequest())
+      .then(
+        (): BackdropAttachOutcome => "attached",
+        (error: unknown): BackdropAttachOutcome => {
+          if (!isBackdropSessionLive(threadSession)) {
+            return "transient";
+          }
+          if (isUnsupportedUiControlError(error)) {
+            markBackdropUnsupported(threadSession, error);
+            return "unsupported";
+          }
+          logBackdropFailure(
+            threadSession,
+            `backdrop surface attach failed: ${errorText(error)}`,
+          );
+          return "transient";
+        },
+      );
+  }
+  const attach = surface.attach;
+  const outcome = await attach;
+  if (outcome === "transient" && surface.attach === attach) {
+    surface.attach = null;
+  }
+  return outcome;
+}
+
+type BackdropReply =
+  | { ok: true; value: unknown }
+  | { ok: false; error: unknown };
+
+async function settleBackdropReply(
+  request: () => Promise<unknown>,
+): Promise<BackdropReply> {
+  try {
+    return { ok: true, value: await request() };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+function renderBackdropInstance(
+  threadSession: ThreadSession,
+  component: string,
+  instanceId: string,
+): Promise<unknown> {
+  return threadSession.session.sendUiControlRequest(
+    backdropRenderRequest(component, instanceId),
+  );
+}
+
+async function renderBackdropScene(
+  threadSession: ThreadSession,
+): Promise<unknown> {
+  const surface = threadSession.backdrop;
+  if (surface.sceneComponent === BACKDROP_COMPONENT) {
+    try {
+      return await renderBackdropInstance(
+        threadSession,
+        BACKDROP_COMPONENT,
+        BACKDROP_INSTANCE_ID,
+      );
+    } catch (error) {
+      if (!isSceneMovedToThemeError(error)) {
+        throw error;
+      }
+      surface.sceneComponent = THEME_COMPONENT;
+      logBridgeError(
+        "this Claude Code session draws scenes under Theme; asking it for Theme/backdrop",
+      );
+    }
+  }
+  return renderBackdropInstance(
+    threadSession,
+    THEME_COMPONENT,
+    BACKDROP_INSTANCE_ID,
+  );
+}
+
+const MAX_CACHED_BACKDROP_IMAGES = 8;
+
+async function readBackdropImage(
+  threadSession: ThreadSession,
+  theme: unknown,
+): Promise<ClaudeBackdropImage | null> {
+  const id = readThemeImageId(theme);
+  if (id === null) {
+    return null;
+  }
+  const { attachment } = threadSession;
+  const cached = attachment.backdropImages.get(id);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const image = await fetchBackdropImage(id, (instanceId) =>
+    renderBackdropInstance(threadSession, THEME_COMPONENT, instanceId),
+  );
+  if (image.kind === "tooLarge") {
+    logBridgeError(
+      `backdrop image is ${image.bytes} bytes, over the ${BACKDROP_IMAGE_MAX_BYTES}-byte limit; drawing the backdrop without it`,
+    );
+  }
+  if (attachment.backdropImages.size >= MAX_CACHED_BACKDROP_IMAGES) {
+    attachment.backdropImages.clear();
+  }
+  attachment.backdropImages.set(id, image);
+  return image;
+}
+
+async function renderBackdrop(threadSession: ThreadSession): Promise<void> {
+  if ((await attachBackdropSurface(threadSession)) !== "attached") {
+    return;
+  }
+  if (!isBackdropSessionLive(threadSession)) {
+    return;
+  }
+  const scene = await settleBackdropReply(() =>
+    renderBackdropScene(threadSession),
+  );
+  const theme = await settleBackdropReply(() =>
+    renderBackdropInstance(threadSession, THEME_COMPONENT, THEME_INSTANCE_ID),
+  );
+  if (!isBackdropSessionLive(threadSession)) {
+    return;
+  }
+  const failures = [scene, theme].flatMap((reply) =>
+    reply.ok ? [] : [reply.error],
+  );
+  const transient = failures.find(
+    (error) => !isUnsupportedUiControlError(error),
+  );
+  if (transient !== undefined) {
+    logBackdropFailure(
+      threadSession,
+      `backdrop render failed: ${errorText(transient)}`,
+    );
+    return;
+  }
+  if (failures.length === 2) {
+    markBackdropUnsupported(threadSession, failures[0]);
+    return;
+  }
+  const themeReply = theme.ok ? theme.value : null;
+  let image: ClaudeBackdropImage | null = null;
+  try {
+    image = await readBackdropImage(threadSession, themeReply);
+  } catch (error) {
+    if (isBackdropSessionLive(threadSession)) {
+      logBackdropFailure(
+        threadSession,
+        `backdrop image could not be read: ${errorText(error)}`,
+      );
+    }
+  }
+  if (!isBackdropSessionLive(threadSession)) {
+    return;
+  }
+  const { state, treeDropped, groundDropped } = toBackdropState({
+    scene: scene.ok ? scene.value : null,
+    theme: themeReply,
+    image,
+  });
+  if (
+    (treeDropped || groundDropped) &&
+    !threadSession.attachment.backdropOversizeLogged
+  ) {
+    threadSession.attachment.backdropOversizeLogged = true;
+    logBridgeError(
+      `backdrop ${treeDropped ? "drawing" : "ground"} does not fit the ${BACKDROP_MAX_PAYLOAD_BYTES}-byte state limit or its shape; publishing the backdrop without it`,
+    );
+  }
+  threadSession.attachment.backdropPublisher.offer(state);
+}
+
+function refreshBackdrop(threadSession: ThreadSession): void {
+  const surface = threadSession.backdrop;
+  if (!isBackdropSessionLive(threadSession) || surface.unsupported) {
+    return;
+  }
+  if (surface.rendering) {
+    surface.dirty = true;
+    return;
+  }
+  surface.rendering = true;
+  surface.dirty = false;
+  void renderBackdrop(threadSession)
+    .catch((error: unknown) => {
+      logBackdropFailure(
+        threadSession,
+        `backdrop render failed: ${errorText(error)}`,
+      );
+    })
+    .finally(() => {
+      surface.rendering = false;
+      if (surface.dirty) {
+        refreshBackdrop(threadSession);
+      }
+    });
+}
+
 function createOnSdkMessage(
   args: CreateSdkCallbackArgs,
 ): (message: SDKMessage) => void {
@@ -1588,6 +1910,9 @@ function createOnSdkMessage(
       threadId: args.threadIdRef.current,
       message,
     });
+    if (invalidatesBackdrop(message)) {
+      refreshBackdrop(threadSession);
+    }
     if (message.type === "system" && message.subtype === "init") {
       refreshProviderCommands(threadSession);
     } else if (

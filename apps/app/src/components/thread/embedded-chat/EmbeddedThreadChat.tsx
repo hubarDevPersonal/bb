@@ -13,6 +13,7 @@ import {
 import {
   defaultAppSettings,
   type PromptInput,
+  type ThreadBackdrop,
   type ThreadQueuedMessage,
 } from "@bb/domain";
 import type { SendMessageDelivery } from "@bb/server-contract";
@@ -27,6 +28,11 @@ import type { PromptMentionLinkResolver } from "@bb/client-core";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { BottomAnchoredScrollBody } from "@/components/ui/bottom-anchored-scroll-body";
 import { PageShell } from "@/components/ui/page-shell.js";
+import {
+  ThreadBackdropLayer,
+  hasThreadBackdropLayer,
+  threadBackdropColorSchemeClassName,
+} from "@/components/thread/backdrop/ThreadBackdropLayer";
 import {
   FollowUpPromptBox,
   type FollowUpComposerProps,
@@ -153,6 +159,7 @@ interface EmbeddedThreadChatHostedFooterProps {
   variant: "hosted-footer";
   footer: ReactNode;
   scrollOverlay?: ReactNode;
+  backdrop: ThreadBackdrop | null;
   surface: ThreadTimelineSurfaceProps;
   composer?: never;
 }
@@ -171,12 +178,16 @@ export function EmbeddedThreadChat(props: EmbeddedThreadChatProps) {
 function EmbeddedThreadChatHostedFooter({
   footer,
   scrollOverlay,
+  backdrop,
   surface,
 }: EmbeddedThreadChatHostedFooterProps) {
   return (
     <div
       data-thread-window=""
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-clip"
+      className={cn(
+        "flex h-full min-h-0 min-w-0 flex-col overflow-clip",
+        threadBackdropColorSchemeClassName(backdrop?.colorScheme ?? null),
+      )}
     >
       <PageShell
         key={surface.threadId}
@@ -188,6 +199,11 @@ function EmbeddedThreadChatHostedFooter({
         footerClassName="chat-prompt-box"
         footer={footer}
         scrollOverlay={scrollOverlay}
+        backdrop={
+          hasThreadBackdropLayer(backdrop) ? (
+            <ThreadBackdropLayer backdrop={backdrop} />
+          ) : undefined
+        }
       >
         <ThreadTimelineSurface {...surface} />
       </PageShell>

@@ -40,6 +40,7 @@ export const READ_ONLY_COMMAND_PATHS: ReadonlySet<string> = new Set([
   "thread count",
   "thread context",
   "thread commands",
+  "thread backdrop",
   "thread wait",
   "thread queue list",
   "thread tabs show",

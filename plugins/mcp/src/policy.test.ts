@@ -168,6 +168,7 @@ describe("READ_ONLY_COMMAND_PATHS", () => {
       "terminal show",
       "theme list",
       "theme show",
+      "thread backdrop",
       "thread commands",
       "thread context",
       "thread count",

@@ -1,3 +1,4 @@
+import type { ThreadBackdrop } from "@bb/domain";
 import type {
   ProviderCommand,
   ThreadTimelineSessionOption,
@@ -91,6 +92,43 @@ export function formatThreadProviderCommands(
   });
 }
 
+function describeThreadBackdropGround(
+  ground: NonNullable<ThreadBackdrop["ground"]>,
+): string {
+  switch (ground.type) {
+    case "color":
+      return `color ${ground.color}`;
+    case "gradient":
+      return `${ground.shape} gradient (${ground.stops.length} stops)`;
+    case "vector":
+      return `vector (${ground.paths.length} paths${ground.repeat ? ", tiled" : ""})`;
+    case "image":
+      return `image (${ground.mime}, ${ground.width}x${ground.height}${ground.repeat ? ", tiled" : ""})`;
+  }
+}
+
+export function formatThreadBackdrop(
+  backdrop: ThreadBackdrop | null,
+): string[] {
+  if (backdrop === null) {
+    return ["No backdrop is set for this thread."];
+  }
+  const glass =
+    backdrop.glass === null
+      ? "none"
+      : `blur ${backdrop.glass.blur}px, opacity ${backdrop.glass.opacity}${
+          backdrop.glass.tint === null ? "" : `, tint ${backdrop.glass.tint}`
+        }`;
+  return [
+    `Set by: ${backdrop.source}`,
+    `Scene: ${backdrop.scene ?? "none"}`,
+    `Ground: ${backdrop.ground === null ? "none" : describeThreadBackdropGround(backdrop.ground)}`,
+    `Color scheme: ${backdrop.colorScheme ?? "unchanged"}`,
+    `Glass: ${glass}`,
+    `Drawing: ${backdrop.tree === null ? "none" : "provided"}`,
+  ];
+}
+
 export function formatThreadSessionOptions(
   options: readonly ThreadTimelineSessionOption[] | null,
 ): string[] {
@@ -138,6 +176,30 @@ export function registerSessionStateCommands(
           const commands = timeline.providerCommands;
           if (outputJson(opts, { commands })) return;
           for (const line of formatThreadProviderCommands(commands)) {
+            console.log(line);
+          }
+        },
+      ),
+    );
+
+  parent
+    .command("backdrop [id]")
+    .description(
+      "Show the backdrop the thread's agent draws behind the conversation",
+    )
+    .option("--self", "Use the current thread")
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(
+        async (id: string | undefined, opts: SessionStateCommandOptions) => {
+          const threadId = requireThreadIdOrSelf(id, opts);
+          const timeline = await createCliBbSdk(getUrl()).threads.timeline({
+            threadId,
+            summaryOnly: "true",
+          });
+          const { backdrop } = timeline;
+          if (outputJson(opts, { backdrop })) return;
+          for (const line of formatThreadBackdrop(backdrop)) {
             console.log(line);
           }
         },

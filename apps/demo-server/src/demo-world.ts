@@ -551,6 +551,7 @@ export class DemoWorld {
       pendingTodos: null,
       goal: null,
       providerCommands: null,
+      backdrop: null,
       sessionOptions: null,
       modelFallback: null,
       contextWindowUsage: {

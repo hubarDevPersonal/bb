@@ -9,7 +9,7 @@
 @source "../../../../../plugins/thread-list/app";
 @source "../../../../../plugins/composer/src";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *):not(:where(.light *)));
 
 /*
  * Blink cannot anchor a `:has()` that Tailwind nests inside `:is()`/`:where()`

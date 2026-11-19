@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import type { ThreadBackdrop } from "@bb/domain";
 import type { ThreadTimelineUnreadDividerPlacement } from "@/components/thread/timeline";
 import type { PromptMentionLinkResolver } from "@bb/client-core";
 import { EmbeddedThreadChat } from "@/components/thread/embedded-chat";
@@ -6,6 +7,7 @@ import type { ThreadTimelineSurfaceProps } from "@/components/thread/timeline/Th
 import { ThreadTableOfContents } from "@/components/thread/toc/ThreadTableOfContents";
 
 interface ThreadTimelinePaneProps extends ThreadTimelineSurfaceProps {
+  backdrop: ThreadBackdrop | null;
   canSpawnChild: boolean;
   footer: ReactNode;
   hasOlderTimelineRows: boolean;
@@ -19,6 +21,7 @@ interface ThreadTimelinePaneProps extends ThreadTimelineSurfaceProps {
 }
 
 export function ThreadTimelinePane({
+  backdrop,
   footer,
   ...surface
 }: ThreadTimelinePaneProps) {
@@ -28,6 +31,7 @@ export function ThreadTimelinePane({
     <EmbeddedThreadChat
       variant="hosted-footer"
       footer={footer}
+      backdrop={backdrop}
       scrollOverlay={
         <ThreadTableOfContents
           contextBoundarySeq={surface.contextBoundarySeq}

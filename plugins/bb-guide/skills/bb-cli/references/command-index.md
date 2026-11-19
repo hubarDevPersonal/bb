@@ -201,6 +201,7 @@ This index lists every command path that the core CLI registers, including alias
 - `bb thread compact`
 - `bb thread context`
 - `bb thread commands`
+- `bb thread backdrop`
 - `bb thread options`
 - `bb thread clear`
 - `bb thread cancel-plan`

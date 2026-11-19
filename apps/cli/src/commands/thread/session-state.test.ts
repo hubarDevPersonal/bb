@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatThreadBackdrop,
   formatThreadProviderCommands,
   formatThreadSessionOptions,
   parseSessionOptionAssignments,
@@ -28,6 +29,74 @@ describe("thread session state output", () => {
     ).toEqual(["/web <query>  Search the web", "/compact"]);
     expect(formatThreadProviderCommands(null)).toEqual([
       "The agent has not advertised any commands for this thread.",
+    ]);
+  });
+
+  it("describes the thread's backdrop, or says none is set", () => {
+    expect(
+      formatThreadBackdrop({
+        source: "night-sky",
+        scene: "stars",
+        colorScheme: "dark",
+        glass: { blur: 12, opacity: 0.55, tint: "#0b1026" },
+        tree: { type: "Box", props: {}, children: [] },
+        ground: null,
+      }),
+    ).toEqual([
+      "Set by: night-sky",
+      "Scene: stars",
+      "Ground: none",
+      "Color scheme: dark",
+      "Glass: blur 12px, opacity 0.55, tint #0b1026",
+      "Drawing: provided",
+    ]);
+    expect(
+      formatThreadBackdrop({
+        source: "ground-probe",
+        scene: null,
+        colorScheme: null,
+        glass: null,
+        tree: null,
+        ground: {
+          type: "gradient",
+          stops: [
+            { at: null, color: "#0b1026" },
+            { at: 0.7, color: "#3b3f7a" },
+          ],
+          angle: 180,
+          shape: "linear",
+          size: null,
+          repeat: false,
+        },
+      }),
+    ).toEqual([
+      "Set by: ground-probe",
+      "Scene: none",
+      "Ground: linear gradient (2 stops)",
+      "Color scheme: unchanged",
+      "Glass: none",
+      "Drawing: none",
+    ]);
+    expect(
+      formatThreadBackdrop({
+        source: "tiles",
+        scene: null,
+        colorScheme: "light",
+        glass: null,
+        tree: null,
+        ground: {
+          type: "image",
+          mime: "image/png",
+          dataBase64: "iVBORw==",
+          width: 16,
+          height: 16,
+          size: [32, 32],
+          repeat: true,
+        },
+      }).slice(2, 3),
+    ).toEqual(["Ground: image (image/png, 16x16, tiled)"]);
+    expect(formatThreadBackdrop(null)).toEqual([
+      "No backdrop is set for this thread.",
     ]);
   });
 

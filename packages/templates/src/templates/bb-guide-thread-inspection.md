@@ -57,6 +57,7 @@ Inspecting:
 
   bb thread context [id]                   Show recorded context usage and available breakdown (--self, --json)
   bb thread commands [id]                  List the slash commands the thread's agent has advertised (--self, --json)
+  bb thread backdrop [id]                  Show the backdrop drawn behind the conversation (--self, --json)
   bb thread options [id]                   List the session options the agent reports, with current values (--self, --json)
     --set <option=value>                   Choose a value, applied on the thread's next turn (repeatable)
     --clear <option>                       Drop a choice that has not been applied yet (repeatable)
@@ -84,6 +85,13 @@ Inspecting:
   until the agent sends one. `bb project commands` also lists Claude Code's
   commands before a thread starts. `thread options --set` takes `true` or `false` for an on/off
   option; `bb provider models <provider>` lists the options a model declares.
+
+  `thread backdrop` shows the backdrop a Claude Code mod set with
+  `$.theme.set({ backdrop })`: the plugin that set it, its live scene or still
+  ground (a color, gradient, vector tile or image), the color scheme it asks
+  for, and the glass the transcript is frosted with. `--json` prints
+  `{ backdrop: ... }`, including the scene's drawing and the ground; `null`
+  when none is set.
 
   bb thread log [id]                       Show thread event log
     --self                                 Target current thread

@@ -775,6 +775,7 @@ function ThreadDetailViewInternal(
     activeThinking,
     activeWorkflows,
     activeBackgroundCommands,
+    backdrop,
     contextBoundarySeq,
     contextWindowUsage,
     goal,
@@ -2855,6 +2856,7 @@ function ThreadDetailViewInternal(
             }}
             timeline={{
               activeThinking,
+              backdrop,
               canSpawnChild: thread.canSpawnChild,
               contextBoundarySeq,
               hasOlderTimelineRows,

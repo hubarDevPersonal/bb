@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { ExtensionKind } from "./provider-extension-kind.js";
 import {
+  THREAD_BACKDROP_STATE_KIND,
+  threadBackdropStateSchema,
+} from "./thread-backdrop-state.js";
+import {
   sessionOptionSelectionsSchema,
   type SessionOptionSelections,
   type SessionOptionValue,
@@ -281,6 +285,7 @@ export function applySessionOptionSelectionPatch(args: {
 const CORE_THREAD_STATE_SCHEMAS = {
   [THREAD_PROVIDER_COMMANDS_STATE_KIND]: threadProviderCommandsStateSchema,
   [THREAD_SESSION_OPTIONS_STATE_KIND]: threadSessionOptionsStateSchema,
+  [THREAD_BACKDROP_STATE_KIND]: threadBackdropStateSchema,
 } as const;
 
 export const CORE_THREAD_STATE_PLUGIN_ID = "bb";

@@ -1,11 +1,14 @@
 import {
+  THREAD_BACKDROP_STATE_KIND,
   THREAD_PROVIDER_COMMANDS_STATE_KIND,
   THREAD_SESSION_OPTIONS_STATE_KIND,
   THREAD_SESSION_OPTION_SELECTIONS_STATE_KIND,
   pendingSessionOptionSelections,
+  threadBackdropStateSchema,
   threadProviderCommandsStateSchema,
   threadSessionOptionSelectionsStateSchema,
   threadSessionOptionsStateSchema,
+  type ThreadBackdrop,
 } from "@bb/domain";
 import type {
   ProviderCommand,
@@ -48,6 +51,15 @@ export function extractThreadProviderCommands(
     description: command.description === "" ? null : command.description,
     argumentHint: command.inputHint ?? null,
   }));
+}
+
+export function extractThreadBackdrop(
+  events: readonly ThreadEventWithMeta[],
+): ThreadBackdrop | null {
+  const state = threadBackdropStateSchema.safeParse(
+    latestStatePayload(events, THREAD_BACKDROP_STATE_KIND),
+  );
+  return state.success ? state.data.backdrop : null;
 }
 
 export function extractThreadSessionOptions(

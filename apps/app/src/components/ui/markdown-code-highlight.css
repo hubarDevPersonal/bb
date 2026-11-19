@@ -23,7 +23,7 @@
   --sh-jsxliterals: oklch(0.47 0.13 292);
 }
 
-.dark .bb-code-highlight {
+.dark .bb-code-highlight:not(:where(.light *)) {
   --sh-keyword: oklch(0.74 0.14 18);
   --sh-string: oklch(0.78 0.12 150);
   --sh-class: oklch(0.76 0.11 250);

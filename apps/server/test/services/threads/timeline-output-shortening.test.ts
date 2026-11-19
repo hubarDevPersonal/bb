@@ -34,6 +34,7 @@ function response(rows: TimelineRow[]): ThreadTimelineResponse {
     pendingTodos: null,
     goal: null,
     providerCommands: null,
+    backdrop: null,
     sessionOptions: null,
     modelFallback: null,
     maxSeq: 0,

@@ -37,6 +37,7 @@ it("forwards pane callbacks to the timeline and conversation outline", () => {
   render(
     <ThreadTimelinePane
       activeThinking={null}
+      backdrop={null}
       canSpawnChild={false}
       contextBoundarySeq={null}
       footer={null}

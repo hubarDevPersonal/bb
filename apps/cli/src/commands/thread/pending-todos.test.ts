@@ -114,6 +114,7 @@ describe("fetchThreadPendingTodos", () => {
       pendingTodos,
       goal: null,
       providerCommands: null,
+      backdrop: null,
       sessionOptions: null,
       modelFallback: null,
       rows: [],

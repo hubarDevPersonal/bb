@@ -272,7 +272,13 @@ The current grammar (`grammarVersions: [3, 3]`) includes:
   per-session settings other than model and reasoning level, each a `select`
   (`value`, `values`) or a `boolean`, with an optional `category` such as
   `mode` (the model picker, `bb thread options`; `mode` shows in the composer
-  footer). Latest snapshot wins: re-emit the whole list when it changes. The
+  footer). `bb/backdrop` carries `{ backdrop: { source, scene, colorScheme,
+glass, tree, ground } | null }`, the backdrop drawn behind the transcript
+  (`bb thread backdrop`). A live scene sets `scene` and `tree`, a plain-data
+  drawing of Box/Text/div/span/b containers and Svg leaves (`null` to draw
+  only the glass and color scheme). A still ground sets `ground`, a
+  `color`, `gradient`, `vector` or `image` (base64, at most 56 KiB), with
+  `scene` `null`. Latest snapshot wins: re-emit the whole list when it changes. The
   server alone writes `bb/session-option-selections` (choices the provider
   has not applied yet) and refuses it from a bridge.
 - **`sessionOptions`** (`{ [optionId]: string | boolean }`) on `thread/start`
