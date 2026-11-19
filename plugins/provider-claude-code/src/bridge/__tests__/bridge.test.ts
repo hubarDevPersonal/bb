@@ -5927,6 +5927,30 @@ describe("bridge", () => {
       }
     });
 
+    it("tells the agent to list a folder attachment instead of reading it", async () => {
+      const { bridge, queries } = withBridgeHarness();
+      try {
+        const text = await sendTurnAndReadPrompt(
+          bridge,
+          queries,
+          "thread-marker-local-folder",
+          [
+            {
+              type: "localFile",
+              path: "/home/me/bb-drops/20261108-121500-ab12/site",
+              name: "site",
+              mimeType: "inode/directory",
+            },
+          ],
+        );
+        expect(text).toBe(
+          '[Attached folder "site". It is on disk at /home/me/bb-drops/20261108-121500-ab12/site — list it with ls or Glob and read the files you need.]',
+        );
+      } finally {
+        bridge.restore();
+      }
+    });
+
     it("emits a URL marker for a remote image attachment", async () => {
       const { bridge, queries } = withBridgeHarness();
       try {

@@ -2671,6 +2671,9 @@ function localAttachmentMarker(args: {
   sizeBytes?: number | undefined;
 }): string {
   const namePart = args.name && args.name.length > 0 ? ` "${args.name}"` : "";
+  if (args.kind === "file" && args.mimeType === "inode/directory") {
+    return `[Attached folder${namePart}. It is on disk at ${args.path} — list it with ls or Glob and read the files you need.]`;
+  }
   const details: string[] = [];
   if (args.mimeType) details.push(args.mimeType);
   if (args.sizeBytes !== undefined) details.push(`${args.sizeBytes} bytes`);

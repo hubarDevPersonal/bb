@@ -4,7 +4,7 @@ import {
   MACOS_TRAFFIC_LIGHT_TOP_INSET_PX,
   type BbDesktopServerChoice,
 } from "@bb/desktop-contract";
-import { contextBridge, ipcRenderer, webFrame } from "electron";
+import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 import { appCommandIdSchema, type AppCommandId } from "@bb/domain";
 import {
   desktopBrowserImportOutcomeSchema,
@@ -24,6 +24,7 @@ import {
   bbDesktopBrowserControlStateSchema,
   bbDesktopBrowserRevealRequestSchema,
   bbDesktopEnvironmentSchema,
+  bbDesktopEnvironmentTransferResultSchema,
   type BbDesktopBrowserControlState,
   type BbDesktopClipboardContent,
   type BbDesktopBrowserRevealRequest,
@@ -46,6 +47,8 @@ import {
   type BbDesktopCloseWindowRequestHandler,
   type BbDesktopEnvironment,
   type BbDesktopEnvironmentChangeHandler,
+  type BbDesktopEnvironmentTransferRequest,
+  type BbDesktopEnvironmentTransferResult,
   type BbDesktopInfo,
   type BbDesktopInfoChangeHandler,
   type BbDesktopInfoUnsubscribe,
@@ -117,6 +120,7 @@ import {
   BB_DESKTOP_OPEN_NEW_TAB_CHANNEL,
   BB_DESKTOP_OPEN_DATA_DIRECTORY_CHANNEL,
   BB_DESKTOP_OPEN_SERVER_DAEMON_LOGS_CHANNEL,
+  BB_DESKTOP_TRANSFER_TO_ENVIRONMENT_CHANNEL,
   BB_DESKTOP_WINDOW_STATE_CHANGED_CHANNEL,
   BB_DESKTOP_WRITE_CLIPBOARD_CHANNEL,
 } from "./desktop-window-command-ipc.js";
@@ -206,6 +210,33 @@ async function invokeDesktopWindowState(): Promise<BbDesktopWindowState> {
     return applyDesktopWindowStatePayload(payload) ?? currentWindowState;
   } catch {
     return currentWindowState;
+  }
+}
+
+async function invokeTransferToEnvironment(
+  file: File,
+  options: { maxUploadBytes: number },
+): Promise<BbDesktopEnvironmentTransferResult> {
+  const path = webUtils.getPathForFile(file);
+  if (path.length === 0) {
+    return { kind: "skipped", reason: "not-a-local-file" };
+  }
+  try {
+    const parsed = bbDesktopEnvironmentTransferResultSchema.safeParse(
+      await ipcRenderer.invoke(BB_DESKTOP_TRANSFER_TO_ENVIRONMENT_CHANNEL, {
+        path,
+        maxUploadBytes: options.maxUploadBytes,
+      } satisfies BbDesktopEnvironmentTransferRequest),
+    );
+    return parsed.success
+      ? parsed.data
+      : { kind: "failed", message: "The desktop app sent an invalid reply" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      kind: "failed",
+      message: message.length > 0 ? message : "The copy did not finish",
+    };
   }
 }
 
@@ -510,6 +541,9 @@ const bbDesktopApi: BbDesktopApi = {
       x: position.x * zoomFactor,
       y: position.y * zoomFactor,
     });
+  },
+  transferFileToEnvironment(file, options) {
+    return invokeTransferToEnvironment(file, options);
   },
   installUpdate() {
     return invokeInstallUpdate();

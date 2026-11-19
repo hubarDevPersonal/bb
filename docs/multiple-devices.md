@@ -206,6 +206,13 @@ template there and opens it. The app reloads the file when it changes.
   and sidebar pill name it, and its pill menu acts on its environment. The app
   keeps that environment's tunnel up while any of its windows is open. After a
   restart these windows reopen on the main environment.
+- In a window on an `ssh` environment, dropping (or pasting) a folder from
+  Finder into the composer copies it to the host instead of uploading it:
+  `rsync -a` over the same ssh settings (`scp -r` when rsync is missing on
+  either side) into `~/bb-drops/<YYYYMMDD-HHMMSS>-<random>/<name>`, and the
+  message attaches the absolute path on the host. Files larger than the 35 MB
+  upload limit are copied the same way; smaller files upload as usual. The copy
+  has no timeout, and the folder stays on the host until you delete it.
 - **<Environment> Actions** open in Terminal: **Sync Shared Rules** copies
   `shared.rulesSource` to `rulesTarget` on the host (rsync, no deletes) and
   runs `rulesInstall` there — or runs it in place for this computer; **Update

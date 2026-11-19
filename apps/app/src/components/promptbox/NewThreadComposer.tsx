@@ -83,6 +83,7 @@ import { newThreadEnvironmentArgsToSeed } from "@/components/plugin/new-thread-e
 import { PluginSlotMount } from "@/components/plugin/PluginSlotMount";
 import { usePluginSlots } from "@/lib/plugin-slots";
 import { useUploadPromptAttachment } from "@/hooks/mutations/project-mutations";
+import { uploadOrTransferAttachment } from "@/lib/environment-attachment-transfer";
 import { useSystemEnvironmentProviders } from "@/hooks/queries/environment-provider-queries";
 import { useSystemMachineProviders } from "@/hooks/queries/machine-provider-queries";
 import { usePluginList } from "@/hooks/queries/plugin-settings-queries";
@@ -1418,9 +1419,10 @@ export function NewThreadComposer({
       try {
         for (const upload of uploads) {
           try {
-            const uploaded = await uploadPromptAttachment.mutateAsync({
-              projectId,
+            const uploaded = await uploadOrTransferAttachment({
               file: upload.file,
+              upload: (file) =>
+                uploadPromptAttachment.mutateAsync({ projectId, file }),
             });
             promptDraft.addAttachment(uploaded);
             if (currentUploadTargetRef.current === capturedTarget) {

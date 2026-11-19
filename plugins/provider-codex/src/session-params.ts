@@ -603,14 +603,16 @@ export function toCodexUserInput(
         return { type: "image", url: chunk.url };
       case "localImage":
         return { type: "localImage", path: chunk.path };
-      case "localFile":
+      case "localFile": {
+        const kind = chunk.mimeType === "inode/directory" ? "folder" : "file";
         return {
           type: "text",
           text: chunk.name
-            ? `[Attached file "${chunk.name}": ${chunk.path}]`
-            : `[Attached file: ${chunk.path}]`,
+            ? `[Attached ${kind} "${chunk.name}": ${chunk.path}]`
+            : `[Attached ${kind}: ${chunk.path}]`,
           text_elements: [],
         };
+      }
     }
   });
   return [...chunks, ...selected.values()];

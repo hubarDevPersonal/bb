@@ -47,6 +47,7 @@ import {
 } from "@bb/domain";
 import {
   bbDesktopBrowserImportCookiesRequestSchema,
+  bbDesktopEnvironmentTransferRequestSchema,
   bbDesktopThemeSchema,
   type BbDesktopInfo,
   type BbDesktopEnvironment,
@@ -227,6 +228,7 @@ import {
   BB_DESKTOP_OPEN_NEW_TAB_CHANNEL,
   BB_DESKTOP_OPEN_DATA_DIRECTORY_CHANNEL,
   BB_DESKTOP_OPEN_SERVER_DAEMON_LOGS_CHANNEL,
+  BB_DESKTOP_TRANSFER_TO_ENVIRONMENT_CHANNEL,
   BB_DESKTOP_WINDOW_STATE_CHANGED_CHANNEL,
   CLOSE_WINDOW_REQUEST_TIMEOUT_MS,
 } from "./desktop-window-command-ipc.js";
@@ -234,6 +236,10 @@ import {
   createEnvironmentController,
   type EnvironmentController,
 } from "./environment-controller.js";
+import {
+  createEnvironmentFileTransferDeps,
+  transferPathToEnvironment,
+} from "./environment-file-transfer.js";
 import type { EnsureTunnelResult } from "./ssh-tunnel.js";
 import {
   BB_BROWSER_PARTITION,
@@ -2575,6 +2581,30 @@ function registerDesktopUpdateIpc(): void {
   ipcMain.handle(BB_DESKTOP_GET_ENVIRONMENT_CHANNEL, (event) => {
     return environmentForWebContents(event.sender.id);
   });
+  const environmentFileTransferDeps = createEnvironmentFileTransferDeps(
+    (message) => desktopLogger.info(message),
+  );
+  ipcMain.handle(
+    BB_DESKTOP_TRANSFER_TO_ENVIRONMENT_CHANNEL,
+    async (event, payload: unknown) => {
+      const request =
+        bbDesktopEnvironmentTransferRequestSchema.safeParse(payload);
+      if (!request.success) {
+        return { kind: "failed", message: "Invalid transfer request" };
+      }
+      const environmentId =
+        environmentForWebContents(event.sender.id)?.id ?? null;
+      const environment =
+        environmentController
+          ?.list()
+          .find((candidate) => candidate.id === environmentId) ?? null;
+      return transferPathToEnvironment(
+        environment,
+        request.data,
+        environmentFileTransferDeps,
+      );
+    },
+  );
   ipcMain.on(
     BB_DESKTOP_OPEN_ENVIRONMENT_MENU_CHANNEL,
     (event, payload: unknown) => {

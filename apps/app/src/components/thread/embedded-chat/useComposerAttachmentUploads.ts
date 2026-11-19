@@ -5,6 +5,10 @@ import {
   type PendingAttachmentUpload,
 } from "@/components/promptbox/usePendingAttachmentUploads";
 import { useUploadPromptAttachment } from "@/hooks/mutations/project-mutations";
+import {
+  EnvironmentTransferError,
+  uploadOrTransferAttachment,
+} from "@/lib/environment-attachment-transfer";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import { BbHttpError } from "@/lib/sdk";
 import type { PromptDraftAttachment } from "@bb/client-core";
@@ -55,6 +59,7 @@ interface UseDraftAttachmentUploadsResult {
 }
 
 function uploadRejectionReason(error: unknown): string | null {
+  if (error instanceof EnvironmentTransferError) return error.message;
   return error instanceof BbHttpError
     ? getMutationErrorMessage({ error, fallbackMessage: "Request failed" })
     : null;
@@ -142,7 +147,14 @@ export function useDraftAttachmentUploads({
         uploads: startUploads(files),
         target: activeTarget,
         upload: (file) =>
-          uploadPromptAttachment.mutateAsync({ projectId, file }),
+          uploadOrTransferAttachment({
+            file,
+            upload: (uploadFile) =>
+              uploadPromptAttachment.mutateAsync({
+                projectId,
+                file: uploadFile,
+              }),
+          }),
         getCurrentTarget: () => targetRef.current,
         onUploadSettled: (upload) => finishUploads([upload]),
       });

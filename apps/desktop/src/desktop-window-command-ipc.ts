@@ -22,6 +22,8 @@ export const BB_DESKTOP_ENVIRONMENT_CHANGED_CHANNEL =
   "bb-desktop:environment-changed";
 export const BB_DESKTOP_OPEN_ENVIRONMENT_MENU_CHANNEL =
   "bb-desktop:open-environment-menu";
+export const BB_DESKTOP_TRANSFER_TO_ENVIRONMENT_CHANNEL =
+  "bb-desktop:transfer-to-environment";
 export const BB_DESKTOP_OPEN_WINDOW_FIND_CHANNEL =
   "bb-desktop:open-window-find";
 export const BB_DESKTOP_RELOAD_WINDOW_CHANNEL = "bb-desktop:reload-window";

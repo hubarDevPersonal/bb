@@ -4,6 +4,7 @@ import type { BbDesktopBrowserApi } from "./browser.js";
 import type {
   BbDesktopEnvironment,
   BbDesktopEnvironmentChangeHandler,
+  BbDesktopEnvironmentTransferResult,
 } from "./environment.js";
 import type { BbDesktopWindowFindRequest } from "./find.js";
 import { bbDesktopVersionFeedPlatformSchema } from "./version-feed.js";
@@ -82,6 +83,10 @@ export interface BbDesktopApi extends BbDesktopInfo {
     listener: BbDesktopEnvironmentChangeHandler,
   ): BbDesktopInfoUnsubscribe;
   openEnvironmentMenu?(position: { x: number; y: number }): void;
+  transferFileToEnvironment?(
+    file: File,
+    options: { maxUploadBytes: number },
+  ): Promise<BbDesktopEnvironmentTransferResult>;
   installUpdate(): Promise<void>;
   macosTrafficLightInset?: number;
   macosTrafficLightTopInset?: number;

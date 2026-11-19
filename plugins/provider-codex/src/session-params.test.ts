@@ -748,6 +748,12 @@ describe("toCodexUserInput", () => {
       { type: "localImage", path: "/tmp/shot.png" },
       { type: "localFile", path: "/tmp/notes.md" },
       { type: "localFile", path: "/tmp/paste.txt", name: "Pasted text 2.txt" },
+      {
+        type: "localFile",
+        path: "/home/me/bb-drops/x/site",
+        name: "site",
+        mimeType: "inode/directory",
+      },
     ];
 
     expect(toCodexUserInput(input)).toEqual([
@@ -762,6 +768,11 @@ describe("toCodexUserInput", () => {
       {
         type: "text",
         text: '[Attached file "Pasted text 2.txt": /tmp/paste.txt]',
+        text_elements: [],
+      },
+      {
+        type: "text",
+        text: '[Attached folder "site": /home/me/bb-drops/x/site]',
         text_elements: [],
       },
     ]);
