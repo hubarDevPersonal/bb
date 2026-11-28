@@ -1,0 +1,49 @@
+/*
+ * «Новогодняя» — frosty white with deep navy ink by day, midnight blue with
+ * warm-white ink by night, warm gold as the accent. Only the anchors and
+ * semantic colors are set; bb derives its neutral ramp from --canvas/--ink.
+ */
+:root, .light {
+  --bb-festive-theme: 1;
+  --canvas: oklch(0.985 0.006 240);
+  --ink: oklch(0.28 0.035 258);
+  --primary: oklch(0.5 0.1 68);
+  --primary-foreground: var(--canvas);
+  --muted-foreground: color-mix(in oklch, var(--ink) 80%, var(--canvas));
+  --subtle-foreground: color-mix(in oklch, var(--ink) 68%, var(--canvas));
+  --readback-foreground: color-mix(in oklch, var(--ink) 74%, var(--canvas));
+  --timeline-accent: oklch(0.5 0.11 245);
+  --file-accent: var(--timeline-accent);
+  --destructive: oklch(0.5 0.16 24);
+  --destructive-text: oklch(0.47 0.15 24);
+  --warning: oklch(0.66 0.14 55);
+  --warning-text: oklch(0.5 0.11 50);
+  --attention: oklch(0.8 0.13 84);
+  --success: oklch(0.6 0.11 158);
+  --success-foreground: oklch(0.47 0.1 158);
+  --diff-added: oklch(0.55 0.11 152);
+  --diff-removed: var(--destructive);
+  --pr-merged: oklch(0.52 0.12 300);
+}
+.dark {
+  --bb-festive-theme: 1;
+  --canvas: oklch(0.19 0.013 266);
+  --ink: oklch(0.91 0.022 85);
+  --primary: oklch(0.83 0.11 84);
+  --primary-foreground: var(--canvas);
+  --muted-foreground: color-mix(in oklch, var(--ink) 84%, var(--canvas));
+  --subtle-foreground: color-mix(in oklch, var(--ink) 72%, var(--canvas));
+  --readback-foreground: color-mix(in oklch, var(--ink) 78%, var(--canvas));
+  --timeline-accent: oklch(0.78 0.08 235);
+  --file-accent: var(--timeline-accent);
+  --destructive: oklch(0.62 0.17 24);
+  --destructive-text: oklch(0.76 0.12 24);
+  --warning: oklch(0.73 0.13 60);
+  --warning-text: oklch(0.81 0.1 65);
+  --attention: oklch(0.85 0.13 86);
+  --success: oklch(0.77 0.12 158);
+  --success-foreground: oklch(0.77 0.12 158);
+  --diff-added: oklch(0.75 0.12 152);
+  --diff-removed: var(--destructive);
+  --pr-merged: oklch(0.75 0.1 300);
+}

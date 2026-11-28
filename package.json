@@ -1,0 +1,44 @@
+{
+  "name": "bb-plugin-festive",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "bb": ">=0.49",
+    "bbPluginSdk": ">=0.6.132"
+  },
+  "bb": {
+    "name": "Festive",
+    "description": "Новогодние шапочки, снежинки и немного снега на иконках bb — с 15 декабря по 14 января.",
+    "branding": {
+      "icon": "./icons/snowflake.svg"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": [],
+    "themes": [
+      {
+        "id": "new-year",
+        "name": "Новогодняя",
+        "description": "Морозный белый днём, полночно-синий ночью, тёплое золото в акцентах.",
+        "css": "./themes/new-year.css"
+      }
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.6.132",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^22.20.7",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^26.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.4"
+  }
+}
